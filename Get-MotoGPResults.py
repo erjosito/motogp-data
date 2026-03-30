@@ -156,9 +156,11 @@ LAP_RE = re.compile(
     r"(\d+\.?\d*)"                                 # speed
 )
 
-# Rider header: "Name CONSTRUCTOR NAT" followed on next line by "Pos# Number"
+# Rider header: "Firstname SURNAME CONSTRUCTOR NAT"
+# Name must have at least two words (first + last) to avoid matching team names
+# like "Pro Honda LCR" as a rider.
 RIDER_HEADER_RE = re.compile(
-    r"^([A-Z][a-zA-ZÀ-ÿ\s\-']+?)\s+"            # rider name
+    r"^([A-Z][a-zA-ZÀ-ÿ]+\s+[A-Za-zÀ-ÿ\s\-']+?)\s+"  # rider name (2+ words)
     r"(APRILIA|DUCATI|HONDA|KTM|YAMAHA|"
     r"Aprilia|Ducati|Honda|KTM|Yamaha|"
     r"KALEX|Kalex|BOSCOSCURO|Boscoscuro|"
