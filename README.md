@@ -197,6 +197,13 @@ is a reconstruction, not official live timing: each lap requires complete times
 for every rider whose classification reports reaching that lap. Missing data is
 not replaced with final finishing positions, and Q2 is not treated as a grid.
 
+All dashboard selectors, analytics, and coverage counts use the same premier-class
+session scope: `MotoGP` (with or without the trademark suffix, ignoring case and
+surrounding spaces) and historical `500cc`. Moto2, Moto3, and unknown source
+categories are excluded and listed in a sidebar notice. Source labels are not
+rewritten. The read-only query layer applies this scope through a SQL CTE, so no
+schema migration or dashboard write permission is required.
+
 ```powershell
 python -m unittest test_dashboard test_motogp_results
 ```

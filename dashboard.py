@@ -101,6 +101,17 @@ def q(sql, params=None):
         st.stop()
 
 
+PREMIER_CATEGORY = "LOWER(REPLACE(LTRIM(RTRIM(category)), N'™', N'')) IN ('motogp', '500cc')"
+
+
+def premier_q(sql, params=None):
+    """Scope every reference to sessions, including subqueries, to the premier class."""
+    return q(
+        f"WITH sessions AS (SELECT * FROM dbo.sessions WHERE {PREMIER_CATEGORY})\n{sql}",
+        params,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -262,7 +273,17 @@ def open_championship(year):
 # Sidebar — global filters
 # ---------------------------------------------------------------------------
 
-years_df = q("SELECT DISTINCT season_year FROM events ORDER BY season_year DESC")
+excluded_categories = q(
+    f"SELECT DISTINCT category FROM sessions WHERE category IS NULL OR NOT ({PREMIER_CATEGORY})"
+)
+if not excluded_categories.empty:
+    st.sidebar.warning(t("excluded_categories", categories=", ".join(
+        excluded_categories["category"].fillna("?").astype(str)
+    )))
+years_df = premier_q(
+    "SELECT DISTINCT season_year FROM events WHERE EXISTS "
+    "(SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) ORDER BY season_year DESC"
+)
 if years_df.empty:
     st.warning(t("no_data_load"))
     st.stop()
@@ -303,15 +324,17 @@ else:
     all_years = False
 
 if all_years:
-    events_df = q(
+    events_df = premier_q(
         "SELECT event_id, short_name, event_name, sponsored_name, circuit_name, "
         "circuit_place, country_name, date_end, season_year "
-        "FROM events ORDER BY date_end")
+        "FROM events WHERE EXISTS (SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) "
+        "ORDER BY date_end")
 else:
-    events_df = q(
+    events_df = premier_q(
         "SELECT event_id, short_name, event_name, sponsored_name, circuit_name, "
         "circuit_place, country_name, date_end, season_year "
-        "FROM events WHERE season_year = ? ORDER BY date_end", [selected_year])
+        "FROM events WHERE season_year = ? AND EXISTS "
+        "(SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) ORDER BY date_end", [selected_year])
 
 sel_session = None
 event = None
@@ -350,10 +373,10 @@ if needs_session:
         st.session_state.sel_event_id = event.event_id
 
     if not all_events and event is not None:
-        sessions_df = q(
+        sessions_df = premier_q(
             "SELECT session_id, session_type, session_number, session_label, "
             "session_date, weather, air_temp, ground_temp "
-            "FROM sessions WHERE event_id = ? AND category = 'MotoGP™' ORDER BY session_date",
+            "FROM sessions WHERE event_id = ? ORDER BY session_date",
             [event.event_id])
         if sessions_df.empty:
             st.warning(t("no_sessions")); st.stop()
@@ -418,8 +441,9 @@ _LAPS_CTX = ("e.season_year AS season, e.short_name AS gp, s.session_label AS se
 
 @st.cache_data(ttl=300)
 def load_laps(sid):
-    df = q(f"SELECT {_LAPS_COLS} "
+    df = premier_q(f"SELECT {_LAPS_COLS} "
            "FROM laps l JOIN riders r ON l.rider_id = r.rider_id "
+           "JOIN sessions s ON l.session_id = s.session_id "
            "WHERE l.session_id = ? ORDER BY r.full_name, l.lap_number", [sid])
     if not df.empty:
         df["lap_sec"] = df["lap_time"].apply(lap_to_sec)
@@ -432,25 +456,24 @@ def load_laps(sid):
 def load_laps_multi(event_id=None, year=None):
     """Load laps across multiple sessions with context columns."""
     if event_id:
-        df = q(f"SELECT {_LAPS_COLS}, {_LAPS_CTX} "
+        df = premier_q(f"SELECT {_LAPS_COLS}, {_LAPS_CTX} "
                "FROM laps l JOIN riders r ON l.rider_id = r.rider_id "
                "JOIN sessions s ON l.session_id = s.session_id "
                "JOIN events e ON s.event_id = e.event_id "
-               "WHERE s.event_id = ? AND s.category = 'MotoGP™' "
+               "WHERE s.event_id = ? "
                "ORDER BY r.full_name, s.session_date, l.lap_number", [event_id])
     elif year and year != "All":
-        df = q(f"SELECT {_LAPS_COLS}, {_LAPS_CTX} "
+        df = premier_q(f"SELECT {_LAPS_COLS}, {_LAPS_CTX} "
                "FROM laps l JOIN riders r ON l.rider_id = r.rider_id "
                "JOIN sessions s ON l.session_id = s.session_id "
                "JOIN events e ON s.event_id = e.event_id "
-               "WHERE e.season_year = ? AND s.category = 'MotoGP™' "
+               "WHERE e.season_year = ? "
                "ORDER BY r.full_name, e.date_end, s.session_date, l.lap_number", [year])
     else:
-        df = q(f"SELECT {_LAPS_COLS}, {_LAPS_CTX} "
+        df = premier_q(f"SELECT {_LAPS_COLS}, {_LAPS_CTX} "
                "FROM laps l JOIN riders r ON l.rider_id = r.rider_id "
                "JOIN sessions s ON l.session_id = s.session_id "
                "JOIN events e ON s.event_id = e.event_id "
-               "WHERE s.category = 'MotoGP™' "
                "ORDER BY r.full_name, e.date_end, s.session_date, l.lap_number")
     if not df.empty:
         df["lap_sec"] = df["lap_time"].apply(lap_to_sec)
@@ -461,17 +484,18 @@ def load_laps_multi(event_id=None, year=None):
 
 @st.cache_data(ttl=300)
 def load_class(sid, yr):
-    return q("SELECT c.position, r.full_name AS rider, r.number AS num, "
+    return premier_q("SELECT c.position, r.full_name AS rider, r.number AS num, "
              "t.team_name, t.constructor, c.total_laps, c.time_text, c.gap_first, "
              "c.best_lap_time, c.top_speed, c.points, c.status "
              "FROM classifications c JOIN riders r ON c.rider_id = r.rider_id "
+             "JOIN sessions s ON c.session_id = s.session_id "
              "LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = ? "
              "WHERE c.session_id = ? ORDER BY CASE WHEN c.position IS NULL THEN 1 ELSE 0 END, c.position", [yr, sid])
 
 
 @st.cache_data(ttl=300)
 def load_championship(year):
-    return q("""
+    return premier_q("""
         SELECT e.short_name, e.date_end, r.full_name AS rider,
             SUM(cl.points) AS race_pts
         FROM classifications cl
@@ -629,19 +653,31 @@ if viz == "🏠 Home":
 
     st.header(t("home_title"))
 
-    stats = q("""
+    stats = premier_q("""
         SELECT
-            (SELECT COUNT(*) FROM events) AS n_events,
+            (SELECT COUNT(*) FROM events e WHERE EXISTS
+                (SELECT 1 FROM sessions s WHERE s.event_id = e.event_id)) AS n_events,
             (SELECT COUNT(*) FROM sessions) AS n_sessions,
-            (SELECT COUNT(*) FROM classifications) AS n_classifications,
-            (SELECT COUNT(*) FROM laps) AS n_laps,
-            (SELECT COUNT(*) FROM riders) AS n_riders,
-            (SELECT COUNT(*) FROM teams) AS n_teams,
-            (SELECT COUNT(DISTINCT season_year) FROM events) AS n_seasons,
-            (SELECT MIN(season_year) FROM events) AS min_year,
-            (SELECT MAX(season_year) FROM events) AS max_year,
-            (SELECT COUNT(DISTINCT circuit_name) FROM events) AS n_circuits,
-            (SELECT COUNT(DISTINCT country_name) FROM events) AS n_countries
+            (SELECT COUNT(*) FROM classifications c JOIN sessions s ON c.session_id = s.session_id) AS n_classifications,
+            (SELECT COUNT(*) FROM laps l JOIN sessions s ON l.session_id = s.session_id) AS n_laps,
+            (SELECT COUNT(DISTINCT rider_id) FROM (
+                SELECT c.rider_id FROM classifications c JOIN sessions s ON c.session_id = s.session_id
+                UNION SELECT l.rider_id FROM laps l JOIN sessions s ON l.session_id = s.session_id
+            ) participants) AS n_riders,
+            (SELECT COUNT(*) FROM teams t WHERE EXISTS (
+                SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id
+                JOIN events e ON s.event_id = e.event_id
+                WHERE c.team_id = t.team_id AND e.season_year = t.season_year)) AS n_teams,
+            (SELECT COUNT(DISTINCT season_year) FROM events e WHERE EXISTS
+                (SELECT 1 FROM sessions s WHERE s.event_id = e.event_id)) AS n_seasons,
+            (SELECT MIN(season_year) FROM events e WHERE EXISTS
+                (SELECT 1 FROM sessions s WHERE s.event_id = e.event_id)) AS min_year,
+            (SELECT MAX(season_year) FROM events e WHERE EXISTS
+                (SELECT 1 FROM sessions s WHERE s.event_id = e.event_id)) AS max_year,
+            (SELECT COUNT(DISTINCT circuit_name) FROM events e WHERE EXISTS
+                (SELECT 1 FROM sessions s WHERE s.event_id = e.event_id)) AS n_circuits,
+            (SELECT COUNT(DISTINCT country_name) FROM events e WHERE EXISTS
+                (SELECT 1 FROM sessions s WHERE s.event_id = e.event_id)) AS n_countries
     """)
     s = stats.iloc[0]
 
@@ -662,7 +698,11 @@ if viz == "🏠 Home":
 
     with col_left:
         st.subheader(t("races_per_season"))
-        evts_yr = q("SELECT season_year AS Year, COUNT(*) AS Events FROM events GROUP BY season_year ORDER BY season_year")
+        evts_yr = premier_q(
+            "SELECT season_year AS Year, COUNT(*) AS Events FROM events WHERE EXISTS "
+            "(SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) "
+            "GROUP BY season_year ORDER BY season_year"
+        )
         evts_yr["Year"] = evts_yr["Year"].astype(str)
         fig = px.bar(evts_yr, x="Year", y="Events", text="Events",
                      color="Events", color_continuous_scale="Blues")
@@ -673,7 +713,7 @@ if viz == "🏠 Home":
 
     with col_right:
         st.subheader(t("laps_per_season"))
-        data_cov = q("""
+        data_cov = premier_q("""
             SELECT e.season_year AS Year, COUNT(*) AS Laps,
                 SUM(CASE WHEN l.t1 IS NOT NULL THEN 1 ELSE 0 END) AS With_Sectors
             FROM laps l JOIN sessions s ON l.session_id = s.session_id
@@ -706,7 +746,7 @@ if viz == "🏠 Home":
 
     with col_a:
         st.subheader(t("top_riders_wins"))
-        wins = q("""
+        wins = premier_q("""
             SELECT TOP 10 r.full_name AS Rider, COUNT(*) AS Wins
             FROM classifications c
             JOIN sessions s ON c.session_id = s.session_id
@@ -724,7 +764,7 @@ if viz == "🏠 Home":
 
     with col_b:
         st.subheader(t("constructors_wins"))
-        const_wins = q("""
+        const_wins = premier_q("""
             SELECT t.constructor AS Constructor, COUNT(*) AS Wins
             FROM classifications c
             JOIN sessions s ON c.session_id = s.session_id
@@ -745,15 +785,16 @@ if viz == "🏠 Home":
 
     with col_x:
         st.subheader(t("countries_visited"))
-        countries = q("""
+        countries = premier_q("""
             SELECT country_name AS Country, COUNT(*) AS Races
-            FROM events GROUP BY country_name ORDER BY Races DESC
+            FROM events WHERE EXISTS (SELECT 1 FROM sessions s WHERE s.event_id = events.event_id)
+            GROUP BY country_name ORDER BY Races DESC
         """)
         st.dataframe(countries, width="stretch", hide_index=True, height=300)
 
     with col_y:
         st.subheader(t("sessions_by_type"))
-        sess_types = q("""
+        sess_types = premier_q("""
             SELECT session_type AS Type,
                 CASE session_type
                     WHEN 'FP' THEN 'Free Practice'
@@ -782,14 +823,14 @@ if viz == "🏠 Home":
     st.subheader(t("data_quality_title"))
     st.caption(t("data_quality_caption"))
 
-    dq = q("""
+    dq = premier_q("""
         SELECT e.season_year AS Year,
             COUNT(DISTINCT e.event_id) AS Events,
             COUNT(DISTINCT s.session_id) AS Sessions,
             (SELECT COUNT(*) FROM classifications c2 
              JOIN sessions s2 ON c2.session_id = s2.session_id
              JOIN events e2 ON s2.event_id = e2.event_id
-             WHERE e2.season_year = e.season_year AND s2.category = 'MotoGP™') AS Classifications,
+             WHERE e2.season_year = e.season_year) AS Classifications,
             (SELECT COUNT(*) FROM laps l2 
              JOIN sessions s2 ON l2.session_id = s2.session_id
              JOIN events e2 ON s2.event_id = e2.event_id
@@ -799,7 +840,7 @@ if viz == "🏠 Home":
              JOIN events e3 ON s3.event_id = e3.event_id
              WHERE e3.season_year = e.season_year AND l3.t1 IS NOT NULL) AS Sectors
         FROM events e
-        JOIN sessions s ON s.event_id = e.event_id AND s.category = 'MotoGP™'
+        JOIN sessions s ON s.event_id = e.event_id
         GROUP BY e.season_year ORDER BY e.season_year
     """)
     if not dq.empty:
@@ -1110,7 +1151,7 @@ elif viz == "🧙 Tyre Whisperers":
     st.caption(t("tyre_whisperer_caption"))
 
     # Load all race laps for the season
-    race_laps = q("""
+    race_laps = premier_q("""
         SELECT e.short_name AS gp, e.date_end, s.session_id,
             r.full_name AS rider, l.lap_number, l.lap_time, l.speed_kmh
         FROM laps l
@@ -1118,7 +1159,7 @@ elif viz == "🧙 Tyre Whisperers":
         JOIN sessions s ON l.session_id = s.session_id
         JOIN events e ON s.event_id = e.event_id
         WHERE e.season_year = ? AND s.session_type = 'RAC'
-            AND s.category = 'MotoGP™' AND l.is_pit = 0
+            AND l.is_pit = 0
         ORDER BY e.date_end, r.full_name, l.lap_number
     """, [selected_year])
 
@@ -1415,7 +1456,7 @@ elif viz == "🔧 Reliability":
         st.info(t("select_season")); st.stop()
 
     ph = ",".join("?" * len(sel_years))
-    rel = q(f"""
+    rel = premier_q(f"""
         SELECT e.season_year, r.full_name AS rider, cl.status, COUNT(*) AS cnt
         FROM classifications cl
         JOIN sessions s ON cl.session_id = s.session_id
@@ -1512,7 +1553,7 @@ elif viz == "🏢 Teams & Constructors":
     if tc_tab == t("teams_label"):
         st.subheader(t("team_performance"))
 
-        team_pts = q("""
+        team_pts = premier_q("""
             SELECT t.team_name AS Team, r.full_name AS Rider,
                 SUM(c.points) AS Points
             FROM classifications c
@@ -1542,7 +1583,7 @@ elif viz == "🏢 Teams & Constructors":
 
         # Team championship progression
         st.subheader(t("team_progression"))
-        team_prog = q("""
+        team_prog = premier_q("""
             SELECT e.short_name, e.date_end, t.team_name AS Team,
                 SUM(c.points) AS pts
             FROM classifications c
@@ -1582,7 +1623,7 @@ elif viz == "🏢 Teams & Constructors":
         st.subheader(t("constructor_performance"))
         st.caption(t("constructor_performance_caption"))
 
-        const_data = q("""
+        const_data = premier_q("""
             SELECT t.constructor AS Constructor, r.full_name AS Rider,
                 SUM(c.points) AS Points
             FROM classifications c
@@ -1639,7 +1680,7 @@ elif viz == "🏢 Teams & Constructors":
 
         # Constructor comparison across years
         st.subheader(t("constructor_avg_across_seasons"))
-        const_multi = q("""
+        const_multi = premier_q("""
             SELECT e.season_year AS Year, t.constructor AS Constructor,
                 AVG(sub.rider_pts) AS Avg_Per_Rider
             FROM (
@@ -1693,7 +1734,7 @@ elif viz == "🏁 Grid Advantage":
     stype_filter = {t("main_race"): "('RAC')", t("sprint_race"): "('SPR')", t("both"): "('RAC','SPR')"}[race_type]
     ph = ",".join("?" * len(sel_yrs))
 
-    grid_data = q(f"""
+    grid_data = premier_q(f"""
         SELECT grid.season_year, grid.event_id, grid.rider_id, grid.grid_pos, race.finish_pos
         FROM (
             SELECT e.season_year, e.event_id, c.rider_id, c.position AS grid_pos
@@ -1847,7 +1888,7 @@ elif viz == "🏟 Circuits":
     st.header(t("circuit_analysis_header"))
 
     # Load all circuit + race data
-    circuit_data = q("""
+    circuit_data = premier_q("""
         SELECT e.circuit_name, e.short_name, e.circuit_place, e.country_name,
             e.season_year, r.full_name AS rider, t.constructor,
             COALESCE(ta.canonical_name, t.team_name) AS team_name,
@@ -1952,7 +1993,7 @@ elif viz == "🏟 Circuits":
 
     # --- Lap time evolution (from laps table, not classification) ---
     st.subheader(t("winning_pace_evolution"))
-    bl = q("""
+    bl = premier_q("""
         SELECT e.season_year, r.full_name AS rider, MIN(l.lap_time) AS best_lap
         FROM laps l
         JOIN sessions s ON l.session_id = s.session_id
@@ -1980,7 +2021,7 @@ elif viz == "🏟 Circuits":
 
     # --- Top speed evolution (from laps table) ---
     st.subheader(t("top_speed_circuit"))
-    ts = q("""
+    ts = premier_q("""
         SELECT e.season_year, MAX(l.speed_kmh) AS max_speed, AVG(l.speed_kmh) AS avg_speed
         FROM laps l
         JOIN sessions s ON l.session_id = s.session_id
@@ -2047,7 +2088,7 @@ elif viz == "🏅 Pilot Rankings":
     st.caption(t("pilot_rankings_caption"))
 
     # Load comprehensive rider stats
-    pstats = q("""
+    pstats = premier_q("""
         SELECT r.full_name AS rider, r.nationality,
             COUNT(CASE WHEN s.session_type = 'RAC' THEN 1 END) AS race_starts,
             COUNT(CASE WHEN s.session_type = 'SPR' THEN 1 END) AS sprint_starts,
@@ -2072,7 +2113,7 @@ elif viz == "🏅 Pilot Rankings":
         st.info(t("no_data")); st.stop()
 
     # Compute championships won per rider
-    champs = q("""
+    champs = premier_q("""
         SELECT rider, COUNT(*) AS championships FROM (
             SELECT e.season_year, r.full_name AS rider, SUM(c.points) AS pts,
                 RANK() OVER (PARTITION BY e.season_year ORDER BY SUM(c.points) DESC) AS rnk
@@ -2230,13 +2271,17 @@ elif viz == "🏅 Pilot Rankings":
 # =====================================================================
 elif viz == "👤 Pilot Profile":
     st.header(t("pilot_profile_header"))
-    riders_all = q("SELECT DISTINCT full_name FROM riders ORDER BY full_name")
+    riders_all = premier_q(
+        "SELECT DISTINCT full_name FROM riders r WHERE EXISTS "
+        "(SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id "
+        "WHERE c.rider_id = r.rider_id) ORDER BY full_name"
+    )
     if riders_all.empty:
         st.info(t("no_riders")); st.stop()
     pilot = st.sidebar.selectbox(t("rider"), riders_all["full_name"].tolist())
 
     # Season filter with "All"
-    pilot_years = q("SELECT DISTINCT e.season_year FROM classifications c "
+    pilot_years = premier_q("SELECT DISTINCT e.season_year FROM classifications c "
                     "JOIN sessions s ON c.session_id = s.session_id "
                     "JOIN events e ON s.event_id = e.event_id "
                     "JOIN riders r ON c.rider_id = r.rider_id "
@@ -2247,7 +2292,7 @@ elif viz == "👤 Pilot Profile":
     yr_sel = st.sidebar.selectbox(t("season"), ["All"] + py_list, key="pp_yr")
     filter_year = None if yr_sel == "All" else yr_sel
 
-    career = q("""
+    career = premier_q("""
         SELECT e.season_year, e.short_name, e.date_end, s.session_type, s.session_label,
             c.position, c.points, c.best_lap_time, c.top_speed, c.status,
             COALESCE(ta.canonical_name, t.team_name) AS team_name, t.constructor, e.circuit_name
@@ -2433,10 +2478,14 @@ elif viz == "👤 Pilot Profile":
 
     # --- Head-to-head ---
     st.subheader(t("head_to_head"))
-    others = q("SELECT DISTINCT full_name FROM riders WHERE full_name != ? ORDER BY full_name", [pilot])
+    others = premier_q(
+        "SELECT DISTINCT full_name FROM riders r WHERE full_name != ? AND EXISTS "
+        "(SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id "
+        "WHERE c.rider_id = r.rider_id) ORDER BY full_name", [pilot]
+    )
     if not others.empty:
         rival = st.selectbox(t("compare_with"), others["full_name"].tolist())
-        rival_races = q("""
+        rival_races = premier_q("""
             SELECT e.season_year, e.short_name, e.date_end, c.position
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
@@ -2503,7 +2552,7 @@ elif viz == "📈 Cross-Year":
 
         if race_metric in [t("constructor_wins"), t("constructor_points")]:
             is_wins = race_metric == t("constructor_wins")
-            cdata = q("""
+            cdata = premier_q("""
                 SELECT e.season_year, e.short_name, e.date_end, t.constructor AS Item,
                     COUNT(CASE WHEN c.position = 1 AND s.session_type = 'RAC' THEN 1 END) AS wins,
                     SUM(c.points) AS pts
@@ -2521,7 +2570,7 @@ elif viz == "📈 Cross-Year":
 
         else:
             is_wins = race_metric == t("rider_wins")
-            cdata = q("""
+            cdata = premier_q("""
                 SELECT e.season_year, e.short_name, e.date_end, r.full_name AS Item,
                     COUNT(CASE WHEN c.position = 1 AND s.session_type = 'RAC' THEN 1 END) AS wins,
                     SUM(c.points) AS pts
@@ -2688,7 +2737,7 @@ elif viz == "📈 Cross-Year":
         st.caption(t("bump_chart_caption"))
         bump_yr = st.selectbox(t("season"), year_list, key="bump_yr")
 
-        bump = q("""
+        bump = premier_q("""
             SELECT e.short_name, e.date_end, r.full_name AS rider,
                 SUM(c.points) AS pts
             FROM classifications c
@@ -2750,7 +2799,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("championship_concentration"))
         st.caption(t("championship_concentration_caption"))
 
-        conc = q("""
+        conc = premier_q("""
             SELECT e.season_year, r.full_name AS rider, SUM(c.points) AS pts,
                 COUNT(CASE WHEN s.session_type = 'RAC' THEN 1 END) AS races,
                 COUNT(CASE WHEN s.session_type = 'SPR' THEN 1 END) AS sprints
@@ -2806,7 +2855,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("top_riders_evolution"))
         st.caption(t("top_riders_evolution_caption"))
 
-        rider_yr = q("""
+        rider_yr = premier_q("""
             SELECT e.season_year, r.full_name AS rider,
                 SUM(CASE WHEN s.session_type = 'RAC' THEN c.points ELSE 0 END) AS race_pts,
                 SUM(c.points) AS total_pts,
@@ -2870,7 +2919,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("team_evolution"))
         st.caption(t("team_evolution_caption"))
 
-        teams = q("""
+        teams = premier_q("""
             SELECT e.season_year, COALESCE(ta.canonical_name, t.team_name) AS Team,
                 SUM(c.points) AS total_pts,
                 COUNT(CASE WHEN c.position = 1 AND s.session_type = 'RAC' THEN 1 END) AS wins,
@@ -2927,7 +2976,7 @@ elif viz == "📈 Cross-Year":
     elif cross == t("cross_constructor_evolution"):
         st.subheader(t("constructor_evolution"))
 
-        const = q("""
+        const = premier_q("""
             SELECT e.season_year, t.constructor,
                 COUNT(DISTINCT r.rider_id) AS riders,
                 SUM(c.points) AS total_pts,
@@ -2973,7 +3022,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("rider_career_tracker"))
         st.caption(t("rider_career_caption"))
 
-        all_riders = q("""
+        all_riders = premier_q("""
             SELECT r.full_name, COUNT(DISTINCT e.season_year) AS seasons,
                 SUM(CASE WHEN s.session_type = 'RAC' AND c.position = 1 THEN 1 ELSE 0 END) AS wins
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
@@ -2993,7 +3042,7 @@ elif viz == "📈 Cross-Year":
             st.info(t("select_rider")); st.stop()
 
         ph = ",".join("?" * len(sel_riders))
-        rd = q(f"""
+        rd = premier_q(f"""
             SELECT e.season_year, r.full_name AS rider,
                 SUM(c.points) AS pts,
                 COUNT(CASE WHEN s.session_type = 'RAC' AND c.position = 1 THEN 1 END) AS wins,
@@ -3053,7 +3102,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("qualifying_vs_race"))
         st.caption(t("qualifying_vs_race_caption"))
 
-        qvr = q("""
+        qvr = premier_q("""
             SELECT e.season_year, e.short_name, r.full_name AS rider,
                 grid.grid_pos, race.finish_pos
             FROM (
@@ -3126,7 +3175,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("dnf_safety_trends"))
         st.caption(t("dnf_safety_caption"))
 
-        dnf = q("""
+        dnf = premier_q("""
             SELECT e.season_year, cl.status, COUNT(*) AS cnt
             FROM classifications cl
             JOIN sessions s ON cl.session_id = s.session_id
@@ -3160,11 +3209,10 @@ elif viz == "📈 Cross-Year":
         st.plotly_chart(fig, width="stretch")
 
         # Avg DNFs per race
-        races_per_yr = q("""
+        races_per_yr = premier_q("""
             SELECT e.season_year, COUNT(DISTINCT s.session_id) AS n_races
             FROM sessions s JOIN events e ON s.event_id = e.event_id
-            WHERE s.session_type = 'RAC' AND s.category = 'MotoGP™'
-            GROUP BY e.season_year
+            WHERE s.session_type = 'RAC' GROUP BY e.season_year
         """)
         dnf_counts = yr_totals[yr_totals["outcome"].isin(["DNF", "DNF Lap 1"])].groupby("Year")["cnt"].sum().reset_index()
         dnf_counts["Year_int"] = dnf_counts["Year"].astype(int)
@@ -3192,7 +3240,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("pole_position_trends"))
         st.caption(t("pole_caption"))
 
-        poles = q("""
+        poles = premier_q("""
             SELECT e.season_year, r.full_name AS rider, t.constructor,
                 COUNT(*) AS poles
             FROM classifications c
@@ -3238,7 +3286,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("race_competitiveness"))
         st.caption(t("race_competitiveness_caption"))
 
-        comp = q("""
+        comp = premier_q("""
             SELECT e.season_year, e.short_name, r.full_name AS rider,
                 c.position, c.gap_first
             FROM classifications c
@@ -3294,7 +3342,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("season_dominance_index"))
         st.caption(t("season_dominance_caption"))
 
-        champ = q("""
+        champ = premier_q("""
             SELECT e.season_year, r.full_name AS rider,
                 SUM(c.points) AS pts,
                 COUNT(CASE WHEN c.position = 1 THEN 1 END) AS wins,
@@ -3357,7 +3405,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("nationality_trends"))
         st.caption(t("nationality_trends_caption"))
 
-        nat = q("""
+        nat = premier_q("""
             SELECT e.season_year, r.nationality AS country,
                 COUNT(DISTINCT r.rider_id) AS riders,
                 SUM(c.points) AS pts,
@@ -3407,7 +3455,7 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("circuit_pace_evolution"))
         st.caption(t("circuit_pace_caption"))
 
-        pace = q("""
+        pace = premier_q("""
             SELECT e.season_year, e.short_name, r.full_name AS rider, c.best_lap_time
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
