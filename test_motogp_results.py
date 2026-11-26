@@ -13,6 +13,14 @@ spec.loader.exec_module(motogp)
 
 
 class LatestRaceEventTests(unittest.TestCase):
+    def test_preserves_historical_500cc_category_alias(self):
+        with patch.object(
+            motogp, "api_get", return_value=[{"id": "historical", "name": "500cc"}]
+        ):
+            self.assertEqual(
+                motogp.get_category_id("event", "MotoGP"), ("historical", "500cc")
+            )
+
     def test_skips_event_without_finished_main_race(self):
         events = [
             {"id": "portugal", "date_end": "2026-11-22"},
@@ -90,6 +98,25 @@ class AnalysisParserTests(unittest.TestCase):
         self.assertTrue(second["pit"])
         self.assertEqual(second["speed"], 340.6)
         self.assertEqual(second["T3"], "15.994")
+
+    def test_preserves_historical_rider_headers(self):
+        headers = [
+            ("1st 12 Maverick VINALES YAMAHA S\nMovistar Yamaha MotoGP\n",
+             "Maverick VINALES", 12),
+            ("Jorge LORENZO Movistar Yamaha Mot S\n1st 99\n",
+             "Jorge LORENZO", 99),
+            ("Marco BEZZECCHI APRILIA I\n1st 72\nAprilia Racing\n",
+             "Marco BEZZECCHI", 72),
+        ]
+        for header, name, number in headers:
+            with self.subTest(header=header):
+                riders = motogp.parse_analysis_column(
+                    header + "1 1'40.258 22.082 30.618 15.882 31.676 335.4\n"
+                )
+                self.assertEqual(len(riders), 1)
+                self.assertEqual(riders[0]["rider"], name)
+                self.assertEqual(riders[0]["number"], number)
+                self.assertEqual(len(riders[0]["laps"]), 1)
 
     def test_preserves_rider_and_tyre_state_across_columns_and_pages(self):
         texts = iter([

@@ -1,0 +1,9 @@
+requests
+openpyxl
+pdfplumber
+pyodbc
+streamlit
+plotly
+pandas
+statsmodels
+raceplotly

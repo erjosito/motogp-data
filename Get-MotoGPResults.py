@@ -105,6 +105,10 @@ def get_category_id(event_id: str, category_name: str) -> tuple[str, str]:
     if key in cat_map:
         c = cat_map[key]
         return c["id"], c["name"]
+    # "MotoGP" was called "500cc" before 2002
+    if key == "motogp" and "500cc" in cat_map:
+        c = cat_map["500cc"]
+        return c["id"], c["name"]
     raise SystemExit(
         f"Category '{category_name}' not found. Available: {[c['name'] for c in categories]}"
     )
@@ -171,12 +175,37 @@ RIDER_HEADER_RE = re.compile(
     r"Aprilia|Ducati|Honda|KTM|Yamaha|"
     r"KALEX|Kalex|BOSCOSCURO|Boscoscuro|"
     r"HUSQVARNA|Husqvarna|GASGAS|GasGas|CFMOTO|CFMoto)\s+"
-    r"([A-Z]{2,3})$"                               # nationality code
+    r"([A-Z]{1,3})$"                               # nationality code (1-3 chars; cropped pages may truncate)
+)
+
+# Older format (pre-2024): "1st 12 Maverick VIÑALES YAMAHA S"
+# Position + number + name + constructor + nationality all on one line
+RIDER_HEADER_OLD_RE = re.compile(
+    r"^(\d+)\w*\s+"                                # position (1st, 2nd, 3rd, 4, 5...)
+    r"(\d+)\s+"                                    # rider number
+    r"([A-Z][a-zA-ZÀ-ÿ]+\s+[A-Za-zÀ-ÿ\s\-']+?)\s+"  # rider name (2+ words)
+    r"(APRILIA|DUCATI|HONDA|KTM|YAMAHA|"
+    r"Aprilia|Ducati|Honda|KTM|Yamaha|"
+    r"KALEX|Kalex|BOSCOSCURO|Boscoscuro|"
+    r"HUSQVARNA|Husqvarna|GASGAS|GasGas|CFMOTO|CFMoto)"
+    r"(?:\s+([A-Z]{1,3}))?$"                       # optional nationality (may be cropped)
+)
+
+# 2016-2017 format: "Jorge LORENZO Movistar Yamaha Mot S"
+# Name + team name (no constructor keyword) + optional nationality
+# Detected by: starts with FirstName SURNAME (surname has 2+ consecutive uppercase letters),
+# followed by team text, optionally ending with a 1-3 char nationality code.
+# Must be followed by a position line ("1st 99") on the next line.
+RIDER_HEADER_TEAM_RE = re.compile(
+    r"^([A-Z][a-zÀ-ÿ]+\s+"                        # first name (capitalized)
+    r"[A-ZÀ-Ÿ][A-ZÀ-Ÿa-zà-ÿ\-']+)"              # surname (starts uppercase)
+    r"\s+(.+?)"                                     # team name (anything)
+    r"(?:\s+([A-Z]{1,3}))?$"                        # optional nationality code
 )
 
 POSITION_RE = re.compile(r"^(\d+)\w*\s+(\d+)$")   # "1st 72" or "3 72"
 TEAM_RE = re.compile(r"^[A-Z].*(?:Racing|Team|Factory|Honda|Ducati|Aprilia|KTM|Yamaha|Castrol|Gresini|VR46|Trackhouse|Pertamina|Tech3|BK8|LCR|Pramac).*$", re.IGNORECASE)
-RUN_RE = re.compile(r"^Run\s*#\s*(\d+)\s+Front\s+Tyre\s+(\S+(?:-\S+)?)\s+Rear\s+Tyre\s+(\S+(?:-\S+)?)")
+RUN_RE = re.compile(r"^Run\s*#\s*(\d+)\s+Front\s+Tyre\s*(\S+(?:-\S+)?)\s+Rear\s+Tyre\s*(\S+(?:-\S+)?)")
 RUNS_META_RE = re.compile(r"Runs=(\d+)\s+Total laps=(\d+)")
 TYRE_STATUS_RE = re.compile(r"^(New|[0-9]+Laps at start)\s+Tyre\s+(New|[0-9]+Laps at start)\s+Tyre$")
 
@@ -210,7 +239,29 @@ def parse_analysis_column(text: str) -> list[dict]:
             i += 1
             continue
 
-        # Check for rider header
+        # Check for OLD format rider header (pre-2024):
+        # "1st 12 Maverick VIÑALES YAMAHA S"
+        m = RIDER_HEADER_OLD_RE.match(line)
+        if m:
+            if current_rider and current_rider["laps"]:
+                riders.append(current_rider)
+            current_rider = {
+                "rider": m.group(3).strip(),
+                "constructor": m.group(4).strip().upper(),
+                "nationality": (m.group(5) or "").strip(),
+                "position": int(m.group(1)),
+                "number": int(m.group(2)),
+                "team": "",
+                "laps": [],
+            }
+            current_run = 0
+            front_tyre = rear_tyre = ""
+            front_status = rear_status = ""
+            i += 1
+            continue
+
+        # Check for NEW format rider header (2024+):
+        # "Marco BEZZECCHI APRILIA ITA"
         m = RIDER_HEADER_RE.match(line)
         if m:
             if current_rider and current_rider["laps"]:
@@ -230,9 +281,33 @@ def parse_analysis_column(text: str) -> list[dict]:
             i += 1
             continue
 
-        # Check for position line (e.g. "1st 72")
+        # Check for 2016-2017 format: "Jorge LORENZO Movistar Yamaha Mot S"
+        # Confirmed by next line being a position line ("1st 99")
+        m = RIDER_HEADER_TEAM_RE.match(line)
+        if m and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            m_pos = POSITION_RE.match(next_line)
+            if m_pos:
+                if current_rider and current_rider["laps"]:
+                    riders.append(current_rider)
+                current_rider = {
+                    "rider": m.group(1).strip(),
+                    "constructor": "",
+                    "nationality": (m.group(3) or "").strip(),
+                    "position": int(m_pos.group(1)),
+                    "number": int(m_pos.group(2)),
+                    "team": m.group(2).strip(),
+                    "laps": [],
+                }
+                current_run = 0
+                front_tyre = rear_tyre = ""
+                front_status = rear_status = ""
+                i += 2  # skip both the rider line and position line
+                continue
+
+        # Check for position line (e.g. "1st 72") — only for new format
         m = POSITION_RE.match(line)
-        if m and current_rider:
+        if m and current_rider and current_rider["position"] is None:
             current_rider["position"] = int(m.group(1))
             current_rider["number"] = int(m.group(2))
             i += 1
