@@ -7,3 +7,6 @@ __pycache__/
 
 # Streamlit
 .streamlit/
+
+# Local Azure deployment state
+.azure/

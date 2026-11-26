@@ -8,6 +8,15 @@ $ACR = "motogpacr"
 $TAG = Get-Date -Format "yyyyMMddHHmmss"
 $IMAGE = "motogp-dashboard:$TAG"
 
+$principalId = az containerapp show --name $APP --resource-group $RG `
+    --query identity.principalId --output tsv
+if ($LASTEXITCODE -ne 0) {
+    throw "Cannot inspect container app identity. Check az login and the selected subscription."
+}
+if (-not $principalId) {
+    throw "Enable the app's system-assigned managed identity and grant SQL access first. See README.md."
+}
+
 Write-Host "Rebuilding and redeploying MotoGP Dashboard..." -ForegroundColor Cyan
 Write-Host "Image tag: $TAG"
 
@@ -24,6 +33,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "`n[2/2] Updating container app..." -ForegroundColor Yellow
 az containerapp update --name $APP --resource-group $RG `
     --image "$ACR.azurecr.io/$IMAGE" `
+    --set-env-vars "MOTOGP_SQL_AUTH=managed-identity" `
+    --remove-env-vars MOTOGP_SQL_CONN_STR `
     --output none 2>&1
 
 if ($LASTEXITCODE -eq 0) {

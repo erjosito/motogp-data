@@ -2,6 +2,7 @@ requests
 openpyxl
 pdfplumber
 pyodbc
+azure-identity
 streamlit
 plotly
 pandas
