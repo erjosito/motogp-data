@@ -1,3 +1,4 @@
+import ast
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -85,6 +86,20 @@ def sample_query(sql, conn=None, params=None):
 
 
 class DashboardTests(unittest.TestCase):
+    def test_podium_highlights_set_readable_foreground_and_background(self):
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        highlight = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "hl_champ"
+        )
+        namespace = {}
+        exec(compile(ast.Module(body=[highlight], type_ignores=[]), str(DASHBOARD), "exec"), namespace)
+        for position in [1, 2, 3]:
+            styles = namespace["hl_champ"](pd.Series({"Pos": position, "Points": 50}))
+            self.assertTrue(all("background-color:" in style and "color: #1a1a1a;" in style
+                                for style in styles))
+        self.assertEqual(namespace["hl_champ"](pd.Series({"Pos": 4})), [""])
+
     def setUp(self):
         st.cache_data.clear()
         self.addCleanup(st.cache_data.clear)
