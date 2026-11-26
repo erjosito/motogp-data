@@ -132,6 +132,26 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(app.selectbox(key="sb_year").value, 2026)
         self.assertEqual(app.dataframe[0].value["Points"].tolist(), [66, 61, 46, 11])
 
+    def test_incomplete_sectors_do_not_produce_ideal_laps(self):
+        def partial_sectors(sql, conn=None, params=None):
+            data = sample_query(sql, conn, params)
+            if "l.lap_number, l.lap_time" in sql:
+                data.loc[data["rider"] == "Sample Rider 2", "t4"] = None
+                data.loc[data["rider"] == "Sample Rider 3", ["t1", "t2", "t3", "t4"]] = None
+            return data
+
+        self.read_sql.side_effect = partial_sectors
+        app = self.start_race_analysis()
+        app.radio(key="view_nav_race").set_value("viz_sectors").run()
+        self.assertFalse(app.exception)
+        table = app.dataframe[0].value.set_index("rider")
+        self.assertEqual(table.loc["Sample Rider 1", "Ideal"], "1:43.000")
+        self.assertEqual(table.loc["Sample Rider 1", "Gap"], -1.0)
+        for rider in ["Sample Rider 2", "Sample Rider 3"]:
+            self.assertEqual(table.loc[rider, "Ideal"], "")
+            self.assertTrue(pd.isna(table.loc[rider, "Gap"]))
+        self.assertTrue(app.info)
+
     def test_event_selection_survives_switching_to_all_capable_view(self):
         app = self.start_race_analysis()
         app.radio(key="view_nav_race").set_value("viz_rhythm").run()
