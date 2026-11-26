@@ -159,7 +159,8 @@ the generated Excel workbooks. Use `load_to_sql.py` to update the database.
 
 ```powershell
 pip install -r requirements.txt
-# Set MOTOGP_SQL_CONN_STR to your database connection string in your environment.
+az login
+# The signed-in Entra account must have database access; see authentication below.
 streamlit run dashboard.py
 ```
 
@@ -199,6 +200,99 @@ The script uses these endpoints (all free, no auth required):
 Base URL: `https://api.motogp.pulselive.com`
 
 Lap-by-lap and sector data is parsed from official PDF timing sheets at `https://resources.motogp.com/files/results/{year}/{event}/{category}/{session}/Analysis.pdf`
+
+## Web Dashboard and SQL Loader: Passwordless Authentication
+
+The Streamlit dashboard (`dashboard.py`) and SQL loader (`load_to_sql.py`) use
+Microsoft Entra access tokens, not SQL usernames or passwords. The Excel-only
+downloader is unchanged.
+
+Install the full app dependencies with `pip install -r requirements.txt`. The
+dashboard and loader also require **ODBC Driver 18 for SQL Server** on the host;
+the Docker image installs it.
+
+| Variable | Default / purpose |
+|----------|-------------------|
+| `MOTOGP_SQL_SERVER` | `motogp-sql-srv.database.windows.net` |
+| `MOTOGP_SQL_DATABASE` | `motogpdb` |
+| `MOTOGP_SQL_AUTH` | `managed-identity` in ACA; `azure-cli` locally |
+| `AZURE_CLIENT_ID` | Optional client ID of an attached user-assigned managed identity; omit for system-assigned identity |
+
+`MOTOGP_SQL_CONN_STR` and the loader's `--conn-str` option are no longer supported.
+Remove the old environment variable rather than moving its password elsewhere.
+Every new connection, including reconnects after sleep or network interruption,
+requests a valid token from Azure Identity.
+
+### One-time Azure setup
+
+1. Sign in using `az login`, select the existing app's subscription, and ensure the
+   SQL logical server has a Microsoft Entra administrator configured. Creating
+   database users must be done as that administrator or another authorized Entra
+   principal, connected to **motogpdb**, not `master`.
+2. Enable a system-assigned identity on the existing Container App:
+
+   ```powershell
+   az containerapp identity assign --name motogp-data --resource-group motogp --system-assigned
+   ```
+
+3. In `motogpdb`, create the app's Entra database user and give it **read-only**
+   access. If the user already exists, skip `CREATE USER`.
+
+   ```sql
+   CREATE USER [motogp-data] FROM EXTERNAL PROVIDER;
+   ALTER ROLE db_datareader ADD MEMBER [motogp-data];
+   ```
+
+   The name must resolve to the Container App's managed identity. If Entra
+   contains duplicate display names, use the identity's `principalId` with
+   `CREATE USER ... FROM EXTERNAL PROVIDER WITH OBJECT_ID = '<principalId>'`.
+   If directory lookup fails, an Entra administrator must resolve the directory
+   permissions before proceeding. Azure resource roles such as Contributor
+   do **not** grant database access.
+4. Grant a separate Entra user/group for local imports read/write access. Replace
+   `motogp-importers` with your actual Entra group name:
+
+   ```sql
+   CREATE USER [motogp-importers] FROM EXTERNAL PROVIDER;
+   ALTER ROLE db_datareader ADD MEMBER [motogp-importers];
+   ALTER ROLE db_datawriter ADD MEMBER [motogp-importers];
+   ```
+
+   The loader updates existing tables; it does not need `db_owner` or DDL rights.
+   Do not grant the dashboard identity write permissions.
+5. Run `.\scripts\redeploy-app.ps1`. It checks that a system-assigned identity
+   exists, builds the new image, selects managed-identity authentication, and
+   removes the legacy connection-string environment variable. Existing network
+   and firewall restrictions still apply.
+6. Verify dashboard queries work through the deployed managed identity and local
+   imports work with the authorized Entra identity. Then retire old revisions
+   that contain the embedded credential and remove any unused SQL password
+   secrets. **Rotate the previously committed SQL password**: removing it from
+   current files does not remove it from Git history or old container images.
+   Once all SQL clients have migrated, an administrator can enable
+   **Microsoft Entra-only authentication** on the SQL server to disable SQL
+   password logins entirely. This affects every database/client on that server,
+   so check other consumers first.
+
+The existing redeploy script expects a system-assigned identity. A user-assigned
+identity is also supported by the Python connection helper, but requires attaching
+that identity to ACA, granting it SQL access instead, and deploying with its
+`AZURE_CLIENT_ID`.
+
+### Local development and imports
+
+Use your own authorized Entra identity, not the dashboard's managed identity:
+
+```powershell
+az login
+streamlit run dashboard.py
+python load_to_sql.py --year 2026
+```
+
+For a different server/database, set `MOTOGP_SQL_SERVER` and
+`MOTOGP_SQL_DATABASE`. Token acquisition failures are reported explicitly; the
+app never falls back to password authentication. Azure CLI credentials expire,
+so run `az login` again if Entra requests a fresh sign-in.
 
 ## License
 

@@ -88,7 +88,7 @@ class DashboardTests(unittest.TestCase):
     def setUp(self):
         st.cache_data.clear()
         self.addCleanup(st.cache_data.clear)
-        self.connection = patch("pyodbc.connect").start()
+        self.connection = patch("sql_connection.connect_to_sql").start()
         self.addCleanup(patch.stopall)
         self.read_sql = patch("pandas.read_sql", side_effect=sample_query).start()
 

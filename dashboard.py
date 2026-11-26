@@ -5,7 +5,6 @@ MotoGP Data Dashboard — Streamlit app
 Run locally:  streamlit run dashboard.py
 """
 
-import os
 import warnings
 
 import numpy as np
@@ -15,6 +14,9 @@ import plotly.io as pio
 import pyodbc
 import pandas as pd
 import streamlit as st
+from azure.core.exceptions import ClientAuthenticationError
+
+from sql_connection import connect_to_sql
 
 warnings.filterwarnings("ignore", message=".*pandas only supports SQLAlchemy.*")
 
@@ -22,18 +24,6 @@ warnings.filterwarnings("ignore", message=".*pandas only supports SQLAlchemy.*")
 # Database
 # ---------------------------------------------------------------------------
 
-DEFAULT_CONN_STR = (
-    "DRIVER={ODBC Driver 18 for SQL Server};"
-    "SERVER=motogp-sql-srv.database.windows.net;"
-    "DATABASE=motogpdb;"
-    "UID=motogpadmin;"
-    "PWD=MotoGP2026data!;"
-    "Encrypt=yes;TrustServerCertificate=no;"
-    "Connection Timeout=120;"
-)
-
-
-_conn_str = os.environ.get("MOTOGP_SQL_CONN_STR", DEFAULT_CONN_STR)
 _conn = None
 
 
@@ -41,7 +31,7 @@ def get_conn():
     global _conn
     try:
         if _conn is None:
-            _conn = pyodbc.connect(_conn_str)
+            _conn = connect_to_sql()
             return _conn
         try:
             _conn.execute("SELECT 1")
@@ -51,8 +41,18 @@ def get_conn():
                 _conn.close()
             except Exception:
                 pass
-            _conn = pyodbc.connect(_conn_str)
+            _conn = connect_to_sql()
             return _conn
+    except ClientAuthenticationError:
+        st.error(
+            "Cannot authenticate to Azure SQL. In Azure, enable the app's managed "
+            "identity and grant it database access. Locally, run az login with an "
+            "authorized Microsoft Entra account."
+        )
+        st.stop()
+    except ValueError as e:
+        st.error(f"Invalid Azure SQL configuration: {e}")
+        st.stop()
     except pyodbc.OperationalError as e:
         err = str(e)
         if "not allowed to access the server" in err:

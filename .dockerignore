@@ -1,0 +1,8 @@
+**
+!Dockerfile
+!requirements.txt
+!dashboard.py
+!translations.py
+!sql_connection.py
+!.streamlit/
+!.streamlit/config.toml

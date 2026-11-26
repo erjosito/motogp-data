@@ -12,19 +12,20 @@ Usage:
     python load_to_sql.py                          # Latest event, MotoGP
     python load_to_sql.py --year 2026 --all-events # All finished events in 2026
     python load_to_sql.py --category Moto2         # Moto2 class
-    python load_to_sql.py --conn-str "DRIVER=..."  # Custom connection string
-
-Environment variable:
-    MOTOGP_SQL_CONN_STR — connection string (overridden by --conn-str)
+Authentication:
+    Azure: managed identity. Locally: az login with an authorized Entra account.
+    Configure MOTOGP_SQL_SERVER, MOTOGP_SQL_DATABASE, and MOTOGP_SQL_AUTH as needed.
 """
 
 import argparse
 import importlib.util
-import os
 import sys
 from pathlib import Path
 
 import pyodbc
+from azure.core.exceptions import ClientAuthenticationError
+
+from sql_connection import connect_to_sql
 
 # Import functions from the main script
 _spec = importlib.util.spec_from_file_location(
@@ -46,26 +47,12 @@ download_pdf = _mod.download_pdf
 parse_analysis_pdf = _mod.parse_analysis_pdf
 format_time_api = _mod.format_time_api
 
-DEFAULT_CONN_STR = (
-    "DRIVER={ODBC Driver 18 for SQL Server};"
-    "SERVER=motogp-sql-srv.database.windows.net;"
-    "DATABASE=motogpdb;"
-    "UID=motogpadmin;"
-    "PWD=MotoGP2026data!;"
-    "Encrypt=yes;TrustServerCertificate=no;"
-    "Connection Timeout=120;"
-)
-
-_conn_str_override = None
 _conn = None
 
 
-def get_connection(conn_str: str | None = None) -> pyodbc.Connection:
+def get_connection() -> pyodbc.Connection:
     """Get a connection, reconnecting if needed (survives sleep/hibernate)."""
-    global _conn_str_override, _conn
-    if conn_str:
-        _conn_str_override = conn_str
-    cs = _conn_str_override or os.environ.get("MOTOGP_SQL_CONN_STR") or DEFAULT_CONN_STR
+    global _conn
     if _conn is not None:
         try:
             _conn.execute("SELECT 1")
@@ -77,7 +64,7 @@ def get_connection(conn_str: str | None = None) -> pyodbc.Connection:
             except Exception:
                 pass
             _conn = None
-    _conn = pyodbc.connect(cs)
+    _conn = connect_to_sql()
     return _conn
 
 
@@ -390,13 +377,20 @@ def main():
                         help="Category: MotoGP, Moto2, Moto3 (default: MotoGP)")
     parser.add_argument("--all-events", action="store_true",
                         help="Load all finished events (not just latest)")
-    parser.add_argument("--conn-str", help="SQL connection string (or set MOTOGP_SQL_CONN_STR)")
     args = parser.parse_args()
 
     print("MotoGP Data Loader -> Azure SQL")
     print("="*40 + "\n")
 
-    conn = get_connection(args.conn_str)
+    try:
+        conn = get_connection()
+    except ClientAuthenticationError:
+        parser.exit(
+            1, "Azure SQL authentication failed. Run az login locally, or enable "
+            "managed identity in Azure. The identity also needs database permissions.\n"
+        )
+    except ValueError as e:
+        parser.exit(1, f"Invalid Azure SQL configuration: {e}\n")
     print("Connected to Azure SQL\n")
 
     # Determine which years to load
