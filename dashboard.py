@@ -508,7 +508,7 @@ def race_elapsed(df):
     race = df.sort_values(["rider", "lap_number"]).copy()
     if race.empty:
         race["elapsed"] = pd.Series(dtype=float)
-        return race.drop_duplicates(["rider", "lap_number"])
+        return race
     groups = race.groupby("rider")
     previous = groups["lap_number"].shift().fillna(0)
     valid = (
@@ -518,7 +518,7 @@ def race_elapsed(df):
     )
     complete = valid.groupby(race["rider"]).cummin()
     race["elapsed"] = groups["lap_sec"].cumsum().where(complete)
-    return race
+    return race.drop_duplicates(["rider", "lap_number"])
 
 
 def reconstructed_positions(laps, classification):
