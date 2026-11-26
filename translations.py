@@ -8,6 +8,16 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "race_timing_limits": {
+        "en": "Reconstructed from complete lap timing, including slow and pit laps; not official live positions. Missing timing leaves gaps. Comparisons require complete timing for the selected riders; positions require all riders still racing at that lap.",
+        "es": "Reconstruccion con tiempos completos, incluidas vueltas lentas y de boxes; no son posiciones oficiales. Los datos incompletos dejan huecos. Las posiciones requieren datos de todos los pilotos aun en carrera.",
+        "it": "Ricostruzione da tempi completi, inclusi giri lenti e ai box; non sono posizioni ufficiali. I dati mancanti lasciano vuoti. Le posizioni richiedono dati di tutti i piloti ancora in gara.",
+    },
+    "race_timing_only": {
+        "en": "Cumulative gaps are available only for Race and Sprint sessions.",
+        "es": "Las diferencias acumuladas solo estan disponibles en Carrera y Sprint.",
+        "it": "I distacchi cumulativi sono disponibili solo per Gara e Sprint.",
+    },
     "incomplete_sectors": {
         "en": "Ideal lap and gap are unavailable when any sector is missing.",
         "es": "La vuelta ideal y la diferencia no estan disponibles si falta algun sector.",
@@ -180,9 +190,9 @@ TRANSLATIONS = {
     # --- Position Battle ---
     "position_title": {"en": "📍 Position Battle — Lap by Lap", "es": "📍 Batalla de posiciones — Vuelta a vuelta", "it": "📍 Battaglia Posizioni — Giro per Giro"},
     "position_caption": {
-        "en": "Lap 0 = grid position (from qualifying). Subsequent laps derived from cumulative lap time.",
-        "es": "Vuelta 0 = posición en parrilla (de clasificación). Vueltas siguientes derivadas del tiempo acumulado.",
-        "it": "Giro 0 = posizione in griglia (dalle qualifiche). Giri successivi derivati dal tempo cumulativo.",
+        "en": "Positions are reconstructed at each completed lap from elapsed timing. Starting-grid positions are not inferred from Q2.",
+        "es": "Posiciones reconstruidas al completar cada vuelta. No se deduce la parrilla de Q2.",
+        "it": "Posizioni ricostruite a ogni giro completato. La griglia non viene dedotta dalla Q2.",
     },
     "position_per_lap": {"en": "Position per Lap", "es": "Posición por vuelta", "it": "Posizione per Giro"},
 
