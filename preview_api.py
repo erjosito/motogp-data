@@ -105,7 +105,7 @@ def build_championship(rows: list[dict], season: int) -> dict:
             -totals[rid], *(-finishes[rid][position] for position in range(1, 41)),
             riders[rid]["rider"],
         ),
-    )
+    ) if scoring_sessions else []
     leader_points = totals[ordered[0]] if ordered else 0
     standings = [
         {
@@ -117,7 +117,7 @@ def build_championship(rows: list[dict], season: int) -> dict:
         for index, rid in enumerate(ordered)
     ]
     comeback = None
-    if comeback_history:
+    if comeback_history and scoring_sessions:
         low = min(comeback_history, key=lambda point: point["margin"])
         maximum_deficit = max(0, -low["margin"])
         comeback = {

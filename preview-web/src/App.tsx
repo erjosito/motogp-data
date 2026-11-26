@@ -74,7 +74,9 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
   const data = resource.data
   if (resource.error) return <DataState resource={resource} />
   if (!data) return <Loading />
-  if (!data.standings.length) return <DataState resource={resource} empty="No Grand Prix or Sprint results have been imported for this season." />
+  if (!data.standings.length) return <DataState resource={resource} empty={data.rounds.length
+    ? 'Classifications exist, but usable championship points are unavailable. Historical placeholder zeros are not treated as an official championship. Session results remain available.'
+    : 'No Grand Prix or Sprint results have been imported for this season.'} />
 
   const story = data.comeback
   const featured = season === 2026 && story

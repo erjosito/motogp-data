@@ -84,6 +84,16 @@ class ChampionshipTests(unittest.TestCase):
         self.assertEqual(data["gp_results"], 1)
         self.assertEqual(data["standings"][1]["wins"], 0)
 
+    def test_missing_or_placeholder_points_do_not_invent_historical_standings(self):
+        data = preview_api.build_championship([
+            result("old-race", preview_api.MARC_ID, None, 1),
+            result("old-race", "rival", 0, 2),
+        ], 1975)
+        self.assertEqual(data["standings"], [])
+        self.assertIsNone(data["comeback"])
+        self.assertEqual(data["scoring_sessions"], 0)
+        self.assertEqual(len(data["rounds"]), 1)
+
 
 class PreviewApiTests(unittest.TestCase):
     def setUp(self):

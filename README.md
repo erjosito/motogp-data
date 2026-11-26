@@ -22,6 +22,9 @@ but sessions awarding no points do not add a phantom GP win or countback finish.
 Lap-only sessions remain available even when the
 official classification is empty. Historical comparisons are not called
 "all-time" until the database genuinely covers the earlier premier-class era.
+Seasons with only missing or placeholder-zero race points do not produce invented
+zero-point standings; official historical championship records need a separate
+read contract, including historic dropped-score and half-point rules.
 
 The database does not currently preserve PDF lap/sector cancellation annotations
 or new-versus-used tyre flags. The UI explicitly warns that raw timing comparisons
