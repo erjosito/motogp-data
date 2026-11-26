@@ -11,6 +11,7 @@ import warnings
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import pyodbc
 import pandas as pd
 import streamlit as st
@@ -147,7 +148,52 @@ def green_red_style(val, vmin, vmax):
 # Page config
 # ---------------------------------------------------------------------------
 
-st.set_page_config(page_title="MotoGP Dashboard", page_icon="🏍", layout="wide")  # page_title set before t() available
+st.set_page_config(page_title="MotoGP Race Desk", page_icon="🏍", layout="wide")
+
+st.markdown("""
+<style>
+    [data-testid="stMainBlockContainer"] {
+        max-width: 1600px;
+        padding-top: 4rem;
+        padding-bottom: 3rem;
+    }
+    h1 { letter-spacing: -0.045em; }
+    h2, h3 { letter-spacing: -0.025em; }
+    [data-testid="stSidebar"] { border-right: 1px solid #e3e7ef; }
+    [data-testid="stMetric"] {
+        background: #ffffff;
+        border: 1px solid #e3e7ef;
+        border-radius: 12px;
+        padding: 1rem;
+    }
+    [data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
+    [data-testid="stPlotlyChart"] {
+        background: #ffffff;
+        border: 1px solid #e3e7ef;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    @media (max-width: 768px) {
+        [data-testid="stMainBlockContainer"] {
+            padding: 4rem 1rem 2rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+pio.templates["motogp"] = go.layout.Template(layout=go.Layout(
+    font=dict(family="Arial, sans-serif", size=13, color="#172033"),
+    paper_bgcolor="#ffffff",
+    plot_bgcolor="#ffffff",
+    colorway=["#c8102e", "#2563eb", "#0f766e", "#9333ea", "#d97706",
+              "#0284c7", "#be185d", "#475569", "#65a30d", "#7c3aed"],
+    xaxis=dict(gridcolor="#edf0f5", zeroline=False, automargin=True),
+    yaxis=dict(gridcolor="#edf0f5", zeroline=False, automargin=True),
+    hoverlabel=dict(bgcolor="#ffffff", font_size=13),
+    margin=dict(l=24, r=24, t=64, b=48),
+))
+pio.templates.default = "plotly_white+motogp"
+px.defaults.template = "plotly_white+motogp"
 
 # ---------------------------------------------------------------------------
 # Language selector + translation
@@ -155,28 +201,62 @@ st.set_page_config(page_title="MotoGP Dashboard", page_icon="🏍", layout="wide
 from translations import get_translator
 
 LANG_OPTIONS = {"🇬🇧 English": "en", "🇪🇸 Español": "es", "🇮🇹 Italiano": "it"}
-lang_sel = st.sidebar.selectbox("🌐", list(LANG_OPTIONS.keys()), label_visibility="collapsed")
+st.sidebar.markdown("## MotoGP")
+lang_sel = st.sidebar.selectbox(
+    "Language / Idioma / Lingua", list(LANG_OPTIONS.keys()), key="language"
+)
 lang = LANG_OPTIONS[lang_sel]
 t = get_translator(lang)
 
 st.title(t("app_title"))
+st.caption(t("app_tagline"))
 
 # ---------------------------------------------------------------------------
 # Sidebar — visualization picker
 # ---------------------------------------------------------------------------
 
-VIZ_KEYS = [
-    "viz_home", "viz_rhythm", "viz_laptimes", "viz_position", "viz_distribution",
-    "viz_sectors", "viz_tyredeg", "viz_tyrewhisp", "viz_speed", "viz_classification",
-    "viz_championship", "viz_teams", "viz_reliability", "viz_grid", "viz_circuits",
-    "viz_rankings", "viz_profile", "viz_crossyear",
-]
-VIZ_LABELS = [t(k) for k in VIZ_KEYS]
-# Map translated labels back to English keys for internal logic
-VIZ_EN = [get_translator("en")(k) for k in VIZ_KEYS]
+NAV_GROUPS = {
+    "nav_overview": ["viz_home"],
+    "nav_race": ["viz_classification", "viz_rhythm", "viz_laptimes", "viz_position",
+                 "viz_distribution", "viz_sectors", "viz_tyredeg", "viz_speed"],
+    "nav_riders": ["viz_profile", "viz_rankings", "viz_tyrewhisp"],
+    "nav_season": ["viz_championship", "viz_teams", "viz_grid", "viz_reliability"],
+    "nav_history": ["viz_circuits", "viz_crossyear"],
+}
 
-viz_label = st.sidebar.radio(t("viz_home").split(" ")[0], VIZ_LABELS, label_visibility="collapsed")
-viz = VIZ_EN[VIZ_LABELS.index(viz_label)]
+
+def remember_selection(widget_key, state_key):
+    st.session_state[state_key] = st.session_state[widget_key]
+
+
+# Keep semantic selections separate from widgets, whose identities change
+# when labels are translated or a workspace temporarily hides a control.
+st.session_state["nav_group"] = st.session_state.get("selected_nav_group", "nav_overview")
+nav_group = st.sidebar.selectbox(
+    t("nav_workspace"), list(NAV_GROUPS), format_func=t, key="nav_group",
+    on_change=remember_selection, args=("nav_group", "selected_nav_group"),
+)
+view_keys = NAV_GROUPS[nav_group]
+if len(view_keys) == 1:
+    view_key = view_keys[0]
+else:
+    st.session_state[f"view_{nav_group}"] = st.session_state.get(
+        f"selected_view_{nav_group}", view_keys[0]
+    )
+    view_key = st.sidebar.radio(
+        t("nav_analysis"), view_keys, format_func=t, key=f"view_{nav_group}",
+        on_change=remember_selection, args=(f"view_{nav_group}", f"selected_view_{nav_group}"),
+    )
+viz = get_translator("en")(view_key)
+st.sidebar.divider()
+
+
+def open_championship(year):
+    """Set navigation and filter state before the next Streamlit rerun."""
+    st.session_state["selected_nav_group"] = "nav_season"
+    st.session_state["selected_view_nav_season"] = "viz_championship"
+    st.session_state["sel_year"] = year
+    st.session_state.pop("sb_year", None)
 
 # ---------------------------------------------------------------------------
 # Sidebar — global filters
@@ -201,18 +281,20 @@ no_year_filter = viz in ["🏠 Home", "🏟 Circuits", "🏅 Pilot Rankings", "�
 # Initialize session state for persistent filters
 if "sel_year" not in st.session_state:
     st.session_state.sel_year = year_list[0]
-if "sel_gp_idx" not in st.session_state:
-    st.session_state.sel_gp_idx = None
+if "sel_event_id" not in st.session_state:
+    st.session_state.sel_event_id = None
 if "sel_session_label" not in st.session_state:
     st.session_state.sel_session_label = None
 
 if not no_year_filter:
     year_options = ["All"] + year_list if supports_all else year_list
-    # Find current index for persisted year
-    default_yr_idx = 0
-    if st.session_state.sel_year in year_options:
-        default_yr_idx = year_options.index(st.session_state.sel_year)
-    selected_year_raw = st.sidebar.selectbox(t("season"), year_options, index=default_yr_idx, key="sb_year")
+    st.session_state["sb_year"] = (
+        st.session_state.sel_year if st.session_state.sel_year in year_options else year_options[0]
+    )
+    selected_year_raw = st.sidebar.selectbox(
+        t("season"), year_options, key="sb_year",
+        on_change=remember_selection, args=("sb_year", "sel_year"),
+    )
     st.session_state.sel_year = selected_year_raw
     all_years = selected_year_raw == "All"
     selected_year = year_list[0] if all_years else selected_year_raw
@@ -241,31 +323,31 @@ if needs_session:
         st.info(t("no_events_for_year", year=selected_year)); st.stop()
 
     evt_labels = [f"{r.short_name} — {r.sponsored_name or r.event_name}" for _, r in events_df.iterrows()]
+    event_ids = events_df["event_id"].tolist()
+    persisted_event = st.session_state.sel_event_id
 
     if supports_all and not all_years:
-        evt_options_labels = [t("all_gp")] + evt_labels
-        default_gp = 0
-        if st.session_state.sel_gp_idx is not None and st.session_state.sel_gp_idx < len(evt_options_labels):
-            default_gp = st.session_state.sel_gp_idx
-        gp_sel = st.sidebar.selectbox(t("grand_prix"), range(len(evt_options_labels)),
-                                       format_func=lambda i: evt_options_labels[i],
-                                       index=default_gp, key="sb_gp")
-        st.session_state.sel_gp_idx = gp_sel
-        all_events = gp_sel == 0
+        st.session_state["sb_gp"] = persisted_event if persisted_event in event_ids else None
+        gp_sel = st.sidebar.selectbox(
+            t("grand_prix"), [None] + event_ids, key="sb_gp",
+            format_func=lambda eid: t("all_gp") if eid is None else evt_labels[event_ids.index(eid)],
+            on_change=remember_selection, args=("sb_gp", "sel_event_id"),
+        )
+        all_events = gp_sel is None
         if not all_events:
-            event = events_df.iloc[gp_sel - 1]
+            event = events_df.iloc[event_ids.index(gp_sel)]
+        st.session_state.sel_event_id = event.event_id if event is not None else None
     elif supports_all and all_years:
         all_events = True
     else:
-        # Find persisted GP index within current event list
-        default_gp = len(evt_labels) - 1
-        if st.session_state.sel_gp_idx is not None and st.session_state.sel_gp_idx < len(evt_labels):
-            default_gp = st.session_state.sel_gp_idx
-        evt_idx = st.sidebar.selectbox(t("grand_prix"), range(len(evt_labels)),
-                                       format_func=lambda i: evt_labels[i],
-                                       index=default_gp, key="sb_gp")
-        st.session_state.sel_gp_idx = evt_idx
-        event = events_df.iloc[evt_idx]
+        st.session_state["sb_gp"] = persisted_event if persisted_event in event_ids else event_ids[-1]
+        event_id = st.sidebar.selectbox(
+            t("grand_prix"), event_ids, key="sb_gp",
+            format_func=lambda eid: evt_labels[event_ids.index(eid)],
+            on_change=remember_selection, args=("sb_gp", "sel_event_id"),
+        )
+        event = events_df.iloc[event_ids.index(event_id)]
+        st.session_state.sel_event_id = event.event_id
 
     if not all_events and event is not None:
         sessions_df = q(
@@ -278,10 +360,14 @@ if needs_session:
 
         if supports_all:
             sess_options = ["All"] + sessions_df["session_label"].tolist()
-            default_sess = 0
-            if st.session_state.sel_session_label in sess_options:
-                default_sess = sess_options.index(st.session_state.sel_session_label)
-            sel_label = st.sidebar.selectbox(t("session"), sess_options, index=default_sess, key="sb_sess")
+            st.session_state["sb_sess"] = (
+                st.session_state.sel_session_label
+                if st.session_state.sel_session_label in sess_options else sess_options[0]
+            )
+            sel_label = st.sidebar.selectbox(
+                t("session"), sess_options, key="sb_sess",
+                on_change=remember_selection, args=("sb_sess", "sel_session_label"),
+            )
             st.session_state.sel_session_label = sel_label
             all_sessions = sel_label == "All"
             if not all_sessions:
@@ -295,10 +381,14 @@ if needs_session:
                 avail_sessions = sessions_df
 
             sess_labels = avail_sessions["session_label"].tolist()
-            default_sess = len(sess_labels) - 1
-            if st.session_state.sel_session_label in sess_labels:
-                default_sess = sess_labels.index(st.session_state.sel_session_label)
-            sel_label = st.sidebar.selectbox(t("session"), sess_labels, index=default_sess, key="sb_sess")
+            st.session_state["sb_sess"] = (
+                st.session_state.sel_session_label
+                if st.session_state.sel_session_label in sess_labels else sess_labels[-1]
+            )
+            sel_label = st.sidebar.selectbox(
+                t("session"), sess_labels, key="sb_sess",
+                on_change=remember_selection, args=("sb_sess", "sel_session_label"),
+            )
             st.session_state.sel_session_label = sel_label
             sel_session = avail_sessions[avail_sessions["session_label"] == sel_label].iloc[0]
 
@@ -379,6 +469,31 @@ def load_class(sid, yr):
              "WHERE c.session_id = ? ORDER BY CASE WHEN c.position IS NULL THEN 1 ELSE 0 END, c.position", [yr, sid])
 
 
+@st.cache_data(ttl=300)
+def load_championship(year):
+    return q("""
+        SELECT e.short_name, e.date_end, r.full_name AS rider,
+            SUM(cl.points) AS race_pts
+        FROM classifications cl
+        JOIN sessions s ON cl.session_id = s.session_id
+        JOIN events e ON s.event_id = e.event_id
+        JOIN riders r ON cl.rider_id = r.rider_id
+        WHERE e.season_year = ? AND s.session_type IN ('RAC', 'SPR')
+        GROUP BY e.short_name, e.date_end, r.full_name
+        ORDER BY e.date_end
+    """, [year])
+
+
+def championship_points(champ):
+    events_order = champ.drop_duplicates("short_name").sort_values("date_end")["short_name"].tolist()
+    points = champ.pivot_table(
+        index="rider", columns="short_name", values="race_pts", aggfunc="sum", fill_value=0,
+    )
+    cumulative = points.reindex(columns=events_order).cumsum(axis=1)
+    totals = cumulative.iloc[:, -1].sort_values(ascending=False)
+    return events_order, cumulative, totals
+
+
 def clean_laps(df):
     if df.empty:
         return df
@@ -407,9 +522,75 @@ has_context = "gp" in laps_df.columns if not laps_df.empty else False
 
 
 # =====================================================================
-# 🏠 HOME — Database statistics overview
+# 🏠 HOME — Championship overview and database coverage
 # =====================================================================
 if viz == "🏠 Home":
+    st.session_state["home_view"] = (
+        "home_coverage" if st.session_state.get("selected_home_view") == "home_coverage"
+        else "home_championship"
+    )
+    home_view = st.radio(
+        t("home_view"), ["home_championship", "home_coverage"], format_func=t,
+        horizontal=True, label_visibility="collapsed", key="home_view",
+        on_change=remember_selection, args=("home_view", "selected_home_view"),
+    )
+    if home_view == "home_championship":
+        st.subheader(t("home_championship_title", year=selected_year))
+        champ = load_championship(selected_year)
+        if champ.empty:
+            st.info(t("no_race_sprint_data_for_year", year=selected_year))
+            st.caption(t("data_source"))
+            st.stop()
+
+        events_order, cumulative, totals = championship_points(champ)
+        ranks = totals.rank(ascending=False, method="min").astype(int)
+        last_round = champ[champ["short_name"] == events_order[-1]].iloc[0]
+        through_date = pd.to_datetime(last_round.date_end).date().isoformat()
+        st.caption(t("home_championship_through", gp=events_order[-1], date=through_date))
+        for column, (rider, points) in zip(st.columns(3), totals.head(3).items()):
+            with column:
+                with st.container(border=True):
+                    st.caption(f"P{ranks[rider]}")
+                    st.subheader(rider)
+                    st.metric(t("points"), f"{points:g}")
+                    st.caption(t("home_points_behind", points=f"{totals.iloc[0] - points:g}"))
+
+        st.caption(t("home_rounds_imported", count=len(events_order)))
+        standings = pd.DataFrame({
+            t("position"): ranks,
+            t("rider"): totals.index,
+            t("points"): totals.values,
+            t("home_gap_to_leader"): totals.iloc[0] - totals.values,
+        }).reset_index(drop=True)
+        table_column, chart_column = st.columns([1, 1.5])
+        with table_column:
+            st.subheader(t("current_standings"))
+            st.dataframe(
+                standings, width="stretch", hide_index=True,
+                height=min(550, 38 + 35 * len(standings)),
+            )
+        with chart_column:
+            st.subheader(t("home_title_race"))
+            top_riders = totals.head(5).index
+            progress = cumulative.loc[top_riders].T.rename_axis("event").reset_index()
+            progress = progress.melt(id_vars="event", var_name="rider", value_name="points")
+            fig = px.line(
+                progress, x="event", y="points", color="rider", markers=True,
+                labels={"event": t("grand_prix_label"), "points": t("points"), "rider": t("rider")},
+                category_orders={"event": events_order},
+            )
+            fig.update_layout(height=420, hovermode="x unified")
+            st.plotly_chart(fig, width="stretch")
+        st.caption(t("home_championship_method"))
+        st.button(
+            t("home_explore_championship"), type="primary", width="stretch",
+            on_click=open_championship, args=(selected_year,),
+        )
+        st.divider()
+        st.caption(t("home_loaded_note"))
+        st.caption(t("data_source"))
+        st.stop()
+
     st.header(t("home_title"))
 
     stats = q("""
@@ -1148,46 +1329,25 @@ elif viz == "🌍 Championship":
     st.header(t("championship_header", year=selected_year))
     st.caption(t("championship_caption"))
 
-    champ = q("""
-        SELECT e.short_name, e.date_end, r.full_name AS rider,
-            SUM(cl.points) AS race_pts
-        FROM classifications cl
-        JOIN sessions s ON cl.session_id = s.session_id
-        JOIN events e ON s.event_id = e.event_id
-        JOIN riders r ON cl.rider_id = r.rider_id
-        WHERE e.season_year = ? AND s.session_type IN ('RAC', 'SPR')
-        GROUP BY e.short_name, e.date_end, r.full_name
-        ORDER BY e.date_end
-    """, [selected_year])
+    champ = load_championship(selected_year)
 
     if champ.empty:
         st.info(t("no_race_sprint_data_for_year", year=selected_year)); st.stop()
 
-    # Build cumulative points per rider across events
-    events_order = champ.drop_duplicates("short_name").sort_values("date_end")["short_name"].tolist()
-    event_map = {e: i for i, e in enumerate(events_order)}
-    champ["ev_order"] = champ["short_name"].map(event_map)
-
-    # Pivot: rider × event → points, then cumsum across events
-    pivot = champ.pivot_table(index="rider", columns="ev_order", values="race_pts",
-                              aggfunc="sum", fill_value=0)
-    cum = pivot.cumsum(axis=1)
+    events_order, cum, final_pts = championship_points(champ)
 
     # Rank at each event (1 = leader)
     ranks = cum.rank(ascending=False, method="min").astype(int)
 
     # Focus on top N riders (by final standings)
-    final_pts = cum.iloc[:, -1].sort_values(ascending=False)
     n_riders = st.slider(t("show_top_n"), 5, 22, 10)
     top_riders = final_pts.head(n_riders).index.tolist()
 
     # --- Chart 1: Championship position evolution ---
     st.subheader(t("championship_position_per_race"))
     ranks_top = ranks.loc[top_riders]
-    ranks_plot = ranks_top.T.reset_index()
-    ranks_plot.columns = ["ev_order"] + list(ranks_top.index)
-    ranks_plot["event"] = ranks_plot["ev_order"].map({i: e for e, i in event_map.items()})
-    ranks_melt = ranks_plot.melt(id_vars=["ev_order", "event"], var_name="rider", value_name="position")
+    ranks_plot = ranks_top.T.rename_axis("event").reset_index()
+    ranks_melt = ranks_plot.melt(id_vars="event", var_name="rider", value_name="position")
 
     max_pos = int(ranks_melt["position"].max())
     fig = px.line(ranks_melt, x="event", y="position", color="rider", markers=True,
@@ -1201,10 +1361,8 @@ elif viz == "🌍 Championship":
     # --- Chart 2: Cumulative points ---
     st.subheader(t("cumulative_points"))
     cum_top = cum.loc[top_riders]
-    cum_plot = cum_top.T.reset_index()
-    cum_plot.columns = ["ev_order"] + list(cum_top.index)
-    cum_plot["event"] = cum_plot["ev_order"].map({i: e for e, i in event_map.items()})
-    cum_melt = cum_plot.melt(id_vars=["ev_order", "event"], var_name="rider", value_name="points")
+    cum_plot = cum_top.T.rename_axis("event").reset_index()
+    cum_melt = cum_plot.melt(id_vars="event", var_name="rider", value_name="points")
 
     fig2 = px.line(cum_melt, x="event", y="points", color="rider", markers=True,
                    title=t("championship_pts_title", year=selected_year),
@@ -1217,8 +1375,8 @@ elif viz == "🌍 Championship":
     st.subheader(t("current_standings"))
     standings = final_pts.reset_index()
     standings.columns = ["Rider", "Points"]
-    standings.insert(0, "Pos", range(1, len(standings) + 1))
-    standings["Points"] = standings["Points"].astype(int)
+    standings.insert(0, "Pos", standings["Points"].rank(ascending=False, method="min").astype(int))
+    st.caption(t("home_championship_method"))
 
     def hl_champ(row):
         fills = {1: "#FFF4CC", 2: "#E8E8E8", 3: "#F5DEB3"}

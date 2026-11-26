@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY dashboard.py .
 COPY translations.py .
+COPY .streamlit/config.toml .streamlit/config.toml
 
 EXPOSE 8501
 
