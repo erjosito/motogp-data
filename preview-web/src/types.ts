@@ -1,0 +1,97 @@
+export interface GrandPrix {
+  event_id: string
+  short_name: string
+  event_name: string
+  circuit_name: string | null
+  country_name: string | null
+  date_end: string | null
+}
+
+export interface Session {
+  session_id: string
+  session_type: string
+  session_label: string
+  session_date: string | null
+  weather: string | null
+  air_temp: string | null
+  ground_temp: string | null
+}
+
+export interface Rider {
+  rider_id: string
+  rider: string
+  number: number | null
+}
+
+export interface Result extends Rider {
+  position: number | null
+  team: string | null
+  constructor: string | null
+  total_laps: number | null
+  time_text: string | null
+  gap_first: string | null
+  best_lap_seconds: number | null
+  top_speed: number | null
+  points: number | null
+  status: string | null
+}
+
+export interface Lap extends Rider {
+  lap_number: number
+  lap_seconds: number | null
+  sectors: (number | null)[]
+  speed_kmh: number | null
+  is_pit: boolean
+  run_number: number | null
+  front_tyre: string | null
+  rear_tyre: string | null
+}
+
+export interface Analysis {
+  session: Session & Omit<GrandPrix, 'date_end'> & { season_year: number }
+  results: Result[]
+  laps: Lap[]
+}
+
+export interface Round {
+  session_id: string
+  event_id: string
+  event: string
+  type: string
+  label: string
+  date: string | null
+}
+
+export interface ComebackPoint extends Round {
+  points: number
+  margin: number
+}
+
+export interface Standing extends Rider {
+  position: number
+  points: number
+  gap: number
+  wins: number
+  podiums: number
+  team: string | null
+  constructor: string | null
+  series: number[]
+}
+
+export interface Championship {
+  season: number
+  standings: Standing[]
+  rounds: Round[]
+  gp_results: number
+  weekends: number
+  scoring_sessions: number
+  comeback: {
+    rider_id: string
+    history: ComebackPoint[]
+    low: ComebackPoint
+    max_deficit: number
+    current_margin: number
+    recovered: number
+    verified_102: boolean
+  } | null
+}
