@@ -226,16 +226,29 @@ def upsert_classification(cursor, session_id: str, entry: dict, year: int):
     )
 
 
-def build_rider_lookup(cursor, session_id: str) -> dict:
+def build_rider_lookup(cursor, session_id: str) -> tuple[dict, dict]:
     """Build a number→rider_id map from the classification we already loaded."""
     cursor.execute(
         "SELECT r.rider_id, r.number, r.full_name FROM classifications c "
         "JOIN riders r ON c.rider_id = r.rider_id WHERE c.session_id = ?",
         session_id,
     )
+    rows = cursor.fetchall()
+    if not rows:
+        print("   (empty session classification: resolving lap riders from "
+              "other sessions in the same event/category)")
+        cursor.execute(
+            "SELECT DISTINCT r.rider_id, r.number, r.full_name "
+            "FROM classifications c JOIN riders r ON c.rider_id = r.rider_id "
+            "JOIN sessions s ON c.session_id = s.session_id "
+            "JOIN sessions target ON s.event_id = target.event_id "
+            "AND s.category = target.category WHERE target.session_id = ?",
+            session_id,
+        )
+        rows = cursor.fetchall()
     by_number = {}
     by_surname = {}
-    for row in cursor.fetchall():
+    for row in rows:
         rid, num, name = row
         if num:
             by_number[num] = rid

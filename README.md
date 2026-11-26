@@ -156,6 +156,9 @@ The auto-generated file name follows the pattern: `MotoGP_{year}_{event}_{catego
 
 The Streamlit dashboard reads imported results from Azure SQL; it does not read
 the generated Excel workbooks. Use `load_to_sql.py` to update the database.
+If a session's API classification is empty, the loader resolves PDF lap riders
+from classifications in other sessions of the same GP and category. It reports
+this source gap and does not fabricate classification results.
 
 ```powershell
 pip install -r requirements.txt
