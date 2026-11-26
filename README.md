@@ -204,6 +204,13 @@ categories are excluded and listed in a sidebar notice. Source labels are not
 rewritten. The read-only query layer applies this scope through a SQL CTE, so no
 schema migration or dashboard write permission is required.
 
+Pilot Rhythm and Sector Heatmap compare absolute times within one selected
+session, not across unrelated circuits or conditions. Pace cleaning excludes
+pit laps, non-finite/non-positive times, and laps at least 15% slower than their
+own session's median. Lap loaders preserve stable session/event IDs and context;
+combining sessions no longer changes their outlier baselines. Speed Trap keeps
+its all-session/event/season aggregation.
+
 ```powershell
 python -m unittest test_dashboard test_motogp_results
 ```

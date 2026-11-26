@@ -292,7 +292,9 @@ year_list = years_df["season_year"].tolist()
 needs_session = viz not in ["🏠 Home", "👤 Pilot Profile", "📈 Cross-Year", "🌍 Championship", "🔧 Reliability", "🏢 Teams & Constructors", "🧙 Tyre Whisperers", "🏁 Grid Advantage", "🏟 Circuits", "🏅 Pilot Rankings"]
 
 # Vizs that support "All" aggregation across events/sessions
-supports_all = viz in ["⚡ Speed Trap", "🎯 Pilot Rhythm", "⏱ Sector Heatmap"]
+supports_all = viz == "⚡ Speed Trap"
+if viz in ["🎯 Pilot Rhythm", "⏱ Sector Heatmap"]:
+    st.sidebar.caption(t("pace_single_session"))
 
 # Vizs that only show Race/Sprint in session filter
 race_only_session = viz in ["📍 Position Battle", "🛞 Tyre Degradation"]
@@ -432,11 +434,12 @@ if needs_session:
 # Cached data loaders
 # ---------------------------------------------------------------------------
 
-_LAPS_COLS = ("r.full_name AS rider, r.number AS num, "
+_LAPS_COLS = ("r.full_name AS rider, r.number AS num, l.session_id, "
               "l.lap_number, l.lap_time, l.t1, l.t2, l.t3, l.t4, "
               "l.speed_kmh, l.is_pit, l.run_number, l.front_tyre, l.rear_tyre")
 
-_LAPS_CTX = ("e.season_year AS season, e.short_name AS gp, s.session_label AS session")
+_LAPS_CTX = ("e.event_id, e.season_year AS season, e.short_name AS gp, "
+             "s.session_label AS session, s.session_type, s.track_condition")
 
 
 @st.cache_data(ttl=300)
@@ -521,10 +524,13 @@ def championship_points(champ):
 def clean_laps(df):
     if df.empty:
         return df
-    v = df[(df["lap_sec"].notna()) & (df["is_pit"] == False)].copy()
+    v = df[
+        df["lap_sec"].gt(0) & df["lap_sec"].lt(np.inf) & df["is_pit"].eq(False)
+    ].copy()
     if v.empty:
         return v
-    return v[v["lap_sec"] < v["lap_sec"].median() * 1.15]
+    median = v.groupby("session_id")["lap_sec"].transform("median")
+    return v[v["lap_sec"] < median * 1.15]
 
 
 def race_elapsed(df):
@@ -533,11 +539,12 @@ def race_elapsed(df):
     if race.empty:
         race["elapsed"] = pd.Series(dtype=float)
         return race
+    race["lap_sec"] = pd.to_numeric(race["lap_sec"])
     groups = race.groupby("rider")
     previous = groups["lap_number"].shift().fillna(0)
     valid = (
         race["lap_number"].sub(previous).eq(1)
-        & np.isfinite(race["lap_sec"]) & race["lap_sec"].gt(0)
+        & race["lap_sec"].lt(np.inf) & race["lap_sec"].gt(0)
         & ~race.duplicated(["rider", "lap_number"], keep=False)
     )
     complete = valid.groupby(race["rider"]).cummin()
@@ -827,11 +834,11 @@ if viz == "🏠 Home":
         SELECT e.season_year AS Year,
             COUNT(DISTINCT e.event_id) AS Events,
             COUNT(DISTINCT s.session_id) AS Sessions,
-            (SELECT COUNT(*) FROM classifications c2 
+            (SELECT COUNT(*) FROM classifications c2
              JOIN sessions s2 ON c2.session_id = s2.session_id
              JOIN events e2 ON s2.event_id = e2.event_id
              WHERE e2.season_year = e.season_year) AS Classifications,
-            (SELECT COUNT(*) FROM laps l2 
+            (SELECT COUNT(*) FROM laps l2
              JOIN sessions s2 ON l2.session_id = s2.session_id
              JOIN events e2 ON s2.event_id = e2.event_id
              WHERE e2.season_year = e.season_year) AS Laps,
