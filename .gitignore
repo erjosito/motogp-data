@@ -6,7 +6,8 @@ __pycache__/
 *.pyc
 
 # Streamlit
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 
 # Local Azure deployment state
 .azure/

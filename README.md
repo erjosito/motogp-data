@@ -152,6 +152,39 @@ The auto-generated file name follows the pattern: `MotoGP_{year}_{event}_{catego
 | `RAC Results` | Main Race classification (with points) |
 | `RAC Laps` | Main Race lap-by-lap times + sectors |
 
+## Web Dashboard
+
+The Streamlit dashboard reads imported results from Azure SQL; it does not read
+the generated Excel workbooks. Use `load_to_sql.py` to update the database.
+
+```powershell
+pip install -r requirements.txt
+az login
+# The signed-in Entra account must have database access; see authentication below.
+streamlit run dashboard.py
+```
+
+Navigation groups all existing analyses into **Overview**, **Race Centre**,
+**Riders**, **Season**, and **History**. Overview opens with the latest loaded
+season's MotoGP World Championship: leading riders, points gaps, standings,
+and title-race progression, with a link to the detailed championship analysis.
+The GP and date of the latest imported result are shown explicitly; missing GPs
+can affect standings. **Data coverage** retains the historical
+database statistics and coverage charts. Navigation and filters are preserved
+when switching between English, Spanish, and Italian.
+
+The shared light theme is configured in `.streamlit/config.toml` and included
+in the Docker image. Database schema, ingestion, and analysis calculations are
+unchanged. Both championship views share the same Race + Sprint points
+calculation. Both views show tied points as shared positions, without
+claiming to apply official championship countback rules.
+
+Dashboard interaction tests use sample data and never connect to Azure SQL:
+
+```powershell
+python -m unittest test_dashboard test_motogp_results
+```
+
 ## API Reference
 
 The script uses these endpoints (all free, no auth required):

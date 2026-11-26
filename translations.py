@@ -9,6 +9,18 @@ Usage:
 
 TRANSLATIONS = {
     # --- Navigation / Sidebar ---
+    "nav_workspace": {"en": "Explore", "es": "Explorar", "it": "Esplora"},
+    "nav_analysis": {"en": "Analysis", "es": "Análisis", "it": "Analisi"},
+    "nav_overview": {"en": "Overview", "es": "Resumen", "it": "Panoramica"},
+    "nav_race": {"en": "Race Centre", "es": "Centro de carrera", "it": "Centro gara"},
+    "nav_riders": {"en": "Riders", "es": "Pilotos", "it": "Piloti"},
+    "nav_season": {"en": "Season", "es": "Temporada", "it": "Stagione"},
+    "nav_history": {"en": "History", "es": "Historia", "it": "Storia"},
+    "app_tagline": {
+        "en": "Race weekends, rider insights and championship stories.",
+        "es": "Grandes premios, análisis de pilotos e historias del campeonato.",
+        "it": "Weekend di gara, analisi dei piloti e storie del campionato.",
+    },
     "lang_label": {"en": "Language", "es": "Idioma", "it": "Lingua"},
     "viz_home": {"en": "🏠 Home", "es": "🏠 Inicio", "it": "🏠 Home"},
     "viz_rhythm": {"en": "🎯 Pilot Rhythm", "es": "🎯 Ritmo de piloto", "it": "🎯 Ritmo Pilota"},
@@ -65,6 +77,42 @@ TRANSLATIONS = {
     "finished": {"en": "Finished", "es": "Finalizado", "it": "Finito"},
 
     # --- Home page ---
+    "home_view": {"en": "Overview view", "es": "Vista del resumen", "it": "Vista panoramica"},
+    "home_championship": {"en": "World Championship", "es": "Campeonato del Mundo", "it": "Campionato del Mondo"},
+    "home_coverage": {"en": "Data coverage", "es": "Cobertura de datos", "it": "Copertura dati"},
+    "home_championship_title": {
+        "en": "{year} MotoGP World Championship",
+        "es": "Campeonato del Mundo de MotoGP {year}",
+        "it": "Campionato del Mondo MotoGP {year}",
+    },
+    "home_championship_through": {
+        "en": "Imported results through {gp} · {date}",
+        "es": "Resultados importados hasta {gp} · {date}",
+        "it": "Risultati importati fino a {gp} · {date}",
+    },
+    "home_points_behind": {
+        "en": "{points} points behind the leader",
+        "es": "A {points} puntos del líder",
+        "it": "A {points} punti dal leader",
+    },
+    "home_rounds_imported": {
+        "en": "{count} GPs represented in the imported standings.",
+        "es": "{count} Grandes Premios representados en la clasificación importada.",
+        "it": "{count} GP rappresentati nella classifica importata.",
+    },
+    "home_championship_method": {
+        "en": "Race + Sprint points from imported results. Tied riders share a position; official countback is not applied. Missing GPs can change the standings.",
+        "es": "Puntos de carreras y sprints de los resultados importados. Los empatados comparten posición; no se aplica el desempate oficial. Los GP ausentes pueden cambiar la clasificación.",
+        "it": "Punti di gare e sprint dai risultati importati. I piloti a pari punti condividono la posizione; non si applica lo spareggio ufficiale. I GP mancanti possono cambiare la classifica.",
+    },
+    "home_gap_to_leader": {"en": "Gap to leader", "es": "Diferencia con el líder", "it": "Distacco dal leader"},
+    "home_title_race": {"en": "The title race · top five", "es": "La lucha por el título · cinco primeros", "it": "La corsa al titolo · primi cinque"},
+    "home_explore_championship": {"en": "Explore the championship", "es": "Explorar el campeonato", "it": "Esplora il campionato"},
+    "home_loaded_note": {
+        "en": "Showing imported data, not a live feed. Downloading an Excel workbook does not update the dashboard database.",
+        "es": "Se muestran datos importados, no en directo. Descargar un libro Excel no actualiza la base de datos del panel.",
+        "it": "Sono mostrati dati importati, non in diretta. Scaricare un file Excel non aggiorna il database del dashboard.",
+    },
     "home_title": {"en": "🏠 Database Overview", "es": "🏠 Resumen de la base de datos", "it": "🏠 Panoramica Database"},
     "home_seasons_range": {"en": "📅 Seasons", "es": "📅 Temporadas", "it": "📅 Stagioni"},
     "home_gp_count": {"en": "🏁 Grand Prix", "es": "🏁 Grandes Premios", "it": "🏁 Gran Premi"},
@@ -183,7 +231,7 @@ TRANSLATIONS = {
 
     # --- App title / page ---
     "page_title": {"en": "MotoGP Dashboard", "es": "Panel MotoGP", "it": "Dashboard MotoGP"},
-    "app_title": {"en": "🏍 MotoGP Data Dashboard", "es": "🏍 Panel de datos MotoGP", "it": "🏍 Dashboard Dati MotoGP"},
+    "app_title": {"en": "MotoGP Race Desk", "es": "MotoGP · Centro de análisis", "it": "MotoGP · Centro analisi"},
 
     # --- Sidebar / context ---
     "air_label": {"en": "Air", "es": "Aire", "it": "Aria"},
