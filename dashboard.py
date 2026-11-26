@@ -1383,7 +1383,7 @@ elif viz == "🌍 Championship":
     def hl_champ(row):
         fills = {1: "#FFF4CC", 2: "#E8E8E8", 3: "#F5DEB3"}
         bg = fills.get(row.Pos, "")
-        return [f"background-color: {bg}"] * len(row) if bg else [""] * len(row)
+        return [f"background-color: {bg}; color: #1a1a1a; font-weight: bold"] * len(row) if bg else [""] * len(row)
 
     st.dataframe(standings.style.apply(hl_champ, axis=1),
                  width="stretch", hide_index=True, height=500)
