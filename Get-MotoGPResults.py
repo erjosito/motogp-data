@@ -84,13 +84,18 @@ def get_season_id(year: int | None) -> tuple[str, int]:
     return current["id"], current["year"]
 
 
-def get_latest_race_event(season_id: str) -> dict:
+def get_latest_race_event(season_id: str, category_name: str = "MotoGP") -> dict:
     events = api_get("events", {"seasonUuid": season_id, "isFinished": "true"})
     race_events = [e for e in events if not e.get("test", False)]
     if not race_events:
         raise SystemExit("No finished race events found for this season.")
     race_events.sort(key=lambda e: e["date_end"], reverse=True)
-    return race_events[0]
+    for event in race_events:
+        category_id, _ = get_category_id(event["id"], category_name)
+        sessions = get_all_sessions(event["id"], category_id)
+        if any(session["type"] == "RAC" for session in sessions):
+            return event
+    raise SystemExit(f"No finished {category_name} race events found for this season.")
 
 
 def get_category_id(event_id: str, category_name: str) -> tuple[str, str]:
@@ -144,16 +149,17 @@ def get_session_short_label(session: dict) -> str:
 # Regex for a lap data line:
 #   lap_number  lap_time  T1  T2  T3  T4  speed
 # Lap time format: m'ss.mmm  (e.g. 2'02.534)
-# Sector times: ss.mmm (e.g. 34.492)
+# Sector times: ss.mmm or m'ss.mmm
 # Lines may contain * (cancelled time) or P (pit)
 LAP_RE = re.compile(
     r"^(\d+)\s+"                                  # lap number
     r"(\d+[':]\d+\.\d+)\s+"                       # lap time (m'ss.mmm or m:ss.mmm)
-    r"(\*?\s*\d+\.\d+)\s+"                        # T1
-    r"(\*?\s*\d+\.\d+)\s+"                        # T2
-    r"(\*?\s*\d+\.\d+)\s+"                        # T3
-    r"(\*?\s*\d+\.\d+)\s+"                        # T4
-    r"(\d+\.?\d*)"                                 # speed
+    r"(?:P\s+)?"                                  # pit entry marker
+    r"\*?\s*(\d+(?:[':]\d+)?\.\d+)\s*\*?\s+"       # T1
+    r"\*?\s*(\d+(?:[':]\d+)?\.\d+)\s*\*?\s+"       # T2
+    r"\*?\s*(\d+(?:[':]\d+)?\.\d+)\s*\*?\s+"       # T3
+    r"\*?\s*(\d+(?:[':]\d+)?\.\d+)\s*\*?"          # T4
+    r"(?:\s+(\d+\.?\d*))?\s*$"                    # speed (not recorded on out laps)
 )
 
 # Rider header: "Firstname SURNAME CONSTRUCTOR NAT"
@@ -268,11 +274,11 @@ def parse_analysis_column(text: str) -> list[dict]:
             current_rider["laps"].append({
                 "lap": int(m.group(1)),
                 "lap_time": m.group(2).replace("'", ":"),
-                "T1": m.group(3).replace("*", "").strip(),
-                "T2": m.group(4).replace("*", "").strip(),
-                "T3": m.group(5).replace("*", "").strip(),
-                "T4": m.group(6).replace("*", "").strip(),
-                "speed": float(m.group(7)),
+                "T1": m.group(3).replace("'", ":"),
+                "T2": m.group(4).replace("'", ":"),
+                "T3": m.group(5).replace("'", ":"),
+                "T4": m.group(6).replace("'", ":"),
+                "speed": float(m.group(7)) if m.group(7) else None,
                 "pit": pit,
                 "run": current_run,
                 "front_tyre": front_tyre,
@@ -293,20 +299,17 @@ def parse_analysis_column(text: str) -> list[dict]:
 
 def parse_analysis_pdf(pdf_bytes: bytes) -> list[dict]:
     """Parse a full Analysis PDF into a list of rider dicts with lap data."""
-    all_riders = []
-    pdf = pdfplumber.open(io.BytesIO(pdf_bytes))
-    for page in pdf.pages:
-        w = page.width
-        h = page.height
-        # Split into left and right columns
-        for x0, x1 in [(0, w / 2), (w / 2, w)]:
-            cropped = page.crop((x0, 0, x1, h))
-            text = cropped.extract_text()
-            if text:
-                riders = parse_analysis_column(text)
-                all_riders.extend(riders)
-    pdf.close()
-    return all_riders
+    columns = []
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for page in pdf.pages:
+            w = page.width
+            h = page.height
+            for x0, x1 in [(0, w / 2), (w / 2, w)]:
+                text = page.crop((x0, 0, x1, h)).extract_text()
+                if text:
+                    columns.append(text)
+    # Rider blocks and tyre runs can continue in the next column or page.
+    return parse_analysis_column("\n".join(columns))
 
 
 def get_analysis_pdf_url(session: dict) -> str | None:
@@ -472,7 +475,7 @@ def write_lap_analysis_sheet(ws, session: dict, event: dict, category_name: str,
         best_time = None
         best_lap_num = None
         for lap in rider["laps"]:
-            lt = lap["lap_time"]
+            lt = tuple(float(part) for part in lap["lap_time"].split(":"))
             if best_time is None or lt < best_time:
                 best_time = lt
                 best_lap_num = lap["lap"]
@@ -536,7 +539,7 @@ def main():
 
     # 2. Get latest finished race event
     print("Finding latest race event...")
-    event = get_latest_race_event(season_id)
+    event = get_latest_race_event(season_id, args.category)
     print(f"   {event['sponsored_name']} ({event['date_end']})")
     print(f"   {event['circuit']['name']}, {event['circuit']['place']}")
 

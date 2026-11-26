@@ -23,6 +23,9 @@ A multi-sheet Excel workbook with **two sheets per session** (e.g., FP1 Results 
 - Tyre compounds (front/rear), pit stops, run/stint number
 - Best lap per rider highlighted in bold purple
 
+Rider timing blocks are preserved across PDF columns and pages. Pit and out
+laps are included; speed cells are left blank when the source does not record it.
+
 Sessions covered: **FP1, Practice, FP2, Q1, Q2, Sprint Race, Warm Up, Race**
 
 ## Setup on Windows
@@ -63,6 +66,8 @@ python Get-MotoGPResults.py
 ```
 
 This downloads data for **all sessions** (FP1 through Race) of the most recent finished MotoGP Grand Prix.
+The downloader verifies that the selected category's main race is finished;
+events marked finished by the API without a completed race are skipped.
 
 ### Options
 
