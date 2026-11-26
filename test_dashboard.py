@@ -58,6 +58,7 @@ def sample_query(sql, conn=None, params=None):
     if "l.lap_number, l.lap_time" in sql:
         return pd.DataFrame([{
             "rider": f"Sample Rider {rider}", "num": rider * 10,
+            "session_id": params[0] if params else "sample",
             "lap_number": lap, "lap_time": f"1:{40 + rider + lap:02d}.000",
             "t1": "23.000", "t2": "30.000", "t3": "16.000", "t4": "34.000",
             "speed_kmh": 320.0 + rider, "is_pit": False, "run_number": 1,
@@ -215,9 +216,26 @@ class DashboardTests(unittest.TestCase):
 
     def test_event_selection_survives_switching_to_all_capable_view(self):
         app = self.start_race_analysis()
-        app.radio(key="view_nav_race").set_value("viz_rhythm").run()
+        app.radio(key="view_nav_race").set_value("viz_speed").run()
         self.assertFalse(app.exception)
         self.assertEqual(app.session_state["sel_event_id"], "por")
+        app.radio(key="view_nav_race").set_value("viz_laptimes").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.session_state["sel_event_id"], "por")
+
+    def test_pace_views_require_one_session_while_speed_keeps_aggregation(self):
+        app = self.start_race_analysis()
+        for view in ["viz_rhythm", "viz_sectors"]:
+            app.radio(key="view_nav_race").set_value(view).run()
+            self.assertFalse(app.exception)
+            self.assertNotIn("All", app.selectbox(key="sb_year").options)
+            self.assertNotIn("All", app.selectbox(key="sb_sess").options)
+            self.assertEqual(len(app.selectbox(key="sb_gp").options), 3)
+            self.assertTrue(app.get("plotly_chart"))
+        app.radio(key="view_nav_race").set_value("viz_speed").run()
+        self.assertFalse(app.exception)
+        self.assertIn("All", app.selectbox(key="sb_sess").options)
+        self.assertEqual(len(app.selectbox(key="sb_gp").options), 4)
         app.radio(key="view_nav_race").set_value("viz_laptimes").run()
         self.assertFalse(app.exception)
         self.assertEqual(app.session_state["sel_event_id"], "por")
@@ -305,7 +323,7 @@ class RaceTimingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
-        names = {"race_elapsed", "reconstructed_positions"}
+        names = {"race_elapsed", "reconstructed_positions", "clean_laps"}
         nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in names]
         cls.helpers = {"pd": pd, "np": np}
         exec(compile(ast.Module(body=nodes, type_ignores=[]), str(DASHBOARD), "exec"), cls.helpers)
@@ -340,6 +358,29 @@ class RaceTimingTests(unittest.TestCase):
         classification.loc[1, "total_laps"] = 3
         positions = self.helpers["reconstructed_positions"](laps, classification)
         self.assertEqual(positions["lap_number"].unique().tolist(), [1])
+
+    def test_pace_cleaning_keeps_valid_laps_from_different_sessions(self):
+        laps = pd.DataFrame({
+            "session_id": ["fast"] * 4 + ["slow"] * 4,
+            "lap_sec": [60., 61., 62., 100., 120., 121., 122., 200.],
+            "is_pit": [False] * 8,
+        })
+        cleaned = self.helpers["clean_laps"](laps)
+        self.assertEqual(cleaned.groupby("session_id").size().to_dict(), {"fast": 3, "slow": 3})
+        self.assertEqual(cleaned["lap_sec"].tolist(), [60., 61., 62., 120., 121., 122.])
+
+    def test_pace_cleaning_rejects_invalid_times_and_pit_only_sessions(self):
+        laps = pd.DataFrame({
+            "session_id": ["valid"] * 6 + ["pit", "invalid"],
+            "lap_sec": [60., np.nan, np.inf, 0., -1., 61., 120., np.nan],
+            "is_pit": [False] * 6 + [True, False],
+        })
+        self.assertEqual(self.helpers["clean_laps"](laps)["lap_sec"].tolist(), [60., 61.])
+        missing = pd.DataFrame({"session_id": ["missing"], "lap_sec": [None], "is_pit": [False]})
+        self.assertTrue(self.helpers["clean_laps"](missing).empty)
+        missing["rider"] = "A"
+        missing["lap_number"] = 1
+        self.assertTrue(self.helpers["race_elapsed"](missing)["elapsed"].isna().all())
 
 
 class PremierScopeTests(unittest.TestCase):

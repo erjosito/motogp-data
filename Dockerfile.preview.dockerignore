@@ -1,0 +1,16 @@
+**
+!Dockerfile.preview
+!requirements-preview.txt
+!preview_api.py
+!sql_connection.py
+!preview-web/
+preview-web/**
+!preview-web/package.json
+!preview-web/package-lock.json
+!preview-web/.npmrc
+!preview-web/index.html
+!preview-web/tsconfig*.json
+!preview-web/vite.config.ts
+!preview-web/src/
+!preview-web/src/**
+preview-web/src/**/*.test.ts

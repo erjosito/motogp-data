@@ -2,6 +2,85 @@
 
 Downloads comprehensive MotoGP weekend data — **all sessions, lap-by-lap times, and sector splits** — from the official public API and timing PDFs, and exports everything to a formatted Excel workbook.
 
+## New-engine dashboard preview
+
+[Classic dashboard](https://motogp-data.com/) ·
+[New-engine preview](https://motogp-data---preview.bluehill-35b09ccb.swedencentral.azurecontainerapps.io/)
+
+The React/TypeScript + FastAPI preview runs alongside the classic Streamlit app,
+using the same read-only, managed-identity Azure SQL connection. Its four views
+cover the premier-class championship, session results, rider lap comparisons,
+and sector analysis. The championship highlights Marc Marquez's recovery from
+the verified 102-point deficit, including every imported Sprint and Grand Prix.
+
+The preview supports dark/light themes and shareable season/event/session URLs.
+It is English-only; Classic retains the full analysis suite and EN/ES/IT support.
+Coverage is reported from imported results, not assumed complete. Scoring
+weekends and GP race results are counted separately: a cancelled GP can still
+have a completed Sprint. Restarted race classifications remain on the timeline,
+but sessions awarding no points do not add a phantom GP win or countback finish.
+Lap-only sessions remain available even when the
+official classification is empty. Historical comparisons are not called
+"all-time" until the database genuinely covers the earlier premier-class era.
+Seasons with only missing or placeholder-zero race points do not produce invented
+zero-point standings; official historical championship records need a separate
+read contract, including historic dropped-score and half-point rules.
+
+The database does not currently preserve PDF lap/sector cancellation annotations
+or new-versus-used tyre flags. The UI explicitly warns that raw timing comparisons
+may include cancelled times; it does not claim official valid-lap rankings or
+infer tyre age. These limitations require a separate importer/schema enhancement.
+
+### Run the preview locally
+
+Requires Node.js 22.12+ and the existing ODBC Driver 18 / Azure CLI SQL setup
+described below. SQL credentials are never included in the frontend.
+
+```powershell
+python -m pip install -r requirements-dev.txt
+az login
+Set-Location .\preview-web
+npm ci
+npm run build
+Set-Location ..
+python -m uvicorn preview_api:app --host 127.0.0.1 --port 8502
+```
+
+Open `http://127.0.0.1:8502`. For frontend hot reload, run `npm run dev` from
+`preview-web` in another terminal; Vite proxies `/api` to port 8502.
+
+```powershell
+python -m unittest test_preview_api test_sql_connection test_motogp_results
+Set-Location .\preview-web
+npm test
+npm run lint
+npm run build
+```
+
+### Deploy side by side in the same Container App
+
+Run `.\scripts\deploy-preview.ps1` from the repository root. It builds
+`Dockerfile.preview` in the existing ACR, enables multiple revisions, pins 100%
+of main-domain traffic to the existing classic revision **before** creating the
+preview revision, and assigns the stable `classic` and `preview` labels. It
+refuses an ambiguous production traffic split. Both engines use ingress port
+8501; the revision label chooses the engine, not a query parameter or header.
+No new app, database, registry, or environment is created.
+
+The script prints the label URL after checking revision health and the unchanged
+production traffic allocation. A prebuilt image can be deployed with
+`.\scripts\deploy-preview.ps1 -Tag <existing-tag> -SkipBuild`.
+The existing `redeploy-app.ps1` now moves the `classic` label and named production
+traffic together when releasing future Streamlit updates, preserving preview
+isolation. Do not reset ingress to `latest=100` or switch back to single revision
+mode while both engines are in use. Multiple active revisions can incur
+additional compute charges.
+
+For rollback, move the `preview` label back to a known-good **passwordless**
+preview revision; main-domain traffic does not need to change. To remove the
+preview, remove its label and deactivate its revision without touching the
+production classic revision. Never roll back to an old password-based image.
+
 ## Data Sources
 
 | Source | URL | Purpose |
@@ -206,6 +285,13 @@ surrounding spaces) and historical `500cc`. Moto2, Moto3, and unknown source
 categories are excluded and listed in a sidebar notice. Source labels are not
 rewritten. The read-only query layer applies this scope through a SQL CTE, so no
 schema migration or dashboard write permission is required.
+
+Pilot Rhythm and Sector Heatmap compare absolute times within one selected
+session, not across unrelated circuits or conditions. Pace cleaning excludes
+pit laps, non-finite/non-positive times, and laps at least 15% slower than their
+own session's median. Lap loaders preserve stable session/event IDs and context;
+combining sessions no longer changes their outlier baselines. Speed Trap keeps
+its all-session/event/season aggregation.
 
 ```powershell
 python -m unittest test_dashboard test_motogp_results

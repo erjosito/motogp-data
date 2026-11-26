@@ -8,6 +8,11 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "pace_single_session": {
+        "en": "Absolute pace and sector comparisons use one session only. Pit laps, invalid times, and laps at least 15% slower than the session median are excluded.",
+        "es": "Las comparaciones de ritmo y sectores usan una sola sesion. Se excluyen vueltas de boxes, tiempos invalidos y vueltas al menos un 15% mas lentas que la mediana de la sesion.",
+        "it": "I confronti di passo e settori usano una sola sessione. Sono esclusi giri ai box, tempi non validi e giri almeno il 15% piu lenti della mediana della sessione.",
+    },
     "excluded_categories": {
         "en": "Premier-class scope: MotoGP / historical 500cc. Excluded source categories: {categories}",
         "es": "Categoria reina: MotoGP / 500cc historica. Categorias excluidas: {categories}",
