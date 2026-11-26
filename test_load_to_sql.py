@@ -1,12 +1,23 @@
 import contextlib
 import io
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import load_to_sql as loader
 
 
 class LapRiderLookupTests(unittest.TestCase):
+    def test_does_not_create_an_event_without_finished_sessions(self):
+        connection = Mock()
+        event = {"id": "future-event", "name": "Future GP", "date_end": "2026-11-29"}
+        with patch.object(loader, "get_category_id", return_value=("motogp", "MotoGP")), \
+                patch.object(loader, "get_all_sessions", return_value=[]), \
+                patch.object(loader, "upsert_event") as upsert_event, \
+                contextlib.redirect_stdout(io.StringIO()):
+            loader.load_event(connection, event, 2026, "MotoGP")
+        upsert_event.assert_not_called()
+        connection.commit.assert_not_called()
+
     def test_imports_pdf_laps_when_session_classification_is_empty(self):
         cursor = Mock()
         cursor.fetchall.side_effect = [[], [("bezzecchi-id", 72, "Marco BEZZECCHI")]]

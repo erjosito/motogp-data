@@ -159,6 +159,9 @@ the generated Excel workbooks. Use `load_to_sql.py` to update the database.
 If a session's API classification is empty, the loader resolves PDF lap riders
 from classifications in other sessions of the same GP and category. It reports
 this source gap and does not fabricate classification results.
+Events without any finished sessions in the requested category are not inserted,
+even if the API incorrectly labels the event finished. A GP can have a completed
+Sprint but a cancelled main race, so GP coverage and main-race counts can differ.
 
 ```powershell
 pip install -r requirements.txt
@@ -177,8 +180,8 @@ database statistics and coverage charts. Navigation and filters are preserved
 when switching between English, Spanish, and Italian.
 
 The shared light theme is configured in `.streamlit/config.toml` and included
-in the Docker image. Database schema, ingestion, and analysis calculations are
-unchanged. Both championship views share the same Race + Sprint points
+in the Docker image. The visual refresh retains the database schema and existing
+analytical views. Both championship views share the same Race + Sprint points
 calculation. Both views show tied points as shared positions, without
 claiming to apply official championship countback rules.
 

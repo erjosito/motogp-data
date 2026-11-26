@@ -322,10 +322,6 @@ def load_event(conn, event: dict, year: int, category_name_input: str):
     print(f"Loading: {event_name} ({event.get('date_end')})")
     print(f"{'='*60}")
 
-    # Upsert event
-    upsert_event(cursor, event, year)
-    conn.commit()
-
     # Resolve category — skip event if category not available (e.g. COVID cancellations)
     try:
         category_id, category_name = get_category_id(event["id"], category_name_input)
@@ -338,6 +334,13 @@ def load_event(conn, event: dict, year: int, category_name_input: str):
     # Get all sessions
     sessions = get_all_sessions(event["id"], category_id)
     print(f"   {len(sessions)} sessions")
+    if not sessions:
+        print("   No finished sessions in this category; event not imported")
+        cursor.close()
+        return
+
+    upsert_event(cursor, event, year)
+    conn.commit()
 
     total_classifications = 0
     total_laps = 0
