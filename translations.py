@@ -8,6 +8,11 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "incomplete_sectors": {
+        "en": "Ideal lap and gap are unavailable when any sector is missing.",
+        "es": "La vuelta ideal y la diferencia no estan disponibles si falta algun sector.",
+        "it": "Il giro ideale e il distacco non sono disponibili se manca un settore.",
+    },
     # --- Navigation / Sidebar ---
     "nav_workspace": {"en": "Explore", "es": "Explorar", "it": "Esplora"},
     "nav_analysis": {"en": "Analysis", "es": "Análisis", "it": "Analisi"},

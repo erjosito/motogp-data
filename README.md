@@ -187,6 +187,9 @@ claiming to apply official championship countback rules.
 
 Dashboard interaction tests use sample data and never connect to Azure SQL:
 
+Sector Heatmap requires all four sectors before showing an ideal lap or its
+gap to the best lap. Missing sectors leave those values unavailable.
+
 ```powershell
 python -m unittest test_dashboard test_motogp_results
 ```

@@ -1050,7 +1050,9 @@ elif viz == "⏱ Sector Heatmap":
     sb = clean.groupby("rider").agg(T1=("t1_sec", "min"), T2=("t2_sec", "min"),
                                      T3=("t3_sec", "min"), T4=("t4_sec", "min"),
                                      Best=("lap_sec", "min")).reset_index()
-    sb["Ideal"] = sb[["T1", "T2", "T3", "T4"]].sum(axis=1)
+    sb["Ideal"] = sb[["T1", "T2", "T3", "T4"]].sum(axis=1, min_count=4)
+    if sb["Ideal"].isna().any():
+        st.info(t("incomplete_sectors"))
     sb = sb.sort_values("Best")
     for c in ["T1", "T2", "T3", "T4"]:
         sb[c + "_d"] = sb[c] - sb[c].min()
