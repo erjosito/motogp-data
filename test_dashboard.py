@@ -1,4 +1,5 @@
 import ast
+import sqlite3
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,8 @@ DASHBOARD = Path(__file__).with_name("dashboard.py")
 def sample_query(sql, conn=None, params=None):
     """Supply explicit test data; never open a database connection."""
     sql = " ".join(sql.split())
+    if "SELECT DISTINCT category" in sql:
+        return pd.DataFrame(columns=["category"])
     if "SELECT DISTINCT season_year" in sql:
         return pd.DataFrame({"season_year": [2026, 2025]})
     if "SUM(cl.points) AS race_pts" in sql:
@@ -235,6 +238,16 @@ class DashboardTests(unittest.TestCase):
         self.assertTrue(app.info)
         self.assertFalse(app.button)
 
+    def test_excluded_source_categories_are_visible(self):
+        def excluded(sql, conn=None, params=None):
+            if "SELECT DISTINCT category" in sql:
+                return pd.DataFrame({"category": ["Moto2", "Unrecognized", None]})
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = excluded
+        app = self.start_app()
+        self.assertIn("Unrecognized", app.warning[0].value)
+        self.assertIn("Moto2", app.warning[0].value)
+
     def test_championship_does_not_depend_on_lap_data(self):
         def no_laps(sql, conn=None, params=None):
             if "l.lap_number, l.lap_time" in sql:
@@ -304,6 +317,54 @@ class RaceTimingTests(unittest.TestCase):
         classification.loc[1, "total_laps"] = 3
         positions = self.helpers["reconstructed_positions"](laps, classification)
         self.assertEqual(positions["lap_number"].unique().tolist(), [1])
+
+
+class PremierScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.db = sqlite3.connect(":memory:")
+        self.addCleanup(self.db.close)
+        self.db.execute("ATTACH DATABASE ':memory:' AS dbo")
+        self.db.execute("CREATE TABLE dbo.sessions (session_id TEXT, category TEXT)")
+        self.db.executemany("INSERT INTO dbo.sessions VALUES (?, ?)", [
+            ("modern", "MotoGP™"), ("plain", "MotoGP"), ("variant", " motogp "),
+            ("historic", "500cc"), ("moto2", "Moto2"), ("moto3", "Moto3"),
+            ("unknown", "Unrecognized"), ("missing", None),
+        ])
+        self.db.execute("CREATE TABLE classifications (session_id TEXT, points REAL, status TEXT)")
+        self.db.executemany("INSERT INTO classifications VALUES (?, ?, ?)", [
+            ("modern", 25, "INSTND"), ("historic", 20, "OUTSTND"),
+            ("moto2", 100, "OUTSTND"), ("moto3", 100, "OUTSTND"),
+        ])
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        nodes = [
+            node for node in tree.body
+            if (isinstance(node, ast.FunctionDef) and node.name == "premier_q")
+            or (isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == "PREMIER_CATEGORY" for target in node.targets
+            ))
+        ]
+        self.queries = []
+        def execute(sql, params=None):
+            self.queries.append(sql)
+            # SQLite accepts the same relational query without SQL Server's Unicode literal prefix.
+            return pd.read_sql_query(sql.replace("N'", "'"), self.db, params=params)
+        self.helpers = {"q": execute}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(DASHBOARD), "exec"), self.helpers)
+
+    def test_supported_aliases_and_historical_sessions_share_the_same_scope(self):
+        result = self.helpers["premier_q"]("SELECT session_id FROM sessions ORDER BY session_id")
+        self.assertEqual(result["session_id"].tolist(), ["historic", "modern", "plain", "variant"])
+
+    def test_other_classes_cannot_change_points_or_race_denominators(self):
+        result = self.helpers["premier_q"](
+            "SELECT SUM(c.points) AS points, COUNT(*) AS races FROM classifications c "
+            "JOIN sessions s ON c.session_id = s.session_id"
+        )
+        self.assertEqual(result.iloc[0].to_dict(), {"points": 45, "races": 2})
+        historic = self.helpers["premier_q"](
+            "SELECT session_id FROM sessions WHERE session_id = ?", ["historic"]
+        )
+        self.assertEqual(historic["session_id"].tolist(), ["historic"])
 
 
 if __name__ == "__main__":

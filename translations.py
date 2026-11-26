@@ -8,6 +8,11 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "excluded_categories": {
+        "en": "Premier-class scope: MotoGP / historical 500cc. Excluded source categories: {categories}",
+        "es": "Categoria reina: MotoGP / 500cc historica. Categorias excluidas: {categories}",
+        "it": "Classe regina: MotoGP / 500cc storica. Categorie escluse: {categories}",
+    },
     "race_timing_limits": {
         "en": "Reconstructed from complete lap timing, including slow and pit laps; not official live positions. Missing timing leaves gaps. Comparisons require complete timing for the selected riders; positions require all riders still racing at that lap.",
         "es": "Reconstruccion con tiempos completos, incluidas vueltas lentas y de boxes; no son posiciones oficiales. Los datos incompletos dejan huecos. Las posiciones requieren datos de todos los pilotos aun en carrera.",
