@@ -503,6 +503,42 @@ def clean_laps(df):
     return v[v["lap_sec"] < v["lap_sec"].median() * 1.15]
 
 
+def race_elapsed(df):
+    """Only contiguous, valid timing from lap one establishes elapsed time."""
+    race = df.sort_values(["rider", "lap_number"]).copy()
+    if race.empty:
+        race["elapsed"] = pd.Series(dtype=float)
+        return race.drop_duplicates(["rider", "lap_number"])
+    groups = race.groupby("rider")
+    previous = groups["lap_number"].shift().fillna(0)
+    valid = (
+        race["lap_number"].sub(previous).eq(1)
+        & np.isfinite(race["lap_sec"]) & race["lap_sec"].gt(0)
+        & ~race.duplicated(["rider", "lap_number"], keep=False)
+    )
+    complete = valid.groupby(race["rider"]).cummin()
+    race["elapsed"] = groups["lap_sec"].cumsum().where(complete)
+    return race
+
+
+def reconstructed_positions(laps, classification):
+    race = race_elapsed(laps)
+    rows = []
+    for lap, timing in race.groupby("lap_number"):
+        if classification.empty or classification["total_laps"].isna().any():
+            continue
+        expected = classification.loc[classification["total_laps"] >= lap, "rider"]
+        timing = timing[timing["rider"].isin(expected)]
+        if expected.empty or set(timing["rider"]) != set(expected) or timing["elapsed"].isna().any():
+            continue
+        timing = timing[["rider", "lap_number", "elapsed"]].copy()
+        timing["pos"] = timing["elapsed"].rank(method="min").astype(int)
+        rows.append(timing)
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(
+        columns=["rider", "lap_number", "elapsed", "pos"]
+    )
+
+
 if sel_session is not None:
     laps_df = load_laps(sel_session.session_id)
     class_df = load_class(sel_session.session_id, selected_year)
@@ -857,16 +893,21 @@ elif viz == "🏎 Lap Times":
                       labels={"lap_number": t("lap"), "lap_sec": t("time_s")})
         fig.update_layout(height=500, hovermode="x unified")
         st.plotly_chart(fig, width="stretch")
-        if len(sel) > 1:
-            piv = f.pivot_table(index="lap_number", columns="rider", values="lap_sec", aggfunc="first")
-            cum = piv.cumsum()
+        if len(sel) > 1 and sel_session.session_type in ("RAC", "SPR"):
+            timing = race_elapsed(laps_df[laps_df["rider"].isin(sel)])
+            cum = timing.pivot(index="lap_number", columns="rider", values="elapsed")
+            cum = cum.where(cum.notna().all(axis=1), axis=0)
             gap = cum.sub(cum.min(axis=1), axis=0).reset_index().melt(
                 id_vars="lap_number", var_name="rider", value_name="gap")
+            st.caption(t("race_timing_limits"))
             fig2 = px.line(gap, x="lap_number", y="gap", color="rider",
                            title=t("cumulative_gap"),
                            labels={"lap_number": t("lap"), "gap": t("gap") + " (s)"})
             fig2.update_layout(height=400)
+            fig2.update_traces(connectgaps=False)
             st.plotly_chart(fig2, width="stretch")
+        elif len(sel) > 1:
+            st.info(t("race_timing_only"))
 
 
 # =====================================================================
@@ -879,51 +920,16 @@ elif viz == "📍 Position Battle":
     if laps_df.empty or laps_df["lap_sec"].isna().all():
         st.info(t("no_lap_data")); st.stop()
 
-    # Load grid positions (Q2 results for this event)
-    grid_df = q("""
-        SELECT r.full_name AS rider, c.position AS grid_pos
-        FROM classifications c
-        JOIN sessions s ON c.session_id = s.session_id
-        JOIN riders r ON c.rider_id = r.rider_id
-        WHERE s.event_id = ? AND s.session_type = 'Q' AND s.session_number = 2
-            AND c.position IS NOT NULL
-    """, [event.event_id])
-
-    race = laps_df[laps_df["lap_sec"].notna()].copy()
-    race["cum"] = race.groupby("rider")["lap_sec"].cumsum()
-    positions = []
-
-    # Lap 0: grid positions
-    if not grid_df.empty:
-        lap0 = grid_df.copy()
-        lap0["pos"] = lap0["grid_pos"].astype(int)
-        lap0["lap_number"] = 0
-        lap0["cum"] = None
-        positions.append(lap0[["rider", "cum", "pos", "lap_number"]])
-
-    # Laps 1..N: from cumulative time
-    for lap_n in sorted(race["lap_number"].unique()):
-        ld = race[race["lap_number"] == lap_n][["rider", "cum"]].copy()
-        ld["pos"] = ld["cum"].rank(method="min").astype(int)
-        ld["lap_number"] = lap_n
-        positions.append(ld)
-
-    if not positions:
+    pos_df = reconstructed_positions(laps_df, class_df)
+    if pos_df.empty:
         st.info(t("no_position_data")); st.stop()
-    pos_df = pd.concat(positions)
-
-    # Add riders from classification who have no lap data
-    riders_with_laps = set(pos_df["rider"].unique())
-    if not class_df.empty:
-        max_lap = pos_df["lap_number"].max()
-        for _, row in class_df.iterrows():
-            if row["rider"] not in riders_with_laps and pd.notna(row["position"]):
-                for lap_n in range(0, int(max_lap) + 1):
-                    positions.append(pd.DataFrame([{
-                        "rider": row["rider"], "cum": None,
-                        "pos": int(row["position"]), "lap_number": lap_n
-                    }]))
-        pos_df = pd.concat(positions)
+    st.caption(t("race_timing_limits"))
+    last_lap = int(laps_df["lap_number"].max())
+    pos_df = pos_df.set_index(["rider", "lap_number"]).reindex(
+        pd.MultiIndex.from_product(
+            [pos_df["rider"].unique(), range(1, last_lap + 1)], names=["rider", "lap_number"]
+        )
+    ).reset_index()
 
     all_r = sorted(pos_df["rider"].unique())
     if not class_df.empty:
@@ -936,6 +942,7 @@ elif viz == "📍 Position Battle":
                       color="rider", markers=True, title=t("position_per_lap"),
                       labels={"lap_number": t("lap"), "pos": t("position")})
         max_pos_val = int(pos_df[pos_df["rider"].isin(sel)]["pos"].max())
+        fig.update_traces(connectgaps=False)
         fig.update_layout(height=500,
                           yaxis=dict(autorange=False, dtick=1, range=[max_pos_val + 0.5, 0.5], tick0=1),
                           xaxis=dict(dtick=1, tick0=0),

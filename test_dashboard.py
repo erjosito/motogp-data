@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+import numpy as np
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
@@ -167,6 +168,25 @@ class DashboardTests(unittest.TestCase):
             self.assertTrue(pd.isna(table.loc[rider, "Gap"]))
         self.assertTrue(app.info)
 
+    def test_position_battle_does_not_invent_histories_without_timing(self):
+        def missing_rider(sql, conn=None, params=None):
+            data = sample_query(sql, conn, params)
+            if "l.lap_number, l.lap_time" in sql:
+                data = data[data["rider"] != "Sample Rider 3"]
+            return data
+        self.read_sql.side_effect = missing_rider
+        app = self.start_race_analysis()
+        app.radio(key="view_nav_race").set_value("viz_position").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.info)
+        self.assertFalse(app.get("plotly_chart"))
+
+    def test_position_battle_with_complete_timing(self):
+        app = self.start_race_analysis()
+        app.radio(key="view_nav_race").set_value("viz_position").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.get("plotly_chart"))
+
     def test_event_selection_survives_switching_to_all_capable_view(self):
         app = self.start_race_analysis()
         app.radio(key="view_nav_race").set_value("viz_rhythm").run()
@@ -243,6 +263,44 @@ class DashboardTests(unittest.TestCase):
         detailed_standings = app.dataframe[0].value
         self.assertEqual(detailed_standings["Pos"].tolist(), [1, 1, 3, 4])
         self.assertEqual(detailed_standings["Points"].tolist(), [66, 66, 46, 11.5])
+
+
+class RaceTimingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        names = {"race_elapsed", "reconstructed_positions"}
+        nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in names]
+        cls.helpers = {"pd": pd, "np": np}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(DASHBOARD), "exec"), cls.helpers)
+
+    def test_missing_lap_invalidates_all_subsequent_elapsed_times(self):
+        laps = pd.DataFrame({"rider": ["A"] * 3, "lap_number": [1, 3, 4], "lap_sec": [100., 100., 100.]})
+        elapsed = self.helpers["race_elapsed"](laps)["elapsed"]
+        self.assertEqual(elapsed.iloc[0], 100.)
+        self.assertTrue(elapsed.iloc[1:].isna().all())
+
+    def test_slow_and_pit_laps_count_toward_elapsed_time(self):
+        laps = pd.DataFrame({"rider": ["A"] * 3, "lap_number": [3, 1, 2],
+                             "lap_sec": [100., 100., 200.], "is_pit": [False, False, True]})
+        self.assertEqual(self.helpers["race_elapsed"](laps)["elapsed"].tolist(), [100., 300., 400.])
+
+    def test_invalid_or_duplicate_timing_does_not_resume(self):
+        for times in [[100., np.nan, 100.], [100., 0., 100.], [100., np.inf, 100.]]:
+            laps = pd.DataFrame({"rider": ["A"] * 3, "lap_number": [1, 2, 3], "lap_sec": times})
+            self.assertTrue(self.helpers["race_elapsed"](laps)["elapsed"].iloc[1:].isna().all())
+        laps = pd.DataFrame({"rider": ["A"] * 4, "lap_number": [1, 2, 2, 3], "lap_sec": [100.] * 4})
+        self.assertTrue(self.helpers["race_elapsed"](laps)["elapsed"].iloc[1:].isna().all())
+
+    def test_retirement_and_missing_active_rider_have_distinct_outcomes(self):
+        laps = pd.DataFrame({"rider": ["A", "A", "A", "B"],
+                             "lap_number": [1, 2, 3, 1], "lap_sec": [100., 100., 100., 101.]})
+        classification = pd.DataFrame({"rider": ["A", "B"], "total_laps": [3, 1]})
+        positions = self.helpers["reconstructed_positions"](laps, classification)
+        self.assertEqual(positions.groupby("lap_number").size().tolist(), [2, 1, 1])
+        classification.loc[1, "total_laps"] = 3
+        positions = self.helpers["reconstructed_positions"](laps, classification)
+        self.assertEqual(positions["lap_number"].unique().tolist(), [1])
 
 
 if __name__ == "__main__":

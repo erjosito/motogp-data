@@ -190,6 +190,13 @@ Dashboard interaction tests use sample data and never connect to Azure SQL:
 Sector Heatmap requires all four sectors before showing an ideal lap or its
 gap to the best lap. Missing sectors leave those values unavailable.
 
+Race/Sprint cumulative gaps use unfiltered lap timing, including slow and pit
+laps. Missing or invalid timing invalidates subsequent elapsed totals; gaps
+are shown only where every selected rider has complete timing. Position Battle
+is a reconstruction, not official live timing: each lap requires complete times
+for every rider whose classification reports reaching that lap. Missing data is
+not replaced with final finishing positions, and Q2 is not treated as a grid.
+
 ```powershell
 python -m unittest test_dashboard test_motogp_results
 ```
