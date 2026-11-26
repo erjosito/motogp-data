@@ -38,23 +38,66 @@ _conn = None
 
 def get_conn():
     global _conn
-    if _conn is None:
-        _conn = pyodbc.connect(_conn_str)
-        return _conn
     try:
-        _conn.execute("SELECT 1")
-        return _conn
-    except Exception:
+        if _conn is None:
+            _conn = pyodbc.connect(_conn_str)
+            return _conn
         try:
-            _conn.close()
+            _conn.execute("SELECT 1")
+            return _conn
         except Exception:
-            pass
-        _conn = pyodbc.connect(_conn_str)
-        return _conn
+            try:
+                _conn.close()
+            except Exception:
+                pass
+            _conn = pyodbc.connect(_conn_str)
+            return _conn
+    except pyodbc.OperationalError as e:
+        err = str(e)
+        if "not allowed to access the server" in err:
+            st.error(
+                "⛔ **Database connection blocked** — your IP address is not allowed. "
+                "Please ask an administrator to update the Azure SQL firewall rule."
+            )
+        elif "Login timeout" in err or "Unable to complete login" in err:
+            st.error(
+                "⏳ **Database is waking up** — the serverless database is resuming from auto-pause. "
+                "Please wait 15-30 seconds and refresh the page."
+            )
+        else:
+            st.error(f"❌ **Cannot connect to database**: {err[:200]}")
+        st.stop()
 
 
 def q(sql, params=None):
-    return pd.read_sql(sql, get_conn(), params=params)
+    try:
+        return pd.read_sql(sql, get_conn(), params=params)
+    except pyodbc.OperationalError as e:
+        err = str(e)
+        if "not allowed to access the server" in err:
+            st.error(
+                "⛔ **Database connection blocked** — your IP address is not allowed. "
+                "Please ask an administrator to update the Azure SQL firewall rule."
+            )
+        elif "Login timeout" in err or "Unable to complete login" in err:
+            st.error(
+                "⏳ **Database is waking up** — the serverless database is resuming from auto-pause. "
+                "Please wait 15-30 seconds and refresh the page."
+            )
+        elif "Communication link failure" in err:
+            st.error(
+                "🔌 **Database connection lost** — the connection was interrupted "
+                "(possibly due to network change or sleep). Please refresh the page."
+            )
+        else:
+            st.error(f"❌ **Database error**: {err[:200]}")
+        st.stop()
+    except pyodbc.ProgrammingError as e:
+        st.error(f"❌ **Query error**: {str(e)[:200]}")
+        st.stop()
+    except Exception as e:
+        st.error(f"❌ **Unexpected error**: {str(e)[:200]}")
+        st.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -514,6 +557,58 @@ if viz == "🏠 Home":
                           yaxis=dict(range=[0, sess_types["Count"].max() * 1.2]))
         fig.update_traces(textposition="outside")
         st.plotly_chart(fig, width="stretch")
+        st.markdown(t("session_types_explainer"))
+
+    st.divider()
+
+    # --- Data Quality ---
+    st.subheader(t("data_quality_title"))
+    st.caption(t("data_quality_caption"))
+
+    dq = q("""
+        SELECT e.season_year AS Year,
+            COUNT(DISTINCT e.event_id) AS Events,
+            COUNT(DISTINCT s.session_id) AS Sessions,
+            (SELECT COUNT(*) FROM classifications c2 
+             JOIN sessions s2 ON c2.session_id = s2.session_id
+             JOIN events e2 ON s2.event_id = e2.event_id
+             WHERE e2.season_year = e.season_year AND s2.category = 'MotoGP™') AS Classifications,
+            (SELECT COUNT(*) FROM laps l2 
+             JOIN sessions s2 ON l2.session_id = s2.session_id
+             JOIN events e2 ON s2.event_id = e2.event_id
+             WHERE e2.season_year = e.season_year) AS Laps,
+            (SELECT COUNT(*) FROM laps l3
+             JOIN sessions s3 ON l3.session_id = s3.session_id
+             JOIN events e3 ON s3.event_id = e3.event_id
+             WHERE e3.season_year = e.season_year AND l3.t1 IS NOT NULL) AS Sectors
+        FROM events e
+        JOIN sessions s ON s.event_id = e.event_id AND s.category = 'MotoGP™'
+        GROUP BY e.season_year ORDER BY e.season_year
+    """)
+    if not dq.empty:
+        dq["Year"] = dq["Year"].astype(str)
+        dq["Lap Coverage %"] = (dq["Laps"] / dq["Laps"].max() * 100).fillna(0).round(0).astype(int)
+        dq["Sector Coverage %"] = np.where(dq["Laps"] > 0,
+            (dq["Sectors"] / dq["Laps"] * 100).fillna(0).round(0), 0).astype(int)
+        dq["Has PDF Data"] = dq["Laps"].apply(lambda x: "✅" if x > 1000 else ("⚠️" if x > 0 else "❌"))
+
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=dq["Year"], y=dq["Classifications"], name=t("classifications"),
+                             marker_color="#3498db"))
+        fig.add_trace(go.Bar(x=dq["Year"], y=dq["Laps"], name=t("lap_entries"),
+                             marker_color="#2ecc71"))
+        fig.add_trace(go.Bar(x=dq["Year"], y=dq["Sectors"], name=t("sector_entries"),
+                             marker_color="#f39c12"))
+        fig.update_layout(height=400, barmode="group",
+                          title=t("data_coverage_by_year"),
+                          yaxis_title=t("records"),
+                          hovermode="x unified")
+        st.plotly_chart(fig, width="stretch")
+
+        # Summary table
+        display = dq[["Year", "Events", "Sessions", "Classifications", "Laps", "Sectors",
+                       "Sector Coverage %", "Has PDF Data"]].copy()
+        st.dataframe(display, width="stretch", hide_index=True)
 
     st.divider()
     st.caption(t("data_source")) #.pulselive.com + resources.motogp.com (official timing PDFs)")
@@ -1688,11 +1783,23 @@ elif viz == "🏟 Circuits":
 
     st.divider()
 
-    # --- Lap time evolution ---
+    # --- Lap time evolution (from laps table, not classification) ---
     st.subheader(t("winning_pace_evolution"))
-    bl = cd[cd["position"] == 1].copy()
-    bl["sec"] = bl["best_lap_time"].apply(lap_to_sec)
-    bl = bl.dropna(subset=["sec"])
+    bl = q("""
+        SELECT e.season_year, r.full_name AS rider, MIN(l.lap_time) AS best_lap
+        FROM laps l
+        JOIN sessions s ON l.session_id = s.session_id
+        JOIN events e ON s.event_id = e.event_id
+        JOIN riders r ON l.rider_id = r.rider_id
+        JOIN classifications c ON c.session_id = s.session_id AND c.rider_id = l.rider_id
+        WHERE s.session_type = 'RAC' AND e.short_name = ? AND c.position = 1
+            AND l.is_pit = 0
+        GROUP BY e.season_year, r.full_name
+        ORDER BY e.season_year
+    """, [sel_circuit])
+    if not bl.empty:
+        bl["sec"] = bl["best_lap"].apply(lap_to_sec)
+        bl = bl.dropna(subset=["sec"])
     if not bl.empty:
         bl["Year"] = bl["season_year"].astype(str)
         fig = px.scatter(bl, x="Year", y="sec", text="rider",
@@ -1701,28 +1808,37 @@ elif viz == "🏟 Circuits":
         fig.update_traces(marker=dict(size=12), textposition="top center", textfont_size=9)
         fig.update_layout(height=400, showlegend=False)
         st.plotly_chart(fig, width="stretch")
+    else:
+        st.info(t("no_data"))
 
-    # --- Top speed evolution ---
+    # --- Top speed evolution (from laps table) ---
     st.subheader(t("top_speed_circuit"))
-    ts = cd[cd["top_speed"].notna()].copy()
+    ts = q("""
+        SELECT e.season_year, MAX(l.speed_kmh) AS max_speed, AVG(l.speed_kmh) AS avg_speed
+        FROM laps l
+        JOIN sessions s ON l.session_id = s.session_id
+        JOIN events e ON s.event_id = e.event_id
+        WHERE s.session_type = 'RAC' AND e.short_name = ?
+            AND l.speed_kmh IS NOT NULL AND l.speed_kmh > 0
+        GROUP BY e.season_year
+        ORDER BY e.season_year
+    """, [sel_circuit])
     if not ts.empty:
-        ts_max = ts.groupby("season_year").agg(
-            max_speed=("top_speed", "max"),
-            avg_speed=("top_speed", "mean"),
-        ).reset_index()
-        ts_max["Year"] = ts_max["season_year"].astype(str)
+        ts["Year"] = ts["season_year"].astype(str)
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=ts_max["Year"], y=ts_max["max_speed"],
+        fig.add_trace(go.Scatter(x=ts["Year"], y=ts["max_speed"],
                                   mode="lines+markers", name=t("max_speed_trace"),
                                   marker=dict(size=10)))
-        fig.add_trace(go.Scatter(x=ts_max["Year"], y=ts_max["avg_speed"].round(1),
+        fig.add_trace(go.Scatter(x=ts["Year"], y=ts["avg_speed"].round(1),
                                   mode="lines+markers", name=t("avg_speed_trace"),
                                   marker=dict(size=8), line=dict(dash="dash")))
         fig.update_layout(height=380, title=t("top_speed_evolution_title"),
                           yaxis_title=t("kmh"), hovermode="x unified",
-                          yaxis=dict(range=[ts_max[["max_speed", "avg_speed"]].min().min() - 5,
-                                            ts_max["max_speed"].max() + 5]))
+                          yaxis=dict(range=[ts[["max_speed", "avg_speed"]].min().min() - 5,
+                                            ts["max_speed"].max() + 5]))
         st.plotly_chart(fig, width="stretch")
+    else:
+        st.info(t("no_data"))
 
     st.divider()
 
@@ -1798,6 +1914,7 @@ elif viz == "🏅 Pilot Rankings":
             JOIN riders r ON c.rider_id = r.rider_id
             WHERE s.session_type IN ('RAC','SPR')
             GROUP BY e.season_year, r.full_name
+            HAVING SUM(c.points) > 0
         ) sub WHERE rnk = 1 GROUP BY rider
     """)
     champ_map = dict(zip(champs["rider"], champs["championships"])) if not champs.empty else {}
@@ -2189,6 +2306,7 @@ elif viz == "📈 Cross-Year":
     st.caption(t("cross_year_caption"))
 
     cross = st.selectbox(t("chart_label"), [
+        t("cross_bar_chart_race"),
         t("cross_bump_chart"),
         t("cross_championship_concentration"),
         t("cross_top_riders"),
@@ -2204,8 +2322,201 @@ elif viz == "📈 Cross-Year":
         t("cross_circuit_pace"),
     ])
 
+    # --- Animated Bar Chart Race ---
+    if cross == t("cross_bar_chart_race"):
+        st.subheader(t("bar_chart_race_title"))
+        st.caption(t("bar_chart_race_caption"))
+
+        race_metric = st.radio(t("metric"), [
+            t("constructor_wins"), t("constructor_points"),
+            t("rider_wins"), t("rider_points"),
+        ], horizontal=True)
+
+        from raceplotly.plots import barplot
+
+        if race_metric in [t("constructor_wins"), t("constructor_points")]:
+            is_wins = race_metric == t("constructor_wins")
+            cdata = q("""
+                SELECT e.season_year, e.short_name, e.date_end, t.constructor AS Item,
+                    COUNT(CASE WHEN c.position = 1 AND s.session_type = 'RAC' THEN 1 END) AS wins,
+                    SUM(c.points) AS pts
+                FROM classifications c
+                JOIN sessions s ON c.session_id = s.session_id
+                JOIN events e ON s.event_id = e.event_id
+                LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
+                WHERE s.session_type IN ('RAC','SPR') AND t.constructor IS NOT NULL
+                GROUP BY e.season_year, e.short_name, e.date_end, t.constructor
+                ORDER BY e.date_end
+            """)
+            if cdata.empty:
+                st.info(t("no_data")); st.stop()
+            val_col = "wins" if is_wins else "pts"
+
+        else:
+            is_wins = race_metric == t("rider_wins")
+            cdata = q("""
+                SELECT e.season_year, e.short_name, e.date_end, r.full_name AS Item,
+                    COUNT(CASE WHEN c.position = 1 AND s.session_type = 'RAC' THEN 1 END) AS wins,
+                    SUM(c.points) AS pts
+                FROM classifications c
+                JOIN sessions s ON c.session_id = s.session_id
+                JOIN events e ON s.event_id = e.event_id
+                JOIN riders r ON c.rider_id = r.rider_id
+                WHERE s.session_type IN ('RAC','SPR')
+                GROUP BY e.season_year, e.short_name, e.date_end, r.full_name
+                ORDER BY e.date_end
+            """)
+            if cdata.empty:
+                st.info(t("no_data")); st.stop()
+            val_col = "wins" if is_wins else "pts"
+
+        # Compute cumulative per GP (finest granularity)
+        cdata = cdata.sort_values("date_end")
+        cdata["GP"] = cdata["short_name"] + " " + cdata["season_year"].astype(str)
+        cdata["cumulative"] = cdata.groupby("Item")[val_col].cumsum()
+
+        # Build ordered list of unique GPs
+        gp_order = list(dict.fromkeys(cdata["GP"]))
+
+        # Sample every N GPs based on slider
+        n_step = st.slider(t("gps_per_frame"), min_value=1, max_value=20, value=5,
+                           help=t("gps_per_frame_help"))
+        sampled_gps = [gp_order[i] for i in range(0, len(gp_order), n_step)]
+        # Always include the last GP
+        if gp_order[-1] not in sampled_gps:
+            sampled_gps.append(gp_order[-1])
+
+        # Keep only sampled GPs — for each item, take the last cumulative value at or before each sample point
+        gp_to_idx = {gp: i for i, gp in enumerate(gp_order)}
+        cdata["_gp_idx"] = cdata["GP"].map(gp_to_idx)
+
+        # Use zero-padded numeric IDs as Time column so raceplotly sorts correctly
+        # (raceplotly uses np.sort which sorts alphabetically — "AUS" < "JPN" breaks chronological order)
+        sampled_time_ids = [f"{i:04d} {gp}" for i, gp in enumerate(sampled_gps)]
+        time_id_to_gp = dict(zip(sampled_time_ids, sampled_gps))
+
+        rows = []
+        all_items = cdata["Item"].unique()
+        for item in all_items:
+            item_data = cdata[cdata["Item"] == item].set_index("_gp_idx")["cumulative"]
+            prev_val = 0
+            for time_id, gp in zip(sampled_time_ids, sampled_gps):
+                gp_idx = gp_to_idx[gp]
+                valid = item_data[item_data.index <= gp_idx]
+                val = int(valid.iloc[-1]) if not valid.empty else prev_val
+                prev_val = val
+                rows.append({"Item": item, "Value": val, "Time": time_id})
+
+        plot_data = pd.DataFrame(rows)
+
+        # Add Start frame (sorts before "0000" alphabetically)
+        start = pd.DataFrame({"Item": all_items, "Value": 0, "Time": "0000 Start"})
+        plot_data = pd.concat([start, plot_data], ignore_index=True)
+
+        # Only keep top 20 items by final value
+        top_items = plot_data.groupby("Item")["Value"].max().nlargest(20).index
+        plot_data = plot_data[plot_data["Item"].isin(top_items)]
+
+        # Assign consistent colors per item
+        # Brand colors for known constructors (avoid very dark colors for text readability)
+        CONSTRUCTOR_COLORS = {
+            "Ducati": "#CC0000", "Honda": "#2E8B57", "Yamaha": "#0066CC",
+            "KTM": "#FF6600", "Aprilia": "#666666", "Suzuki": "#00BCD4",
+            "Kawasaki": "#00CC00", "APR": "#666666",
+        }
+        all_items = plot_data.groupby("Item")["Value"].max().sort_values(ascending=False).index.tolist()
+        # Use bright/medium palettes — exclude very dark colors that hide black text
+        palette = [c for c in (
+            px.colors.qualitative.Plotly + px.colors.qualitative.Set2 +
+            px.colors.qualitative.Pastel + px.colors.qualitative.Safe
+        ) if c.lower() not in ("#000000", "#1a1a1a", "#2e2e2e", "#333333")]
+        color_map = {}
+        palette_idx = 0
+        for item in all_items:
+            if item in CONSTRUCTOR_COLORS:
+                color_map[item] = CONSTRUCTOR_COLORS[item]
+            else:
+                color_map[item] = palette[palette_idx % len(palette)]
+                palette_idx += 1
+
+        # Add color column directly (raceplotly's dict handling is buggy)
+        plot_data["color"] = plot_data["Item"].map(color_map)
+
+        my_raceplot = barplot(
+            plot_data,
+            item_column="Item",
+            value_column="Value",
+            time_column="Time",
+            item_color=None,
+        )
+        # Override the random colors with our fixed ones
+        my_raceplot.df["color"] = my_raceplot.df["Item"].map(color_map)
+        fig = my_raceplot.plot(
+            title=race_metric,
+            item_label="",
+            value_label=t("cumulative_total"),
+            time_label="Grand Prix",
+            frame_duration=800,
+            orientation="horizontal",
+        )
+        fig.update_layout(height=600, font=dict(color="#1a1a1a"),
+                          yaxis=dict(showticklabels=True, tickfont=dict(size=12, color="#1a1a1a")),
+                          xaxis=dict(tickformat="d"))
+
+        # Fix text labels: show name + value, dark color, integer format
+        def fix_traces(traces):
+            for trace in traces:
+                if hasattr(trace, "textfont"):
+                    trace.textfont = dict(color="#1a1a1a", size=11)
+                if hasattr(trace, "texttemplate") or hasattr(trace, "text"):
+                    trace.texttemplate = "%{y} — %{x:d}"
+                    trace.textposition = "inside"
+                    trace.insidetextanchor = "start"
+                    trace.constraintext = "none"
+        fix_traces(fig.data)
+        for frame in fig.frames:
+            fix_traces(frame.data)
+
+        # Add a time marker trace — a large text label showing the current GP/year
+        # This is the most reliable way to show animated text in Plotly
+        max_val = plot_data["Value"].max()
+        # Add invisible scatter with text to initial data
+        fig.add_trace(go.Scatter(
+            x=[max_val * 0.85], y=[0.5],
+            mode="text", text=["Start"],
+            textfont=dict(size=36, color="rgba(0,0,0,0.15)"),
+            textposition="middle center",
+            showlegend=False, xaxis="x", yaxis="y",
+        ))
+        time_trace_idx = len(fig.data) - 1
+        # Update each frame to include this trace with the current GP name (strip numeric prefix)
+        for frame in fig.frames:
+            raw_name = frame.name if frame.name else ""
+            # Strip "0000 " prefix to show just "JPN 1990" or "Start"
+            gp_display = raw_name.split(" ", 1)[1] if " " in raw_name and raw_name[:4].isdigit() else raw_name
+            time_trace = go.Scatter(
+                x=[max_val * 0.85], y=[0.5],
+                mode="text", text=[gp_display],
+                textfont=dict(size=36, color="rgba(0,0,0,0.15)"),
+                textposition="middle center",
+                showlegend=False,
+            )
+            frame.data = tuple(list(frame.data) + [time_trace])
+            # Tell Plotly which traces to animate
+            if not frame.traces:
+                frame.traces = tuple(range(len(frame.data)))
+
+        # Style play/pause buttons for visibility
+        if fig.layout.updatemenus:
+            for menu in fig.layout.updatemenus:
+                menu.bgcolor = "#e0e0e0"
+                menu.font = dict(color="#1a1a1a", size=13)
+                menu.bordercolor = "#999999"
+                menu.borderwidth = 1
+        st.plotly_chart(fig, width="stretch")
+
     # --- Championship Bump Chart ---
-    if cross == t("cross_bump_chart"):
+    elif cross == t("cross_bump_chart"):
         st.subheader(t("bump_chart_subheader"))
         st.caption(t("bump_chart_caption"))
         bump_yr = st.selectbox(t("season"), year_list, key="bump_yr")
