@@ -290,7 +290,10 @@ class RaceTimingTests(unittest.TestCase):
             laps = pd.DataFrame({"rider": ["A"] * 3, "lap_number": [1, 2, 3], "lap_sec": times})
             self.assertTrue(self.helpers["race_elapsed"](laps)["elapsed"].iloc[1:].isna().all())
         laps = pd.DataFrame({"rider": ["A"] * 4, "lap_number": [1, 2, 2, 3], "lap_sec": [100.] * 4})
-        self.assertTrue(self.helpers["race_elapsed"](laps)["elapsed"].iloc[1:].isna().all())
+        timing = self.helpers["race_elapsed"](laps)
+        self.assertTrue(timing["elapsed"].iloc[1:].isna().all())
+        pivot = timing.pivot(index="lap_number", columns="rider", values="elapsed")
+        self.assertEqual(pivot.index.tolist(), [1, 2, 3])
 
     def test_retirement_and_missing_active_rider_have_distinct_outcomes(self):
         laps = pd.DataFrame({"rider": ["A", "A", "A", "B"],
