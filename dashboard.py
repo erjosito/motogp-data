@@ -485,7 +485,8 @@ def load_laps_multi(event_id=None, year=None):
 @st.cache_data(ttl=300)
 def load_class(sid, yr):
     return premier_q("SELECT c.position, r.full_name AS rider, r.number AS num, "
-             "t.team_name, t.constructor, c.total_laps, c.time_text, c.gap_first, "
+             "t.team_name, COALESCE(c.constructor_name, t.constructor) AS constructor, "
+             "c.total_laps, c.time_text, c.gap_first, "
              "c.best_lap_time, c.top_speed, c.points, c.status "
              "FROM classifications c JOIN riders r ON c.rider_id = r.rider_id "
              "JOIN sessions s ON c.session_id = s.session_id "
@@ -516,6 +517,24 @@ def championship_points(champ):
     cumulative = points.reindex(columns=events_order).cumsum(axis=1)
     totals = cumulative.iloc[:, -1].sort_values(ascending=False)
     return events_order, cumulative, totals
+
+
+def show_historical_standings(year):
+    standings = q("""
+        SELECT cs.position, r.full_name AS rider, cs.points, cs.constructor_name AS constructor
+        FROM championship_standings cs JOIN riders r ON r.rider_id=cs.rider_id
+        WHERE cs.season_year=? AND cs.category='500cc' AND cs.is_final=1
+        ORDER BY cs.position
+    """, [year])
+    st.caption(t("historical_standings_method"))
+    if standings.empty:
+        st.info(t("historical_standings_missing"))
+        return
+    st.subheader(t("official_final_standings"))
+    st.dataframe(standings.rename(columns={
+        "position": t("position"), "rider": t("rider"), "points": t("points"),
+        "constructor": t("constructor"),
+    }), width="stretch", hide_index=True)
 
 
 def clean_laps(df):
@@ -596,6 +615,9 @@ if viz == "🏠 Home":
     )
     if home_view == "home_championship":
         st.subheader(t("home_championship_title", year=selected_year))
+        if selected_year < 1990:
+            show_historical_standings(selected_year)
+            st.stop()
         champ = load_championship(selected_year)
         if champ.empty:
             st.info(t("no_race_sprint_data_for_year", year=selected_year))
@@ -765,13 +787,14 @@ if viz == "🏠 Home":
     with col_b:
         st.subheader(t("constructors_wins"))
         const_wins = premier_q("""
-            SELECT t.constructor AS Constructor, COUNT(*) AS Wins
+            SELECT COALESCE(c.constructor_name, t.constructor) AS Constructor, COUNT(*) AS Wins
             FROM classifications c
             JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
             LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
-            WHERE s.session_type = 'RAC' AND c.position = 1 AND t.constructor IS NOT NULL
-            GROUP BY t.constructor ORDER BY Wins DESC
+            WHERE s.session_type = 'RAC' AND c.position = 1
+                AND COALESCE(c.constructor_name, t.constructor) IS NOT NULL
+            GROUP BY COALESCE(c.constructor_name, t.constructor) ORDER BY Wins DESC
         """)
         if not const_wins.empty:
             fig = px.pie(const_wins, values="Wins", names="Constructor",
@@ -1377,6 +1400,9 @@ elif viz == "🏆 Classification":
 # =====================================================================
 elif viz == "🌍 Championship":
     st.header(t("championship_header", year=selected_year))
+    if selected_year < 1990:
+        show_historical_standings(selected_year)
+        st.stop()
     st.caption(t("championship_caption"))
 
     champ = load_championship(selected_year)

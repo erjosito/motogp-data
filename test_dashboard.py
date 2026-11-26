@@ -75,7 +75,7 @@ def sample_query(sql, conn=None, params=None):
         return pd.DataFrame({"Year": [2025, 2026], "Laps": [9, 18], "With_Sectors": [9, 18]})
     if "SELECT TOP 10 r.full_name AS Rider" in sql:
         return pd.DataFrame({"Rider": ["Sample Rider 1"], "Wins": [3]})
-    if "SELECT t.constructor AS Constructor" in sql:
+    if "AS Constructor, COUNT(*) AS Wins" in sql:
         return pd.DataFrame({"Constructor": ["Sample Bike"], "Wins": [3]})
     if "SELECT country_name AS Country" in sql:
         return pd.DataFrame({"Country": ["Sample Country"], "Races": [3]})
@@ -150,6 +150,29 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(app.radio(key="view_nav_season").value, "viz_championship")
         self.assertEqual(app.selectbox(key="sb_year").value, 2026)
         self.assertEqual(app.dataframe[0].value["Points"].tolist(), [66, 61, 46, 11])
+
+    def test_historical_championship_uses_official_order_and_fractional_points(self):
+        def historical_query(sql, conn=None, params=None):
+            if "SELECT DISTINCT season_year" in sql:
+                return pd.DataFrame({"season_year": [2026, 1989]})
+            if "FROM championship_standings" in sql:
+                return pd.DataFrame({
+                    "position": [1, 2, 3], "rider": ["Lawson", "Rainey", "Sarron"],
+                    "points": [228, 210.5, 165.5], "constructor": ["Honda", "Yamaha", "Yamaha"],
+                })
+            if params == [1989] and "SUM(cl.points)" in sql:
+                raise AssertionError("Historical standings must not be reconstructed from race points")
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = historical_query
+        app = self.start_app()
+        app.button[0].click().run()
+        app.selectbox(key="sb_year").set_value(1989).run()
+        self.assertFalse(app.exception)
+        standings = app.dataframe[0].value
+        self.assertEqual(standings["Points"].tolist(), [228, 210.5, 165.5])
+        self.assertEqual(standings["Position"].tolist(), [1, 2, 3])
+        self.assertFalse(app.get("plotly_chart"))
+        self.assertIn("counting rules", " ".join(c.value for c in app.caption))
 
     def test_incomplete_sectors_do_not_produce_ideal_laps(self):
         def partial_sectors(sql, conn=None, params=None):

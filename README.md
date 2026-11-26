@@ -184,6 +184,9 @@ in the Docker image. The visual refresh retains the database schema and existing
 analytical views. Both championship views share the same Race + Sprint points
 calculation. Both views show tied points as shared positions, without
 claiming to apply official championship countback rules.
+For imported seasons before 1990, both championship views instead use the
+official final positions and decimal points, preserving the period's counting
+rules. They do not reconstruct a cumulative progression from missing race points.
 
 Dashboard interaction tests use sample data and never connect to Azure SQL:
 
@@ -206,6 +209,61 @@ schema migration or dashboard write permission is required.
 
 ```powershell
 python -m unittest test_dashboard test_motogp_results
+```
+
+## Historical Premier-Class Archive (1949–1989)
+
+`import_historical.py` imports the official **500cc** archive in bounded phases,
+independently of the modern full-weekend/PDF loader. Other classes, including
+Agostini's 350cc results, are not included. Install `requirements.txt` and sign
+in with an Entra account authorized to write to the database.
+
+```powershell
+# Phase 1: fetch and validate the pilot, without writing to SQL
+python import_historical.py --years 1966,1975
+
+# Explicit additive migration, followed by atomic per-season imports
+python import_historical.py --years 1966,1975 --apply --migrate
+
+# Expand only after verifying the pilot
+python import_historical.py --years 1976-1989 --apply
+python import_historical.py --years 1960-1974 --apply
+python import_historical.py --years 1949-1959 --apply
+```
+
+Apply the checked-in migration before running the updated normal SQL loader
+or dashboard against an existing database; it adds classification constructor
+columns and the archive tables, and updates the classification view. It does
+not rewrite existing timings, classifications, or laps. Azure SQL authentication
+remains passwordless; the deployed app needs only its existing read permissions.
+
+The importer preserves:
+
+- Available race classifications and constructors even when no team is recorded.
+- **Official final championship standings** in `championship_standings`,
+  including fractional points and source-provided ranking, rather than applying
+  today's scoring rules to historical results.
+- A JSON source snapshot, SHA-256 fingerprint and verified row counts in
+  `historical_imports`. Original existing rider profiles are not overwritten.
+
+**Coverage is not completeness.** The API sometimes labels a historical race
+`FINISHED` but returns an empty classification. Those sessions remain empty:
+no winner, zero score, or lap timing is invented. Some weekends do not list
+500cc at all; the snapshot records that source limitation without asserting
+that a 500cc race never took place. Zero placeholders for unavailable historical
+race points, lap counts and top speeds become SQL `NULL`. Official final
+standings are stored separately and must not be derived by summing those gaps.
+The pilots, for example, provide Agostini's official 36 points in 1966 and
+84 in 1975, but only part of each season's race classifications.
+
+Source snapshots are cached in ignored `historical_cache\`. Cached reruns verify
+the stored rows without duplicating them; `--refresh` refetches official data.
+Each season commits only after comparison with its source. If verification fails,
+that season rolls back and the command stops; earlier committed seasons remain.
+Unexpected existing rows are not silently deleted to force a match.
+
+```powershell
+python -m unittest test_import_historical test_load_to_sql test_dashboard
 ```
 
 ## API Reference

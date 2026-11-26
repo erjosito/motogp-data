@@ -206,6 +206,21 @@ TRANSLATIONS = {
 
     # --- Championship ---
     "championship_title": {"en": "🌍 Championship", "es": "🌍 Campeonato", "it": "🌍 Campionato"},
+    "official_final_standings": {
+        "en": "Official final standings",
+        "es": "Clasificación final oficial",
+        "it": "Classifica finale ufficiale",
+    },
+    "historical_standings_method": {
+        "en": "Official 500cc final positions and points, including the counting rules of the period. Historical race classifications can be incomplete; unavailable per-race points and lap/sector timing are not reconstructed. No cumulative points progression is inferred.",
+        "es": "Posiciones y puntos finales oficiales de 500cc, con las reglas de puntuación de la época. Las clasificaciones históricas de carreras pueden estar incompletas; no se reconstruyen puntos por carrera ni tiempos de vueltas o sectores no disponibles. No se infiere una progresión acumulada de puntos.",
+        "it": "Posizioni e punti finali ufficiali della 500cc, secondo le regole dell'epoca. Le classifiche storiche delle gare possono essere incomplete; punti per gara e tempi di giri o settori non disponibili non vengono ricostruiti. Non viene dedotta una progressione cumulativa dei punti.",
+    },
+    "historical_standings_missing": {
+        "en": "Official final standings have not been imported for this season.",
+        "es": "Todavía no se ha importado la clasificación final oficial de esta temporada.",
+        "it": "La classifica finale ufficiale di questa stagione non è stata ancora importata.",
+    },
     "championship_caption": {
         "en": "Points accumulated after each race weekend (Race + Sprint).",
         "es": "Puntos acumulados después de cada fin de semana de carrera (carrera + Sprint).",

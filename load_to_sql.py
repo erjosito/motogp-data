@@ -35,6 +35,7 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 api_get = _mod.api_get
+API_BASE_URL = _mod.BASE_URL
 get_season_id = _mod.get_season_id
 get_latest_race_event = _mod.get_latest_race_event
 get_category_id = _mod.get_category_id
@@ -113,7 +114,7 @@ def upsert_rider(cursor, rider: dict):
         MERGE riders AS target
         USING (SELECT ? AS rider_id) AS source ON target.rider_id = source.rider_id
         WHEN MATCHED THEN UPDATE SET
-            full_name=?, number=?, nationality_iso=?, nationality=?
+            full_name=?, number=COALESCE(?, target.number), nationality_iso=?, nationality=?
         WHEN NOT MATCHED THEN INSERT
             (rider_id, full_name, number, nationality_iso, nationality)
         VALUES (?, ?, ?, ?, ?);
@@ -180,50 +181,54 @@ def upsert_session(cursor, session: dict, event_id: str, category_name: str):
     )
 
 
-def upsert_classification(cursor, session_id: str, entry: dict, year: int):
-    rider = entry.get("rider", {})
-    rider_id = rider.get("id")
-    if not rider_id:
-        return
-
-    # Upsert rider and team
-    upsert_rider(cursor, rider)
-    team = entry.get("team") or {}
-    constructor = entry.get("constructor") or {}
-    if team:
-        upsert_team(cursor, team, constructor, year)
-
-    gap = entry.get("gap") or {}
-    best_lap = entry.get("best_lap") or {}
-
-    cursor.execute("""
+CLASSIFICATION_SQL = """
         MERGE classifications AS target
         USING (SELECT ? AS session_id, ? AS rider_id) AS source
             ON target.session_id = source.session_id AND target.rider_id = source.rider_id
         WHEN MATCHED THEN UPDATE SET
             position=?, team_id=?, total_laps=?, time_ms=?, time_text=?,
             gap_first=?, gap_prev=?, best_lap_number=?, best_lap_time=?,
-            top_speed=?, points=?, status=?
+            top_speed=?, points=?, status=?, constructor_id=?, constructor_name=?
         WHEN NOT MATCHED THEN INSERT
             (session_id, rider_id, position, team_id, total_laps, time_ms,
              time_text, gap_first, gap_prev, best_lap_number, best_lap_time,
-             top_speed, points, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """,
-        session_id, rider_id,
-        entry.get("position"), team.get("id"), entry.get("total_laps"),
+             top_speed, points, status, constructor_id, constructor_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+"""
+
+
+def classification_parameters(session_id: str, entry: dict, year: int) -> tuple:
+    rider_id = entry["rider"]["id"]
+    team = entry.get("team") or {}
+    constructor = entry.get("constructor") or {}
+    gap = entry.get("gap") or {}
+    best_lap = entry.get("best_lap") or {}
+    points = entry.get("points")
+    total_laps = entry.get("total_laps")
+    top_speed = entry.get("top_speed")
+    if year < 1990:
+        # The archive uses zeros for unavailable historical measurements.
+        points = None if points is None or float(points) == 0 else points
+        total_laps = total_laps or None
+        top_speed = top_speed or None
+    values = (
+        entry.get("position"), team.get("id"), total_laps,
         str(entry.get("time") or ""), format_time_api(entry.get("time")),
-        gap.get("first"), gap.get("prev"),
-        best_lap.get("number"), best_lap.get("time"),
-        entry.get("top_speed"), entry.get("points"), entry.get("status"),
-        # INSERT values
-        session_id, rider_id,
-        entry.get("position"), team.get("id"), entry.get("total_laps"),
-        str(entry.get("time") or ""), format_time_api(entry.get("time")),
-        gap.get("first"), gap.get("prev"),
-        best_lap.get("number"), best_lap.get("time"),
-        entry.get("top_speed"), entry.get("points"), entry.get("status"),
+        gap.get("first"), gap.get("prev"), best_lap.get("number"), best_lap.get("time"),
+        top_speed, points, entry.get("status"), constructor.get("id"), constructor.get("name"),
     )
+    return (session_id, rider_id, *values, session_id, rider_id, *values)
+
+
+def upsert_classification(cursor, session_id: str, entry: dict, year: int):
+    rider = entry.get("rider", {})
+    if not rider.get("id"):
+        raise ValueError(f"Classification in session {session_id} has no rider ID")
+    upsert_rider(cursor, rider)
+    team = entry.get("team") or {}
+    if team:
+        upsert_team(cursor, team, entry.get("constructor") or {}, year)
+    cursor.execute(CLASSIFICATION_SQL, *classification_parameters(session_id, entry, year))
 
 
 def build_rider_lookup(cursor, session_id: str) -> tuple[dict, dict]:

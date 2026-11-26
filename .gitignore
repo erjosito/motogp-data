@@ -4,6 +4,7 @@
 # Python
 __pycache__/
 *.pyc
+historical_cache/
 
 # Streamlit
 .streamlit/*

@@ -61,7 +61,7 @@ CREATE TABLE classifications (
     position        INT           NULL,
     team_id         NVARCHAR(50)  NULL,
     total_laps      INT           NULL,
-    time_ms         BIGINT        NULL,       -- total time in ms (race sessions)
+    time_ms         NVARCHAR(30)  NULL,       -- legacy raw API timing text; not normalized milliseconds
     time_text       NVARCHAR(30)  NULL,       -- formatted time string
     gap_first       NVARCHAR(20)  NULL,
     gap_prev        NVARCHAR(20)  NULL,
@@ -70,6 +70,8 @@ CREATE TABLE classifications (
     top_speed       FLOAT         NULL,
     points          FLOAT         NULL,
     status          NVARCHAR(20)  NULL,       -- INSTND, DNF, etc.
+    constructor_id  NVARCHAR(50)  NULL,
+    constructor_name NVARCHAR(60) NULL,
     PRIMARY KEY (session_id, rider_id)
 );
 
@@ -92,6 +94,39 @@ CREATE TABLE laps (
 );
 CREATE INDEX IX_laps_session ON laps (session_id);
 CREATE INDEX IX_laps_rider ON laps (rider_id);
+
+CREATE TABLE schema_migrations (
+    version         NVARCHAR(100) NOT NULL PRIMARY KEY,
+    applied_at      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE TABLE championship_standings (
+    season_year     INT NOT NULL,
+    category        NVARCHAR(20) NOT NULL,
+    rider_id        NVARCHAR(50) NOT NULL REFERENCES riders(rider_id),
+    position        INT NOT NULL,
+    points          DECIMAL(10,3) NOT NULL,
+    constructor_id  NVARCHAR(50) NULL,
+    constructor_name NVARCHAR(60) NULL,
+    is_final        BIT NOT NULL,
+    source_url      NVARCHAR(1024) NOT NULL,
+    source_json     NVARCHAR(MAX) NOT NULL CHECK (ISJSON(source_json) = 1),
+    fetched_at      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    PRIMARY KEY (season_year, category, rider_id)
+);
+
+CREATE TABLE historical_imports (
+    season_year     INT NOT NULL,
+    category        NVARCHAR(20) NOT NULL,
+    source_hash     CHAR(64) NOT NULL,
+    event_count     INT NOT NULL,
+    session_count   INT NOT NULL,
+    classification_count INT NOT NULL,
+    standings_count INT NOT NULL,
+    source_payload  NVARCHAR(MAX) NOT NULL CHECK (ISJSON(source_payload) = 1),
+    imported_at     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    PRIMARY KEY (season_year, category)
+);
 
 -- Useful views for analytics / Power BI
 
@@ -146,7 +181,7 @@ SELECT
     r.number           AS rider_number,
     r.nationality,
     t.team_name,
-    t.constructor,
+    COALESCE(c.constructor_name, t.constructor) AS constructor,
     c.total_laps,
     c.time_text,
     c.gap_first,
