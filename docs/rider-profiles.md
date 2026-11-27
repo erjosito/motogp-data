@@ -118,15 +118,17 @@ GET /api/riders/{results_rider_id}/enrichment
 ```
 
 It returns `{ "status": "available", "profile": { ... } }` for a verified match,
-or `{ "status": "not_collected", "profile": null }`. It reads the default local
+or `{ "status": "not_collected", "profile": null }`. It reads the reviewed
+`rider_profiles.reviewed.json` subset (currently Marc only, with no career media)
 catalog or the file configured by `MOTOGP_RIDER_CATALOG`. An explicitly configured
 but missing file, malformed data or duplicate rider match is an error, not an
 empty success. There is no upstream request or SQL write during an app request.
 
-The container includes the reader, **not the unreviewed local catalog**. Mount
-an intentionally reviewed catalog and set its path when deploying enrichment.
-Without one, the existing rider endpoint still works. This change does not
-deploy a new frontend or automatically display unapproved images.
+The preview container includes the reader and that minimal reviewed subset,
+**not the unreviewed local catalog**. A configured replacement must also be
+intentionally reviewed before mounting. Riders outside the subset return
+`not_collected`; the existing career endpoint still works. The collector keeps
+writing `rider_profiles.local.json`, never overwriting the reviewed runtime file.
 
 The SQL export remains a SQL snapshot, not an export of this optional local
 catalog; retain the profile catalog and its source cache separately if needed.

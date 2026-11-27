@@ -42,6 +42,15 @@ def response():
 
 
 class RiderProfileTests(unittest.TestCase):
+    def test_reviewed_runtime_subset_excludes_unapproved_career_media(self):
+        data = read_enrichment(RIDER)
+        self.assertEqual(data["status"], "available")
+        self.assertEqual(data["profile"]["profile_id"], PROFILE)
+        self.assertEqual(data["profile"]["identity"]["method"], "official_results_explicit_profile_uuid")
+        self.assertEqual(data["profile"]["biography"]["height_cm"], 169)
+        self.assertEqual(data["profile"]["careers"], [])
+        self.assertEqual(read_enrichment(STEP), {"status": "not_collected", "profile": None})
+
     def test_explicit_identity_link_and_historical_kit_are_preserved(self):
         profile = normalize_profile(response(), LINK)
         self.assertEqual(profile["rider_id"], RIDER)

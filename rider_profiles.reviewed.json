@@ -1,0 +1,33 @@
+{
+  "format_version": 1,
+  "reviewed_on": "2026-11-27",
+  "scope": "Individually reviewed Marc Marquez factual subset; no official artwork or biography prose.",
+  "profiles": [
+    {
+      "rider_id": "f55b433d-38b8-4d1d-bb3a-a709c82a0260",
+      "profile_id": "23e50438-a657-4fb0-a190-3262b5472f29",
+      "legacy_id": 7444,
+      "name": "Marc Marquez",
+      "identity": {
+        "rider_id": "f55b433d-38b8-4d1d-bb3a-a709c82a0260",
+        "legacy_id": 7444,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "2008_125cc.json",
+        "snapshot_sha256": "6289f8495f987bdec0aa396348a61dbfd520d6d48379638064b8b544c492269e"
+      },
+      "biography": {
+        "birth_date": "1993-02-17",
+        "birth_city": "Cervera",
+        "birth_country": "Spain",
+        "height_cm": 169,
+        "measurement_scope": "source_reported_at_retrieval_not_historical"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/23e50438-a657-4fb0-a190-3262b5472f29",
+        "retrieved_at": "2026-11-27T20:42:41.645924+00:00",
+        "source_sha256": "d567ceba9ac2d0df3b5d0d5b25afff25dfea964e9ee959f03ff43c5c167e02aa"
+      },
+      "careers": []
+    }
+  ]
+}

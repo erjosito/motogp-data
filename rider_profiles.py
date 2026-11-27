@@ -15,7 +15,8 @@ import requests
 
 
 BASE_URL = "https://api.pulselive.motogp.com/motogp/v1"
-DEFAULT_CATALOG = Path(__file__).with_name("rider_profiles.local.json")
+DEFAULT_CATALOG = Path(__file__).with_name("rider_profiles.reviewed.json")
+COLLECTION_CATALOG = Path(__file__).with_name("rider_profiles.local.json")
 ROLES = ("face", "rider_cutout", "bike", "number", "rider_with_bike")
 
 
@@ -263,7 +264,7 @@ def main(argv=None):
     parser.add_argument("--profile-id", action="append", default=[], help="Additional official profile UUID, e.g. a retired rider.")
     parser.add_argument("--results-cache", type=Path, default=Path("historical_cache"))
     parser.add_argument("--cache", type=Path, default=Path("historical_cache") / "rider_profiles")
-    parser.add_argument("--output", type=Path, default=DEFAULT_CATALOG)
+    parser.add_argument("--output", type=Path, default=COLLECTION_CATALOG)
     parser.add_argument("--manifest", type=Path, help="Optional shareable counts/hash manifest, without profile records.")
     parser.add_argument("--refresh", action="store_true")
     args = parser.parse_args(argv)
