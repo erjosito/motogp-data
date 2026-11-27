@@ -316,7 +316,24 @@ class CategoryApiTests(unittest.TestCase):
         self.assertEqual(data["standings"], [])
         self.assertFalse(data["is_final"])
         self.assertIn("Official final standings are unavailable", data["story"]["summary"])
+        self.assertEqual(data["story"]["kind"], "coverage")
+        self.assertEqual(data["coverage"], {
+            "sessions": 1, "classified_sessions": 1, "classification_rows": 1, "lap_rows": 1,
+        })
         self.assertEqual(len(self.client.get("/api/events?season=1969&category=intermediate").json()), 1)
+
+    def test_coverage_counts_missing_classifications_without_cross_class_or_unfinished_rows(self):
+        self.db.execute("UPDATE events SET season_year=1969")
+        self.db.execute("INSERT INTO sessions VALUES ('missing','gp','Moto2','FP1','Practice',NULL,7,'FINISHED',NULL,NULL,NULL)")
+        self.db.execute("INSERT INTO sessions VALUES ('future','gp','Moto2','RAC','Race',NULL,8,'NOTSTARTED',NULL,NULL,NULL)")
+        data = self.client.get("/paddock/api/championship?season=1969&category=intermediate").json()
+        self.assertEqual(data["coverage"], {
+            "sessions": 2, "classified_sessions": 1, "classification_rows": 1, "lap_rows": 1,
+        })
+        empty = self.client.get("/paddock/api/championship?season=2000&category=80cc").json()
+        self.assertEqual(empty["coverage"], {
+            "sessions": 0, "classified_sessions": 0, "classification_rows": 0, "lap_rows": 0,
+        })
 
     def test_historical_official_rank_and_points_win_over_augmented_race_totals(self):
         self.db.execute("UPDATE events SET season_year=1969")
