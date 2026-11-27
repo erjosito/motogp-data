@@ -20,6 +20,9 @@ from category_scope import (
     CATEGORY_FAMILIES, category_sql, normalize_category, official_points_inconsistent,
 )
 from circuit_catalog import circuit_details, circuit_key, projected_outline
+from archive_analytics import (
+    complete_points, nominal_maximum, points_efficiency, qualifying_proxy,
+)
 
 warnings.filterwarnings("ignore", message=".*pandas only supports SQLAlchemy.*")
 
@@ -105,6 +108,7 @@ def q(sql, params=None):
 
 
 PREMIER_CATEGORY = category_sql()
+QUALIFYING_START = {"premier": 2013, "intermediate": 2019, "lightweight": 2019}
 
 
 def scope_predicate(families, column="category"):
@@ -736,6 +740,26 @@ def show_historical_standings(year, family="premier"):
     show_official_standings(standings)
 
 
+@st.cache_data(ttl=300)
+def load_qualifying_proxy(family="premier"):
+    qualifying = premier_q("""
+        SELECT e.event_id, e.season_year, s.category, s.session_number,
+            c.rider_id, c.position
+        FROM classifications c JOIN sessions s ON c.session_id=s.session_id
+        JOIN events e ON e.event_id=s.event_id
+        WHERE s.session_type='Q' AND s.status='FINISHED'
+            AND s.session_number IN (1,2)
+    """, family=family)
+    races = premier_q("""
+        SELECT e.event_id, e.season_year, e.short_name, s.category, s.session_id,
+            s.session_type, c.rider_id, r.full_name AS rider, c.position AS finish_pos, c.status
+        FROM classifications c JOIN sessions s ON c.session_id=s.session_id
+        JOIN events e ON e.event_id=s.event_id JOIN riders r ON r.rider_id=c.rider_id
+        WHERE s.session_type IN ('RAC','SPR') AND s.status='FINISHED'
+    """, family=family)
+    return qualifying_proxy(qualifying, races)
+
+
 def clean_laps(df):
     if df.empty:
         return df
@@ -1094,6 +1118,7 @@ if viz == "🏠 Home":
     st.subheader(t("data_quality_title"))
     st.caption(t("data_quality_caption"))
     st.caption(t("classification_sources"))
+    st.caption(t("timing_validity_diagnostic"))
 
     excluded_categories = q(
         "SELECT DISTINCT category FROM sessions WHERE category IS NULL OR NOT ("
@@ -1939,26 +1964,27 @@ elif viz == "🏢 Teams & Constructors":
         st.caption(t("constructor_performance_caption"))
 
         const_data = premier_q("""
-            SELECT t.constructor AS Constructor, r.full_name AS Rider,
-                SUM(c.points) AS Points
+            SELECT COALESCE(c.constructor_name, t.constructor) AS Constructor, r.full_name AS Rider,
+                CASE WHEN COUNT(c.points)=COUNT(*) THEN SUM(c.points) END AS Points
             FROM classifications c
             JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
             JOIN riders r ON c.rider_id = r.rider_id
             LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
             WHERE e.season_year = ? AND s.session_type IN ('RAC', 'SPR')
-                AND t.constructor IS NOT NULL
-            GROUP BY t.constructor, r.full_name
+                AND COALESCE(c.constructor_name, t.constructor) IS NOT NULL
+            GROUP BY COALESCE(c.constructor_name, t.constructor), r.full_name
         """, [selected_year])
 
         if const_data.empty:
             st.info(t("no_data")); st.stop()
+        const_data["Points"] = pd.to_numeric(const_data["Points"])
 
         # Compute avg points per rider per constructor
         const_avg = const_data.groupby("Constructor").agg(
-            Total_Points=("Points", "sum"),
+            Total_Points=("Points", complete_points),
             Riders=("Rider", "nunique"),
-            Avg_Per_Rider=("Points", "mean"),
+            Avg_Per_Rider=("Points", lambda values: complete_points(values) / len(values)),
         ).reset_index().sort_values("Avg_Per_Rider", ascending=False)
         const_avg["Avg_Per_Rider"] = const_avg["Avg_Per_Rider"].round(1)
 
@@ -1996,23 +2022,24 @@ elif viz == "🏢 Teams & Constructors":
         # Constructor comparison across years
         st.subheader(t("constructor_avg_across_seasons"))
         const_multi = premier_q("""
-            SELECT e.season_year AS Year, t.constructor AS Constructor,
+            SELECT sub.season_year AS Year, sub.constructor AS Constructor,
                 AVG(sub.rider_pts) AS Avg_Per_Rider
             FROM (
-                SELECT e2.season_year, t2.constructor, r2.rider_id,
-                    SUM(c2.points) AS rider_pts
+                SELECT e2.season_year, COALESCE(c2.constructor_name, t2.constructor) AS constructor,
+                    r2.rider_id, CASE WHEN COUNT(c2.points)=COUNT(*)
+                        THEN SUM(c2.points) END AS rider_pts
                 FROM classifications c2
                 JOIN sessions s2 ON c2.session_id = s2.session_id
                 JOIN events e2 ON s2.event_id = e2.event_id
                 JOIN riders r2 ON c2.rider_id = r2.rider_id
                 LEFT JOIN teams t2 ON c2.team_id = t2.team_id AND t2.season_year = e2.season_year
-                WHERE s2.session_type IN ('RAC', 'SPR') AND t2.constructor IS NOT NULL
-                GROUP BY e2.season_year, t2.constructor, r2.rider_id
+                WHERE s2.session_type IN ('RAC', 'SPR')
+                    AND COALESCE(c2.constructor_name, t2.constructor) IS NOT NULL
+                GROUP BY e2.season_year, COALESCE(c2.constructor_name, t2.constructor), r2.rider_id
             ) sub
-            JOIN events e ON e.season_year = sub.season_year
-            JOIN teams t ON t.constructor = sub.constructor AND t.season_year = sub.season_year
-            GROUP BY e.season_year, t.constructor
-            ORDER BY e.season_year
+            GROUP BY sub.season_year, sub.constructor
+            HAVING COUNT(sub.rider_pts)=COUNT(*)
+            ORDER BY sub.season_year
         """)
 
         if not const_multi.empty:
@@ -2037,7 +2064,7 @@ elif viz == "🏢 Teams & Constructors":
 # =====================================================================
 elif viz == "🏁 Grid Advantage":
     st.header(t("grid_advantage_header"))
-    st.caption(t("grid_advantage_caption"))
+    st.caption(t("qualifying_proxy_method"))
 
     sel_yrs = st.multiselect(t("seasons"), year_list, default=year_list, key="grid_yrs")
     race_type = st.radio(t("race_type_label"), [t("main_race"), t("sprint_race"), t("both")], horizontal=True)
@@ -2045,48 +2072,33 @@ elif viz == "🏁 Grid Advantage":
     if not sel_yrs:
         st.info(t("select_season")); st.stop()
 
-    stype_filter = {t("main_race"): "('RAC')", t("sprint_race"): "('SPR')", t("both"): "('RAC','SPR')"}[race_type]
-    ph = ",".join("?" * len(sel_yrs))
-
-    grid_data = premier_q(f"""
-        SELECT grid.season_year, grid.event_id, grid.rider_id, grid.grid_pos, race.finish_pos
-        FROM (
-            SELECT e.season_year, e.event_id, c.rider_id, c.position AS grid_pos
-            FROM classifications c
-            JOIN sessions s ON c.session_id = s.session_id
-            JOIN events e ON s.event_id = e.event_id
-            WHERE s.session_type = 'Q' AND s.session_number = 2
-                AND e.season_year IN ({ph}) AND c.position IS NOT NULL
-        ) grid
-        JOIN (
-            SELECT e.event_id, c.rider_id, c.position AS finish_pos
-            FROM classifications c
-            JOIN sessions s ON c.session_id = s.session_id
-            JOIN events e ON s.event_id = e.event_id
-            WHERE s.session_type IN {stype_filter}
-                AND e.season_year IN ({ph}) AND c.position IS NOT NULL
-        ) race ON grid.event_id = race.event_id AND grid.rider_id = race.rider_id
-    """, sel_yrs + sel_yrs)
+    types = {t("main_race"): ["RAC"], t("sprint_race"): ["SPR"], t("both"): ["RAC", "SPR"]}[race_type]
+    grid_data = load_qualifying_proxy(selected_category)
+    grid_data = grid_data[
+        grid_data["season_year"].isin(sel_yrs) & grid_data["session_type"].isin(types)
+    ]
 
     if grid_data.empty:
-        st.info(t("no_grid_race_data")); st.stop()
+        st.info(t("qualifying_proxy_unavailable")); st.stop()
 
     col1, col2 = st.columns(2)
+    max_grid = int(grid_data["grid_pos"].max())
     with col1:
         top_x = st.slider(t("finish_top_x"), 1, 10, 3)
     with col2:
-        max_y = st.slider(t("starting_from_y"), 1, 22, 10)
+        max_y = st.slider(t("starting_from_y"), 1, max_grid, min(10, max_grid))
 
     # --- Key metric tile ---
     starters_xy = grid_data[grid_data["grid_pos"] <= max_y]
     total_xy = len(starters_xy)
     in_top_xy = len(starters_xy[starters_xy["finish_pos"] <= top_x])
-    pct_xy = round(in_top_xy / total_xy * 100, 1) if total_xy > 0 else 0
+    pct_xy = round(in_top_xy / total_xy * 100, 1) if total_xy > 0 else np.nan
+    pct_label = f"{pct_xy}%" if pd.notna(pct_xy) else "—"
 
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #1a5276, #2e86c1); border-radius: 12px;
          padding: 20px; text-align: center; margin: 10px 0;">
-        <span style="font-size: 3em; font-weight: bold; color: white;">{pct_xy}%</span><br>
+        <span style="font-size: 3em; font-weight: bold; color: white;">{pct_label}</span><br>
         <span style="font-size: 1.1em; color: #d5e8f0;">
             {t("grid_pct_of_riders", max_y=max_y, top_x=top_x)}
         </span><br>
@@ -2102,7 +2114,7 @@ elif viz == "🏁 Grid Advantage":
         starters = grid_data[grid_data["grid_pos"] <= grid_pos]
         total = len(starters)
         in_top = len(starters[starters["finish_pos"] <= top_x])
-        pct = round(in_top / total * 100, 1) if total > 0 else 0
+        pct = round(in_top / total * 100, 1) if total > 0 else np.nan
         results.append({"Starting from top": grid_pos, "pct": pct, "Count": total, "In top": in_top})
 
     res_df = pd.DataFrame(results)
@@ -2142,15 +2154,15 @@ elif viz == "🏁 Grid Advantage":
     st.subheader(t("conversion_rate_subheader"))
     st.caption(t("conversion_rate_caption"))
     max_hx = min(10, top_x + 5)
-    max_hy = min(22, max_y + 5)
+    max_hy = min(max_grid, max_y + 5)
     conv_data = []
     for y in range(1, max_hy + 1):
         row = []
         for x in range(1, max_hx + 1):
-            s = grid_data[grid_data["grid_pos"] <= y]
-            t = len(s)
-            i = len(s[s["finish_pos"] <= x])
-            row.append(round(i / t * 100, 1) if t > 0 else 0)
+            starters = grid_data[grid_data["grid_pos"] <= y]
+            count = len(starters)
+            in_top = len(starters[starters["finish_pos"] <= x])
+            row.append(round(in_top / count * 100, 1) if count > 0 else np.nan)
         conv_data.append(row)
 
     conv_matrix = np.array(conv_data)
@@ -2160,7 +2172,7 @@ elif viz == "🏁 Grid Advantage":
         y=[f"Grid ≤ {y}" for y in range(1, max_hy + 1)],
         colorscale=[[0, "#fff5f0"], [0.5, "#fcbba1"], [1.0, "#a50f15"]],
         zmin=0, zmax=100,
-        text=conv_matrix.astype(str) + "%",
+        text=[[f"{value}%" if np.isfinite(value) else "" for value in row] for row in conv_matrix],
         texttemplate="%{text}",
         hovertemplate="Starting from: %{y}<br>Finishing in: %{x}<br>Rate: %{z:.1f}%<extra></extra>",
     ))
@@ -2183,7 +2195,7 @@ elif viz == "🏁 Grid Advantage":
             top3_start = yr_data[yr_data["grid_pos"] <= 3]
             total = len(top3_start)
             in_top = len(top3_start[top3_start["finish_pos"] <= top_x])
-            pct = round(in_top / total * 100, 1) if total > 0 else 0
+            pct = round(in_top / total * 100, 1) if total > 0 else np.nan
             trend.append({"Year": str(int(yr)), "Top 3 grid → top " + str(top_x) + " %": pct})
         trend_df = pd.DataFrame(trend)
         trend_col = f"Top 3 grid → top {top_x} %"
@@ -2229,7 +2241,7 @@ elif viz == "🏟 Circuits":
     circuit_placeholders = ", ".join("?" for _ in circuit_event_ids)
     cd = premier_q(f"""
         SELECT e.circuit_name, e.short_name, e.circuit_place, e.country_name,
-            e.season_year, r.full_name AS rider, t.constructor,
+            e.season_year, r.full_name AS rider, COALESCE(c.constructor_name, t.constructor) AS constructor,
             COALESCE(ta.canonical_name, t.team_name) AS team_name,
             c.position, c.points, c.best_lap_time, c.top_speed
         FROM classifications c
@@ -2462,7 +2474,7 @@ elif viz == "🏅 Pilot Rankings":
     st.caption(t("pilot_rankings_caption"))
 
     # Load comprehensive rider stats
-    pstats = premier_q("""
+    pstats = premier_q(f"""
         SELECT r.full_name AS rider, r.nationality,
             COUNT(CASE WHEN s.session_type = 'RAC' THEN 1 END) AS race_starts,
             COUNT(CASE WHEN s.session_type = 'SPR' THEN 1 END) AS sprint_starts,
@@ -2470,10 +2482,14 @@ elif viz == "🏅 Pilot Rankings":
             COUNT(CASE WHEN s.session_type = 'SPR' AND c.position = 1 THEN 1 END) AS sprint_wins,
             COUNT(CASE WHEN s.session_type = 'RAC' AND c.position <= 3 THEN 1 END) AS race_podiums,
             COUNT(CASE WHEN s.session_type = 'SPR' AND c.position <= 3 THEN 1 END) AS sprint_podiums,
-            COUNT(CASE WHEN s.session_type = 'Q' AND s.session_number = 2 AND c.position = 1 THEN 1 END) AS poles,
+            COUNT(CASE WHEN s.session_type = 'Q' AND s.session_number = 2 AND c.position = 1
+                AND e.season_year >= {QUALIFYING_START.get(selected_category, 3001)} THEN 1 END) AS poles,
+            COUNT(CASE WHEN s.session_type = 'Q' AND s.session_number = 2
+                AND e.season_year >= {QUALIFYING_START.get(selected_category, 3001)} THEN 1 END) AS qualifying_entries,
             COUNT(CASE WHEN s.session_type = 'RAC' AND c.status = 'INSTND' THEN 1 END) AS race_finishes,
             COUNT(CASE WHEN s.session_type = 'RAC' AND c.status IN ('OUTSTND','NOTFINISHFIRST') THEN 1 END) AS dnfs,
-            SUM(CASE WHEN s.session_type IN ('RAC','SPR') THEN c.points ELSE 0 END) AS total_pts,
+            CASE WHEN COUNT(CASE WHEN s.session_type IN ('RAC','SPR') AND c.points IS NULL THEN 1 END)=0
+                THEN SUM(CASE WHEN s.session_type IN ('RAC','SPR') THEN c.points END) END AS total_pts,
             COUNT(DISTINCT e.season_year) AS seasons,
             MIN(e.season_year) AS first_year,
             MAX(e.season_year) AS last_year
@@ -2486,35 +2502,21 @@ elif viz == "🏅 Pilot Rankings":
     if pstats.empty:
         st.info(t("no_data")); st.stop()
 
-    # Official finals also cover seasons whose imported race points are incomplete.
+    # Only independently recorded official finals establish titles.
     champs = premier_q(f"""
-        SELECT rider, COUNT(*) AS championships FROM (
-            SELECT cs.season_year, r.full_name AS rider
-            FROM championship_standings cs JOIN riders r ON r.rider_id=cs.rider_id
-            WHERE cs.is_final=1 AND cs.position=1 AND {category_sql(selected_category, 'cs.category')}
-            UNION ALL
-            SELECT season_year, rider FROM (
-            SELECT e.season_year, r.full_name AS rider, SUM(c.points) AS pts,
-                RANK() OVER (PARTITION BY e.season_year ORDER BY SUM(c.points) DESC) AS rnk
-            FROM classifications c JOIN sessions s ON c.session_id = s.session_id
-            JOIN events e ON s.event_id = e.event_id
-            JOIN riders r ON c.rider_id = r.rider_id
-            WHERE s.session_type IN ('RAC','SPR') AND e.season_year>=1990
-                AND e.season_year < YEAR(GETDATE())
-                AND NOT EXISTS (SELECT 1 FROM championship_standings cs
-                    WHERE cs.season_year=e.season_year AND cs.is_final=1
-                    AND {category_sql(selected_category, 'cs.category')})
-            GROUP BY e.season_year, r.full_name
-            HAVING SUM(c.points) > 0 AND COUNT(c.points)=COUNT(*)
-            ) race_totals WHERE rnk=1
-        ) sub GROUP BY rider
+        SELECT r.full_name AS rider, COUNT(*) AS championships
+        FROM championship_standings cs JOIN riders r ON r.rider_id=cs.rider_id
+        WHERE cs.is_final=1 AND cs.position=1 AND {category_sql(selected_category, 'cs.category')}
+        GROUP BY r.full_name
     """)
     champ_map = dict(zip(champs["rider"], champs["championships"])) if not champs.empty else {}
     pstats["championships"] = pstats["rider"].map(champ_map).fillna(0).astype(int)
 
     pstats["total_pts"] = pd.to_numeric(pstats["total_pts"])
-    pstats["max_pts"] = pstats["race_starts"] * 25 + pstats["sprint_starts"] * 12
-    pstats["pts_pct"] = (pstats["total_pts"] / pstats["max_pts"].replace(0, 1) * 100).round(1)
+    pstats["poles"] = pstats["poles"].where(pstats["qualifying_entries"].gt(0))
+    pstats["max_pts"] = nominal_maximum(pstats["first_year"], pstats["race_starts"], pstats["sprint_starts"])
+    pstats["pts_pct"] = points_efficiency(pstats["total_pts"], pstats["max_pts"])
+    st.caption(t("recorded_efficiency_method"))
     pstats["win_pct"] = (pstats["race_wins"] / pstats["race_starts"].replace(0, 1) * 100).round(1)
     pstats["podium_pct"] = (pstats["race_podiums"] / pstats["race_starts"].replace(0, 1) * 100).round(1)
     pstats["finish_pct"] = (pstats["race_finishes"] / pstats["race_starts"].replace(0, 1) * 100).round(1)
@@ -2564,18 +2566,21 @@ elif viz == "🏅 Pilot Rankings":
     filtered = pstats[pstats["race_starts"] >= min_starts].sort_values(sort_col, ascending=False)
 
     # Bar chart of top 15
-    top15 = filtered.head(15)
-    fig = px.bar(top15, x="rider", y=sort_col, text=sort_col,
-                 title=t("top_pilots_by", ranking=ranking),
-                 color=sort_col, color_continuous_scale="Viridis",
-                 labels={"rider": "", sort_col: ranking})
-    fig.update_layout(height=480, coloraxis_showscale=False, xaxis_tickangle=-45,
-                      yaxis=dict(range=[0, top15[sort_col].max() * 1.2]))
-    if "%" in ranking:
-        fig.update_traces(texttemplate="%{text}%", textposition="outside")
+    top15 = filtered.dropna(subset=[sort_col]).head(15)
+    if top15.empty:
+        st.info(t("no_data"))
     else:
-        fig.update_traces(textposition="outside")
-    st.plotly_chart(fig, width="stretch")
+        fig = px.bar(top15, x="rider", y=sort_col, text=sort_col,
+                     title=t("top_pilots_by", ranking=ranking),
+                     color=sort_col, color_continuous_scale="Viridis",
+                     labels={"rider": "", sort_col: ranking})
+        fig.update_layout(height=480, coloraxis_showscale=False, xaxis_tickangle=-45,
+                          yaxis=dict(range=[0, max(1, top15[sort_col].max() * 1.2)]))
+        if "%" in ranking:
+            fig.update_traces(texttemplate="%{text}%", textposition="outside")
+        else:
+            fig.update_traces(textposition="outside")
+        st.plotly_chart(fig, width="stretch")
 
     st.divider()
 
@@ -2608,7 +2613,7 @@ elif viz == "🏅 Pilot Rankings":
     with lb1:
         st.markdown(t("lb_poles"))
         st.caption(t("lb_poles_caption"))
-        pp = pstats.nlargest(10, "poles")[["rider", "poles"]].copy()
+        pp = pstats.dropna(subset=["poles"]).nlargest(10, "poles")[["rider", "poles"]].copy()
         pp.columns = ["Rider", "Poles"]
         st.dataframe(pp, hide_index=True, width="stretch")
 
@@ -2623,7 +2628,7 @@ elif viz == "🏅 Pilot Rankings":
     with lb5:
         st.markdown(t("lb_efficiency"))
         st.caption(t("lb_efficiency_caption"))
-        eff = pstats[pstats["race_starts"] >= 10].nlargest(10, "pts_pct")[["rider", "pts_pct"]].copy()
+        eff = pstats[pstats["race_starts"] >= 10].dropna(subset=["pts_pct"]).nlargest(10, "pts_pct")[["rider", "pts_pct"]].copy()
         eff.columns = ["Rider", "Pts %"]
         st.dataframe(eff, hide_index=True, width="stretch")
 
@@ -2669,7 +2674,8 @@ elif viz == "👤 Pilot Profile":
         SELECT e.season_year, e.short_name, e.date_end, s.session_type, s.session_label,
             s.session_id, s.category,
             c.position, c.points, c.best_lap_time, c.top_speed, c.status,
-            COALESCE(ta.canonical_name, t.team_name) AS team_name, t.constructor, e.circuit_name
+            COALESCE(ta.canonical_name, t.team_name) AS team_name,
+            COALESCE(c.constructor_name, t.constructor) AS constructor, e.circuit_name
         FROM classifications c
         JOIN sessions s ON c.session_id = s.session_id
         JOIN events e ON s.event_id = e.event_id
@@ -2718,17 +2724,14 @@ elif viz == "👤 Pilot Profile":
     sprint_wins = len(sprints[sprints["position"] == 1])
     podiums = len(races[races["position"].isin([1, 2, 3])])
     multiple_classes = career["category"].nunique() > 1
-    total_pts = race_sprint["points"].sum(min_count=1) if not multiple_classes else np.nan
+    total_pts = complete_points(race_sprint["points"]) if not multiple_classes else np.nan
     dnfs = len(races[races["status"].isin(["OUTSTND", "NOTFINISHFIRST"])])
     dns = len(races[races["status"] == "NOTSTARTED"])
     finished = len(races[races["status"] == "INSTND"])
     finish_pct = round(finished / n_races * 100, 1) if n_races > 0 else 0
 
-    # Max possible points: 25 per race, 12 per sprint (2023+ format)
-    max_race_pts = n_races * 25
-    max_sprint_pts = n_sprints * 12
-    max_total_pts = max_race_pts + max_sprint_pts
-    pts_pct = round(total_pts / max_total_pts * 100, 1) if max_total_pts > 0 else 0
+    max_total_pts = nominal_maximum(min(seasons), n_races, n_sprints)
+    pts_pct = float(points_efficiency(total_pts, max_total_pts))
 
     # Average finish position (races only, excluding DNF/DNS)
     valid_pos = races[races["position"].notna() & races["status"].isin(["INSTND"])]
@@ -2740,7 +2743,8 @@ elif viz == "👤 Pilot Profile":
     row1[2].metric(t("race_wins_label"), wins)
     row1[3].metric(t("podiums"), podiums)
     row1[4].metric(t("categories"), career["category"].nunique())
-    row1[5].metric(t("points_pct"), "—" if multiple_classes else f"{pts_pct}%")
+    row1[5].metric(t("points_pct"), "—" if pd.isna(pts_pct) else f"{pts_pct}%")
+    st.caption(t("recorded_efficiency_method"))
     if multiple_classes:
         st.caption(t("profile_class_points"))
     class_stats = races.groupby("category").agg(
@@ -2749,7 +2753,7 @@ elif viz == "👤 Pilot Profile":
         Podiums=("position", lambda values: values.isin([1, 2, 3]).sum()),
     ).reset_index()
     class_stats["Points"] = class_stats["category"].map(
-        race_sprint.groupby("category")["points"].sum(min_count=1)
+        race_sprint.groupby("category")["points"].agg(complete_points)
     )
     st.dataframe(class_stats.rename(columns={
         "category": t("category"), "Races": t("race_starts"), "Wins": t("race_wins_label"),
@@ -2800,16 +2804,18 @@ elif viz == "👤 Pilot Profile":
 
     # --- Points per season ---
     st.subheader(t("points_per_season"))
-    pts_yr = race_sprint.groupby(["season_year", "category"])["points"].sum(min_count=1).reset_index()
+    pts_yr = race_sprint.groupby(["season_year", "category"])["points"].agg(complete_points).reset_index()
     pts_yr.columns = ["Year", "Category", "Points"]
     pts_yr["Year"] = pts_yr["Year"].astype(str)
-    if not pts_yr.empty:
-        fig = px.bar(pts_yr, x="Year", y="Points", title=t("season_points_title", pilot=pilot),
+    if pts_yr["Points"].notna().any():
+        fig = px.bar(pts_yr.dropna(subset=["Points"]), x="Year", y="Points", title=t("season_points_title", pilot=pilot),
                      text="Points", color="Category", barmode="group",
                      labels={"Category": t("category")})
-        fig.update_layout(height=350)
+        fig.update_layout(height=350, xaxis_type="category")
         fig.update_traces(textposition="outside")
         st.plotly_chart(fig, width="stretch")
+    else:
+        st.info(t("no_recorded_points"))
 
     # --- Season-by-season detailed stats table ---
     st.subheader(t("season_statistics"))
@@ -2822,8 +2828,8 @@ elif viz == "👤 Pilot Profile":
         yr_podiums = len(yr_races[yr_races["position"].isin([1, 2, 3])])
         yr_sprint_wins = len(yr_sprints[yr_sprints["position"] == 1])
         yr_sprint_podiums = len(yr_sprints[yr_sprints["position"].isin([1, 2, 3])])
-        yr_pts = yr_all["points"].sum(min_count=1)
-        yr_max = len(yr_races) * 25 + len(yr_sprints) * 12
+        yr_pts = complete_points(yr_all["points"])
+        yr_max = float(nominal_maximum(yr, len(yr_races), len(yr_sprints)))
         yr_avg = round(yr_finished["position"].mean(), 1) if not yr_finished.empty else None
         yr_dnf = len(yr_races[yr_races["status"].isin(["OUTSTND", "NOTFINISHFIRST"])])
         team = yr_all["team_name"].dropna().unique()
@@ -2842,8 +2848,8 @@ elif viz == "👤 Pilot Profile":
         row.update({
             "DNFs": yr_dnf,
             "Points": yr_pts,
-            "Max Pts": int(yr_max),
-            "Pts %": round(yr_pts / yr_max * 100, 1) if yr_max > 0 else 0,
+            "Max Pts": yr_max,
+            "Pts %": float(points_efficiency(yr_pts, yr_max)),
             "Avg Pos": yr_avg if yr_avg else "",
         })
         season_stats.append(row)
@@ -2961,16 +2967,17 @@ elif viz == "📈 Cross-Year":
         if race_metric in [t("constructor_wins"), t("constructor_points")]:
             is_wins = race_metric == t("constructor_wins")
             cdata = premier_q("""
-                SELECT e.season_year, e.short_name, e.date_end, t.constructor AS Item,
+                SELECT e.season_year, e.short_name, e.date_end,
+                    COALESCE(c.constructor_name, t.constructor) AS Item,
                     COUNT(CASE WHEN c.position = 1 AND s.session_type = 'RAC' THEN 1 END) AS wins,
                     SUM(c.points) AS pts
                 FROM classifications c
                 JOIN sessions s ON c.session_id = s.session_id
                 JOIN events e ON s.event_id = e.event_id
                 LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
-                WHERE s.session_type IN ('RAC','SPR') AND t.constructor IS NOT NULL
+                WHERE s.session_type IN ('RAC','SPR') AND COALESCE(c.constructor_name, t.constructor) IS NOT NULL
                     AND (e.season_year>=1990 OR ?=1)
-                GROUP BY e.season_year, e.short_name, e.date_end, t.constructor
+                GROUP BY e.season_year, e.short_name, e.date_end, COALESCE(c.constructor_name, t.constructor)
                 HAVING ?=1 OR COUNT(c.points)=COUNT(*)
                 ORDER BY e.date_end
             """, [int(is_wins), int(is_wins)])
@@ -3227,7 +3234,8 @@ elif viz == "📈 Cross-Year":
         if conc.empty:
             st.info(t("no_data")); st.stop()
 
-        conc["max_pts"] = conc["races"] * 25 + conc["sprints"] * 12
+        conc["max_pts"] = nominal_maximum(conc["season_year"], conc["races"], conc["sprints"])
+        st.caption(t("recorded_efficiency_method"))
 
         rows = []
         for yr, grp in conc.groupby("season_year"):
@@ -3236,23 +3244,20 @@ elif viz == "📈 Cross-Year":
                 st.caption(f"{t('season')} {int(yr)}")
                 show_official_standings(official)
                 continue
-            if not official.empty:
-                top3 = official.head(3).rename(columns={"points": "pts"}).merge(
-                    grp.drop(columns=["pts"]), on="rider", how="left"
-                )
-                top3["max_pts"] = top3["races"] * 25 + top3["sprints"] * 12
-            else:
-                top3 = grp.nlargest(3, "pts")
+            if official.empty or not official["is_final"].all():
+                continue
+            top3 = official.head(3).rename(columns={"points": "official_pts"}).merge(
+                grp, on="rider", how="left"
+            )
             top3_names = ", ".join(top3["rider"].tolist())
             champion = top3.iloc[0]
-            champ_pct = round(champion["pts"] / champion["max_pts"] * 100, 1) if champion["max_pts"] > 0 else 0
-            top3_avg_pct = round(
-                (top3["pts"] / top3["max_pts"]).mean() * 100, 1
-            ) if (top3["max_pts"] > 0).all() else 0
+            efficiencies = pd.Series(points_efficiency(top3["pts"], top3["max_pts"]))
+            champ_pct = efficiencies.iloc[0]
+            top3_avg_pct = efficiencies.mean() if len(efficiencies) == 3 and efficiencies.notna().all() else np.nan
             rows.append({
                 "Year": str(int(yr)),
                 "Champion": champion["rider"],
-                "Champion Pts": champion["pts"],
+                "Champion Pts": champion["official_pts"],
                 "Champion Max": champion["max_pts"],
                 "Champion %": champ_pct,
                 "Top 3 Avg %": top3_avg_pct,
@@ -3269,7 +3274,7 @@ elif viz == "📈 Cross-Year":
         fig.add_trace(go.Scatter(x=df["Year"], y=df["Champion %"], name=t("champion_efficiency"),
                                  mode="lines+markers", marker=dict(size=10, color="#e74c3c"),
                                  line=dict(width=3)))
-        max_val = max(df["Top 3 Avg %"].max(), df["Champion %"].max())
+        max_val = max(100, df["Top 3 Avg %"].max(), df["Champion %"].max())
         fig.update_layout(height=450, title=t("points_efficiency_title"),
                           yaxis_title=t("pct_max_possible_points"), hovermode="x unified",
                           yaxis=dict(range=[0, max_val * 1.15]))
@@ -3285,7 +3290,7 @@ elif viz == "📈 Cross-Year":
         rider_yr = premier_q("""
             SELECT e.season_year, r.full_name AS rider,
                 SUM(CASE WHEN s.session_type = 'RAC' THEN c.points ELSE 0 END) AS race_pts,
-                SUM(c.points) AS total_pts,
+                CASE WHEN COUNT(c.points)=COUNT(*) THEN SUM(c.points) END AS total_pts,
                 COUNT(CASE WHEN s.session_type = 'RAC' AND c.position = 1 THEN 1 END) AS wins,
                 COUNT(CASE WHEN s.session_type = 'RAC' AND c.position <= 3 THEN 1 END) AS podiums,
                 COUNT(CASE WHEN s.session_type = 'RAC' THEN 1 END) AS races,
@@ -3300,8 +3305,9 @@ elif viz == "📈 Cross-Year":
             st.info(t("no_data")); st.stop()
 
         # Max possible points
-        rider_yr["max_pts"] = rider_yr["races"] * 25 + rider_yr["sprints"] * 12
-        rider_yr["pts_pct"] = (rider_yr["total_pts"] / rider_yr["max_pts"] * 100).round(1)
+        rider_yr["max_pts"] = nominal_maximum(rider_yr["season_year"], rider_yr["races"], rider_yr["sprints"])
+        rider_yr["pts_pct"] = points_efficiency(rider_yr["total_pts"], rider_yr["max_pts"])
+        st.caption(t("recorded_efficiency_method"))
         rider_yr["Year"] = rider_yr["season_year"].astype(str)
 
         # Pick top riders by total career wins
@@ -3332,9 +3338,9 @@ elif viz == "📈 Cross-Year":
         career = rider_yr[rider_yr["rider"].isin(career_wins)].groupby("rider").agg(
             Seasons=("season_year", "nunique"), Races=("races", "sum"),
             Wins=("wins", "sum"), Podiums=("podiums", "sum"),
-            Points=("total_pts", "sum"), Max_Pts=("max_pts", "sum"),
+            Points=("total_pts", complete_points), Max_Pts=("max_pts", complete_points),
         ).reset_index()
-        career["Pts %"] = (career["Points"] / career["Max_Pts"] * 100).round(1)
+        career["Pts %"] = points_efficiency(career["Points"], career["Max_Pts"])
         career = career.sort_values("Wins", ascending=False)
         career = career.drop("Max_Pts", axis=1)
         career.columns = ["Rider", "Seasons", "Races", "Wins", "Podiums", "Points", "Pts %"]
@@ -3402,22 +3408,23 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("constructor_evolution"))
 
         const = premier_q("""
-            SELECT e.season_year, t.constructor,
+            SELECT e.season_year, COALESCE(c.constructor_name, t.constructor) AS constructor,
                 COUNT(DISTINCT r.rider_id) AS riders,
-                SUM(c.points) AS total_pts,
+                CASE WHEN COUNT(c.points)=COUNT(*) THEN SUM(c.points) END AS total_pts,
                 COUNT(CASE WHEN c.position = 1 AND s.session_type = 'RAC' THEN 1 END) AS wins,
                 COUNT(CASE WHEN s.session_type = 'RAC' THEN 1 END) AS race_entries
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
             JOIN riders r ON c.rider_id = r.rider_id
             LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
-            WHERE s.session_type IN ('RAC','SPR') AND t.constructor IS NOT NULL
-            GROUP BY e.season_year, t.constructor
+            WHERE s.session_type IN ('RAC','SPR') AND COALESCE(c.constructor_name, t.constructor) IS NOT NULL
+            GROUP BY e.season_year, COALESCE(c.constructor_name, t.constructor)
         """)
         if const.empty:
             st.info(t("no_data")); st.stop()
 
         const["Year"] = const["season_year"].astype(str)
+        const["total_pts"] = pd.to_numeric(const["total_pts"])
         const["avg_pts"] = (const["total_pts"] / const["riders"]).round(1)
 
         # Avg points per rider (fair comparison)
@@ -3469,12 +3476,16 @@ elif viz == "📈 Cross-Year":
         ph = ",".join("?" * len(sel_riders))
         rd = premier_q(f"""
             SELECT e.season_year, r.full_name AS rider,
-                SUM(c.points) AS pts,
+                CASE WHEN COUNT(CASE WHEN s.session_type IN ('RAC','SPR') AND c.points IS NULL THEN 1 END)=0
+                    THEN SUM(CASE WHEN s.session_type IN ('RAC','SPR') THEN c.points END) END AS pts,
                 COUNT(CASE WHEN s.session_type = 'RAC' AND c.position = 1 THEN 1 END) AS wins,
                 COUNT(CASE WHEN s.session_type = 'RAC' AND c.position <= 3 THEN 1 END) AS podiums,
                 COUNT(CASE WHEN s.session_type = 'RAC' THEN 1 END) AS races,
                 COUNT(CASE WHEN s.session_type = 'SPR' THEN 1 END) AS sprints,
-                COUNT(CASE WHEN s.session_type = 'Q' AND s.session_number = 2 AND c.position = 1 THEN 1 END) AS poles
+                COUNT(CASE WHEN s.session_type = 'Q' AND s.session_number = 2 AND c.position = 1
+                    AND e.season_year >= {QUALIFYING_START.get(selected_category, 3001)} THEN 1 END) AS poles,
+                COUNT(CASE WHEN s.session_type = 'Q' AND s.session_number = 2
+                    AND e.season_year >= {QUALIFYING_START.get(selected_category, 3001)} THEN 1 END) AS qualifying_entries
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
             JOIN riders r ON c.rider_id = r.rider_id
@@ -3487,8 +3498,11 @@ elif viz == "📈 Cross-Year":
             st.info(t("no_data")); st.stop()
 
         rd["Year"] = rd["season_year"].astype(str)
-        rd["max_pts"] = rd["races"] * 25 + rd["sprints"] * 12
-        rd["pts_pct"] = (rd["pts"] / rd["max_pts"] * 100).round(1)
+        rd["pts"] = pd.to_numeric(rd["pts"])
+        rd["poles"] = rd["poles"].where(rd["qualifying_entries"].gt(0))
+        rd["max_pts"] = nominal_maximum(rd["season_year"], rd["races"], rd["sprints"])
+        rd["pts_pct"] = points_efficiency(rd["pts"], rd["max_pts"])
+        st.caption(t("recorded_efficiency_method"))
         rd["win_pct"] = (rd["wins"] / rd["races"].replace(0, 1) * 100).round(1)
 
         metric = st.selectbox(t("metric_label"), [
@@ -3510,7 +3524,7 @@ elif viz == "📈 Cross-Year":
         for r_name in sel_riders:
             rd_r = rd[rd["rider"] == r_name].sort_values("season_year")
             rd.loc[rd["rider"] == r_name, "cum_wins"] = rd_r["wins"].cumsum().values
-            rd.loc[rd["rider"] == r_name, "cum_pts"] = rd_r["pts"].cumsum().values
+            rd.loc[rd["rider"] == r_name, "cum_pts"] = rd_r["pts"].cumsum(skipna=False).values
             rd.loc[rd["rider"] == r_name, "cum_podiums"] = rd_r["podiums"].cumsum().values
 
         cum_metric = st.selectbox(t("cumulative_metric_label"), [t("wins"), t("points"), t("podiums")], key="cum_m")
@@ -3525,31 +3539,13 @@ elif viz == "📈 Cross-Year":
     # --- Qualifying vs Race ---
     elif cross == t("cross_qualifying_race"):
         st.subheader(t("qualifying_vs_race"))
-        st.caption(t("qualifying_vs_race_caption"))
-
-        qvr = premier_q("""
-            SELECT e.season_year, e.short_name, r.full_name AS rider,
-                grid.grid_pos, race.finish_pos
-            FROM (
-                SELECT e2.event_id, c2.rider_id, c2.position AS grid_pos
-                FROM classifications c2
-                JOIN sessions s2 ON c2.session_id = s2.session_id
-                JOIN events e2 ON s2.event_id = e2.event_id
-                WHERE s2.session_type = 'Q' AND s2.session_number = 2 AND c2.position IS NOT NULL
-            ) grid
-            JOIN (
-                SELECT e3.event_id, c3.rider_id, c3.position AS finish_pos
-                FROM classifications c3
-                JOIN sessions s3 ON c3.session_id = s3.session_id
-                JOIN events e3 ON s3.event_id = e3.event_id
-                WHERE s3.session_type = 'RAC' AND c3.position IS NOT NULL
-            ) race ON grid.event_id = race.event_id AND grid.rider_id = race.rider_id
-            JOIN events e ON e.event_id = grid.event_id
-            JOIN riders r ON r.rider_id = grid.rider_id
-        """)
+        st.caption(t("qualifying_proxy_method"))
+        qvr = load_qualifying_proxy(selected_category)
+        qvr = qvr[qvr["session_type"].eq("RAC")].copy()
 
         if qvr.empty:
-            st.info(t("no_data")); st.stop()
+            st.info(t("qualifying_proxy_unavailable")); st.stop()
+        st.caption(t("classified_gain_method"))
 
         qvr["Year"] = qvr["season_year"].astype(str)
         qvr["positions_gained"] = qvr["grid_pos"] - qvr["finish_pos"]  # positive = gained
@@ -3557,9 +3553,12 @@ elif viz == "📈 Cross-Year":
         # Average positions gained per rider across all races
         avg_gain = qvr.groupby("rider").agg(
             avg_gained=("positions_gained", "mean"),
-            races=("short_name", "nunique"),
+            races=("session_id", "nunique"),
+            classified=("finish_pos", "count"),
         ).reset_index()
-        avg_gain = avg_gain[avg_gain["races"] >= 5]
+        avg_gain = avg_gain[avg_gain["classified"] >= 5]
+        if avg_gain.empty:
+            st.info(t("no_data")); st.stop()
         avg_gain["avg_gained"] = avg_gain["avg_gained"].round(2)
 
         # Best gainers
@@ -3665,8 +3664,8 @@ elif viz == "📈 Cross-Year":
         st.subheader(t("pole_position_trends"))
         st.caption(t("pole_caption"))
 
-        poles = premier_q("""
-            SELECT e.season_year, r.full_name AS rider, t.constructor,
+        poles = premier_q(f"""
+            SELECT e.season_year, r.full_name AS rider, COALESCE(c.constructor_name, t.constructor) AS constructor,
                 COUNT(*) AS poles
             FROM classifications c
             JOIN sessions s ON c.session_id = s.session_id
@@ -3674,8 +3673,8 @@ elif viz == "📈 Cross-Year":
             JOIN riders r ON c.rider_id = r.rider_id
             LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
             WHERE s.session_type = 'Q' AND c.position = 1
-                AND s.session_number = 2
-            GROUP BY e.season_year, r.full_name, t.constructor
+                AND s.session_number = 2 AND e.season_year >= {QUALIFYING_START.get(selected_category, 3001)}
+            GROUP BY e.season_year, r.full_name, COALESCE(c.constructor_name, t.constructor)
         """)
         if poles.empty:
             st.info(t("no_qualifying_data")); st.stop()
@@ -3791,12 +3790,12 @@ elif viz == "📈 Cross-Year":
                 st.caption(f"{t('season')} {int(yr)}")
                 show_official_standings(official)
                 continue
-            if not official.empty:
+            if not official.empty and official["is_final"].all():
                 top2 = official.head(2).rename(columns={"points": "pts"}).merge(
                     grp.drop(columns=["pts"]), on="rider", how="left"
                 )
             else:
-                top2 = grp.nlargest(2, "pts")
+                continue
             if len(top2) < 2:
                 continue
             p1, p2 = top2.iloc[0], top2.iloc[1]
@@ -3892,25 +3891,44 @@ elif viz == "📈 Cross-Year":
     # --- Circuit Pace Evolution ---
     elif cross == t("cross_circuit_pace"):
         st.subheader(t("circuit_pace_evolution"))
-        st.caption(t("circuit_pace_caption"))
+        st.caption(t("circuit_recorded_pace_method"))
 
         pace = premier_q("""
-            SELECT e.season_year, e.short_name, r.full_name AS rider, c.best_lap_time
+            SELECT e.season_year, e.date_end, e.circuit_name, e.circuit_place,
+                s.session_id, r.full_name AS rider, c.best_lap_time, l.lap_time
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
             JOIN riders r ON c.rider_id = r.rider_id
+            LEFT JOIN laps l ON l.session_id=s.session_id AND l.rider_id=c.rider_id AND l.is_pit=0
             WHERE s.session_type = 'RAC' AND c.position = 1""")
         if not pace.empty:
-            pace["sec"] = pace["best_lap_time"].apply(lap_to_sec)
-            pace = pace.dropna(subset=["sec"])
-            pace["season_year"] = pace["season_year"].astype(str)
-            circuits = sorted(pace["short_name"].unique())
-            sc = st.multiselect(t("circuits_multiselect"), circuits, default=circuits[:5], key="pc")
-            if sc:
-                fig = px.line(pace[pace["short_name"].isin(sc)], x="season_year", y="sec",
-                              color="short_name", markers=True, text="rider",
-                              title=t("winner_best_lap_by_year"),
-                              labels={"season_year": t("year"), "sec": t("lap_s")})
-                fig.update_traces(textposition="top center", textfont_size=9)
-                fig.update_layout(height=500)
-                st.plotly_chart(fig, width="stretch")
+            pace["sec"] = pd.concat([
+                pd.to_numeric(pace["best_lap_time"].apply(lap_to_sec)),
+                pd.to_numeric(pace["lap_time"].apply(lap_to_sec)),
+            ], axis=1).min(axis=1)
+            pace = pace[
+                pace["sec"].gt(0) & np.isfinite(pace["sec"]) & pace["circuit_name"].notna()
+            ].copy()
+        if pace.empty:
+            st.info(t("no_lap_data")); st.stop()
+        pace["circuit"] = pace.apply(
+            lambda row: circuit_key(row["circuit_name"], "" if pd.isna(row["circuit_place"]) else row["circuit_place"]), axis=1
+        )
+        pace = pace.groupby(
+            ["session_id", "season_year", "date_end", "circuit", "circuit_name", "rider"],
+            dropna=False, as_index=False,
+        )["sec"].min().sort_values(["date_end", "session_id"])
+        circuit_names = pace.drop_duplicates("circuit").set_index("circuit")["circuit_name"].to_dict()
+        circuits = sorted(circuit_names, key=lambda key: circuit_names[key])
+        sc = st.multiselect(t("circuits_multiselect"), circuits, default=circuits[:5],
+                            format_func=circuit_names.get, key="pc")
+        if sc:
+            selected_pace = pace[pace["circuit"].isin(sc)].copy()
+            selected_pace["circuit"] = selected_pace["circuit"].map(circuit_names)
+            fig = px.scatter(selected_pace, x="season_year", y="sec",
+                             color="circuit", hover_data=["rider", "date_end"],
+                             title=t("winner_best_lap_by_year"),
+                             labels={"season_year": t("year"), "sec": t("lap_s"),
+                                     "circuit": t("circuit")})
+            fig.update_layout(height=500, xaxis_tickformat="d")
+            st.plotly_chart(fig, width="stretch")
