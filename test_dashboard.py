@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 from streamlit.testing.v1 import AppTest
+from translations import get_translator
 
 
 DASHBOARD = Path(__file__).with_name("dashboard.py")
@@ -142,6 +143,32 @@ class DashboardTests(unittest.TestCase):
         app.radio(key="home_view").set_value("home_championship").run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.button), 1)
+
+    def test_coverage_explanations_follow_their_charts_in_each_language(self):
+        app = self.start_app()
+        app.radio(key="home_view").set_value("home_coverage").run()
+        for label, language in [
+            ("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")
+        ]:
+            with self.subTest(language=language):
+                app.selectbox(key="language").select(label).run()
+                self.assertFalse(app.exception)
+                columns = app.get("column")
+                translator = get_translator(language)
+                for key in ["races_coverage_explanation", "laps_coverage_explanation"]:
+                    explanation = translator(key)
+                    matching = [
+                        column for column in columns
+                        if any(caption.value == explanation for caption in column.caption)
+                    ]
+                    self.assertEqual(len(matching), 1)
+                    elements = list(matching[0])
+                    chart_index = next(i for i, element in enumerate(elements) if element.type == "plotly_chart")
+                    caption_index = next(
+                        i for i, element in enumerate(elements)
+                        if element.type == "caption" and element.value == explanation
+                    )
+                    self.assertEqual(caption_index, chart_index + 1)
 
     def test_championship_shortcut_opens_the_current_season(self):
         app = self.start_app()

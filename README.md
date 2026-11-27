@@ -269,6 +269,12 @@ rules. They do not reconstruct a cumulative progression from missing race points
 
 Dashboard interaction tests use sample data and never connect to Azure SQL:
 
+The first two coverage charts include localized explanations below each chart.
+GP counts describe imported weekends, not a complete historical calendar.
+Lap/sector counts describe imported timing records and source availability,
+not laps actually raced; the sector indicator records T1 availability, not
+necessarily a complete four-sector lap.
+
 Sector Heatmap requires all four sectors before showing an ideal lap or its
 gap to the best lap. Missing sectors leave those values unavailable.
 

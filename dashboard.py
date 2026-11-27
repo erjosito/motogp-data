@@ -739,6 +739,7 @@ if viz == "🏠 Home":
                           yaxis=dict(range=[0, evts_yr["Events"].max() * 1.2]))
         fig.update_traces(textposition="outside")
         st.plotly_chart(fig, width="stretch")
+        st.caption(t("races_coverage_explanation"))
 
     with col_right:
         st.subheader(t("laps_per_season"))
@@ -768,6 +769,7 @@ if viz == "🏠 Home":
             showlegend=False,
         ))
         st.plotly_chart(fig, width="stretch")
+        st.caption(t("laps_coverage_explanation"))
 
     st.divider()
 
