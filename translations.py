@@ -8,7 +8,7 @@ Usage:
 """
 
 TRANSLATIONS = {
-    "paddock_link": {"en": "Open Paddock (React)", "es": "Abrir Paddock (React)", "it": "Apri Paddock (React)"},
+    "paddock_link": {"en": "Open Paddock App", "es": "Abrir la app Paddock", "it": "Apri l'app Paddock"},
     "paddock_link_help": {"en": "Explore the new React dashboard (currently in English). Opens in a new tab.", "es": "Explora el nuevo panel React (actualmente en inglés). Se abre en otra pestaña.", "it": "Esplora la nuova dashboard React (attualmente in inglese). Si apre in una nuova scheda."},
     "rider_identity_scope": {"en": "{season} · {categories}", "es": "{season} · {categories}", "it": "{season} · {categories}"},
     "rider_all_seasons": {"en": "All seasons", "es": "Todas las temporadas", "it": "Tutte le stagioni"},

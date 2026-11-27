@@ -22,7 +22,7 @@ exclude non-scoring restarts; historical classification evidence may lack points
 Standings-only riders receive official-rank charts instead of invented race counts.
 Share a profile with `?view=riders&rider=<rider_id>`; theme parameters persist.
 The Classic domain root is unchanged.
-Classic's sidebar includes an **Open Paddock (React)** link with an external-link
+Classic's sidebar includes an **Open Paddock App** link with an external-link
 icon; it opens the new app in a separate tab without replacing the current analysis.
 
 Career profiles use a reusable visual identity card: individually reviewed
