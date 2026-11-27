@@ -471,6 +471,11 @@ the selected class at all; the snapshot records that source limitation without
 asserting that its race never took place. Zero placeholders for unavailable historical
 race points, lap counts and top speeds become SQL `NULL`. Official final
 standings are stored separately and must not be derived by summing those gaps.
+Later 125cc/250cc race tables that contain a winner but no nonzero score also
+have unavailable points, not zero-point wins. Their raw snapshots stay unchanged;
+cached reruns upgrade only zero placeholders within the verified transaction.
+Scored race tables retain genuine zero scores, including unawarded modern
+Moto2/Moto3 race parts.
 The pilots, for example, provide Agostini's official 36 points in 1966 and
 84 in 1975, but only part of each season's race classifications.
 
@@ -524,22 +529,43 @@ python import_external.py --apply                 # Verified, repeat-safe facts
 python import_external.py --categories 500cc,250cc,125cc,350cc,50cc,80cc --apply
 ```
 
-The expanded six-class external audit stages 16,941 candidates: 5,892 accepted,
-42 corroborated without augmentation and 11,007 held. Unmatched lower-class rows
-can be reconsidered only after their official identities/races are imported and
-the same corroboration checks pass.
+After the official expansion, the six-class external audit stages **16,941
+candidates: 11,258 accepted, 71 corroborated without augmentation and 5,612 held**.
+All 5,892 previously accepted facts remain unchanged; 5,366 additional facts
+passed the same identity, position and scoring checks. Repeated imports preserve
+the accepted facts and candidate decisions. Most augmentation fills unavailable
+race scores, not missing race classifications.
 
-Lower-class expansion is staged. The first milestone includes **51 verified
-season/class archives**: 40 in 250cc, six in 125cc, historical 50/350/80cc pilots,
-and 2026 Moto2/Moto3 through Portugal. All advertised 2026 race PDFs were
+Following the 51-archive pilot, **218 lower-class season/class archives** have
+been imported and compared with their official source snapshots. Together with
+the 41 historical premier seasons, this is 259 verified archive snapshots.
+Lower-class coverage comprises 2,493 race sessions, 42,486 official classification
+rows and 6,268 championship-standing rows; 2026 standings remain non-final.
+
+| Class | Seasons | Archives | Race sessions | Classification rows | Standing rows |
+|-------|---------|----------|---------------|---------------------|---------------|
+| 250cc | 1949–2009 | 61 | 683 | 10,406 | 1,722 |
+| Moto2 | 2010–2026 | 17 | 321 | 9,957 | 668 |
+| 125cc | 1949–2011 | 63 | 708 | 10,198 | 1,608 |
+| Moto3 | 2012–2026 | 15 | 282 | 8,402 | 590 |
+| 350cc | 1949–1982 | 34 | 281 | 1,587 | 937 |
+| 50cc | 1962–1983 | 22 | 171 | 1,147 | 581 |
+| 80cc | 1984–1989 | 6 | 47 | 789 | 162 |
+
+All advertised 2026 race PDFs were
 field-verified: **9,097 Moto2 laps across 22 race parts** and **8,053 Moto3 laps
 across 21 race parts**. Eight laps have unavailable sector cells; elapsed times
 are preserved but ambiguous collapsed sector values are not guessed.
 Practice/qualifying timing backfill is a separate stage.
 
-The broader expansion resumes with cached successful responses and paced
-uncached requests after respecting the official API cooldown. The original
-premier archive is preserved. All seven Agostini 350cc title rankings are now
+Successful responses were cached and uncached requests paced after respecting
+the official API cooldown. Original premier classifications, sessions, laps,
+profiles, final standings and shared event metadata remain preserved.
+There are still **450 finished historical sessions without official
+classifications**, **19 season/class tables without official final standings**
+and **18 non-monotonic official point tables** requiring the source warning.
+These are source gaps, not evidence that the races or titles never happened.
+All seven Agostini 350cc title rankings are now
 represented alongside his eight 500cc titles, but this does not validate every
 supplied point total. Nieto's six 50cc and four 125cc title rankings are available;
 the official API has no final standings for his 1979, 1983 and 1984 125cc titles.
