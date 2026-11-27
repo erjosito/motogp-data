@@ -6,6 +6,7 @@ Run locally:  streamlit run dashboard.py
 """
 
 import warnings
+from pathlib import Path
 
 import numpy as np
 import plotly.express as px
@@ -20,6 +21,8 @@ from category_scope import (
     CATEGORY_FAMILIES, canonical_category, category_sql, normalize_category, official_points_inconsistent,
 )
 from circuit_catalog import circuit_details, circuit_key, projected_outline
+from rider_profiles import read_enrichment
+from rider_media import read_portrait
 from archive_analytics import (
     CATEGORY_ORDER, archive_availability, career_seasons, constructor_eras,
     complete_points, nominal_maximum, points_efficiency, qualifying_proxy,
@@ -303,6 +306,10 @@ lang_sel = st.sidebar.selectbox(
 lang = LANG_OPTIONS[lang_sel]
 t = get_translator(lang)
 st.sidebar.caption(t("appearance_help"))
+st.sidebar.link_button(
+    t("paddock_link"), "https://motogp-data.com/paddock/",
+    icon=":material/open_in_new:", help=t("paddock_link_help"), width="stretch",
+)
 
 st.title(t("app_title"))
 st.caption(t("app_tagline"))
@@ -713,19 +720,67 @@ def load_official_standings(year, family="premier"):
 
 
 @st.cache_data(ttl=300)
-def load_archive_finals(families, rider=None):
+def load_archive_finals(families, rider_id=None):
     rows = q(f"""
         SELECT cs.season_year, cs.category, cs.rider_id, r.full_name AS rider,
             cs.position, cs.points, cs.constructor_name AS constructor, cs.is_final, cs.source_url
         FROM championship_standings cs JOIN riders r ON r.rider_id=cs.rider_id
         WHERE cs.is_final=1 AND ({scope_predicate(families, 'cs.category')})
-            {"AND r.full_name=?" if rider is not None else ""}
+            {"AND cs.rider_id=?" if rider_id is not None else ""}
         ORDER BY cs.season_year, cs.category, cs.position
-    """, [rider] if rider is not None else None)
+    """, [rider_id] if rider_id is not None else None)
     if not rows.empty:
         rows = rows[rows["is_final"].eq(True)].copy()
         rows["category"] = rows["category"].map(canonical_category)
     return rows
+
+
+def render_rider_identity(rider_id, name, year, categories):
+    try:
+        profile = read_enrichment(rider_id)["profile"]
+        if profile and (
+            profile["identity"]["method"] != "official_results_explicit_profile_uuid"
+            or profile["identity"]["rider_id"] != rider_id
+        ):
+            raise ValueError("Rider enrichment has no verified results-ID link.")
+        portrait = read_portrait(rider_id, year, categories)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        st.error(t("rider_context_error", reason=str(error)))
+        st.stop()
+    with st.container(border=True):
+        image_column, facts_column = st.columns([1, 4], vertical_alignment="center")
+        with image_column:
+            if portrait:
+                variant = max(portrait["display_derivatives"], key=lambda item: item["width_px"])
+                st.image(str(Path(__file__).parent / variant["path"]), width=160)
+            else:
+                initials = "".join(part[0] for part in name.split()[:2]).upper()
+                st.subheader(initials)
+        with facts_column:
+            st.subheader(name)
+            st.caption(t(
+                "rider_identity_scope", season=year if year is not None else t("rider_all_seasons"),
+                categories=", ".join(categories),
+            ))
+            if profile:
+                biography = profile["biography"]
+                if biography["birth_date"]:
+                    st.write(f'**{t("rider_birth_date")}:** {biography["birth_date"]}')
+                birthplace = ", ".join(filter(None, [biography["birth_city"], biography["birth_country"]]))
+                if birthplace:
+                    st.write(f'**{t("rider_birthplace")}:** {birthplace}')
+                retrieved = profile["source"]["retrieved_at"][:10]
+                if biography["height_cm"] is not None:
+                    st.write(t("rider_reported_height", height=biography["height_cm"], date=retrieved))
+                st.caption(
+                    f'[{t("rider_biography_source")}]({profile["source"]["source_url"]}) · {retrieved}'
+                )
+        if portrait:
+            st.caption(f'{portrait["season"]} · {portrait["category"]} · {portrait["team_name"]}')
+            st.caption(t(
+                "rider_portrait_credit", creator=portrait["rights"]["creator"],
+                source=portrait["source_page"], license=portrait["rights"]["license_url"],
+            ))
 
 
 @st.cache_data(ttl=300)
@@ -2737,16 +2792,35 @@ elif viz == "👤 Pilot Profile":
     st.header(t("pilot_profile_header"))
     st.caption(t("profile_scope_help"))
     riders_all = premier_q(
-        "SELECT DISTINCT full_name FROM riders r WHERE EXISTS "
+        "SELECT r.rider_id, r.full_name FROM riders r WHERE EXISTS "
         "(SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id "
         "WHERE c.rider_id = r.rider_id) OR EXISTS "
         "(SELECT 1 FROM championship_standings cs WHERE cs.rider_id=r.rider_id "
         f"AND cs.is_final=1 AND ({scope_predicate(tuple(CATEGORY_FAMILIES), 'cs.category')})) "
-        "ORDER BY full_name", family=tuple(CATEGORY_FAMILIES),
+        "ORDER BY r.full_name, r.rider_id", family=tuple(CATEGORY_FAMILIES),
     )
     if riders_all.empty:
         st.info(t("no_riders")); st.stop()
-    pilot = st.sidebar.selectbox(t("rider"), riders_all["full_name"].tolist(), key="profile_rider")
+    riders_all["rider_id"] = riders_all["rider_id"].astype(str)
+    rider_names = riders_all.set_index("rider_id")["full_name"].to_dict()
+    saved_rider = st.session_state.get("profile_rider")
+    if saved_rider is not None and saved_rider not in rider_names:
+        legacy = riders_all.loc[riders_all["full_name"].eq(saved_rider), "rider_id"].tolist()
+        if len(legacy) == 1:
+            st.session_state["profile_rider"] = legacy[0]
+            if st.session_state.get("_profile_rider") == saved_rider:
+                st.session_state["_profile_rider"] = legacy[0]
+        else:
+            st.session_state.pop("profile_rider", None)
+    duplicate_names = set(riders_all.loc[riders_all["full_name"].duplicated(keep=False), "full_name"])
+    pilot_id = st.sidebar.selectbox(
+        t("rider"), riders_all["rider_id"].tolist(), key="profile_rider",
+        format_func=lambda identity: (
+            f"{rider_names[identity]} · {identity[:8]}" if rider_names[identity] in duplicate_names
+            else rider_names[identity]
+        ),
+    )
+    pilot = rider_names[pilot_id]
 
     career = premier_q("""
         SELECT e.season_year, e.short_name, e.date_end, s.session_type, s.session_label,
@@ -2760,19 +2834,19 @@ elif viz == "👤 Pilot Profile":
         JOIN riders r ON c.rider_id = r.rider_id
         LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
         LEFT JOIN team_aliases ta ON t.team_name = ta.team_name
-        WHERE r.full_name = ? ORDER BY e.date_end, s.session_date""", [pilot],
+        WHERE c.rider_id = ? ORDER BY e.date_end, s.session_date""", [pilot_id],
         family=tuple(CATEGORY_FAMILIES))
-    career_finals = load_archive_finals(tuple(CATEGORY_FAMILIES), pilot)
+    career_finals = load_archive_finals(tuple(CATEGORY_FAMILIES), pilot_id)
 
     if career.empty and career_finals.empty:
         st.info(t("no_data_for_pilot", pilot=pilot)); st.stop()
 
     career["category"] = career["category"].map(canonical_category)
     category_options = sorted(set(career["category"]) | set(career_finals["category"]))
-    if st.session_state.get("_profile_rider") != pilot:
+    if st.session_state.get("_profile_rider") != pilot_id:
         st.session_state.pop("profile_categories", None)
-        st.session_state.pop("pp_yr", None)
-        st.session_state["_profile_rider"] = pilot
+        st.session_state["pp_yr"] = "All"
+        st.session_state["_profile_rider"] = pilot_id
     st.session_state["profile_categories"] = st.session_state.get("profile_categories", category_options)
     profile_categories = st.sidebar.multiselect(t("categories"), category_options, key="profile_categories")
     if not profile_categories:
@@ -2781,7 +2855,7 @@ elif viz == "👤 Pilot Profile":
     career_finals = career_finals[career_finals["category"].isin(profile_categories)]
     py_list = sorted(set(career["season_year"]) | set(career_finals["season_year"]), reverse=True)
     if st.session_state.get("pp_yr") not in ["All"] + py_list:
-        st.session_state.pop("pp_yr", None)
+        st.session_state["pp_yr"] = "All"
     yr_sel = st.sidebar.selectbox(t("season"), ["All"] + py_list, key="pp_yr")
     filter_year = None if yr_sel == "All" else yr_sel
     if filter_year is not None:
@@ -2794,7 +2868,9 @@ elif viz == "👤 Pilot Profile":
     seasons = sorted(set(career["season_year"]) | set(career_finals["season_year"]))
 
     # --- Key stats ---
-    st.subheader(f"📋 {pilot}")
+    render_rider_identity(
+        pilot_id, pilot, filter_year, sorted(set(career["category"]) | set(career_finals["category"])),
+    )
 
     n_races = len(races)
     n_sprints = len(sprints)
@@ -2902,7 +2978,7 @@ elif viz == "👤 Pilot Profile":
         if filter_year is None:
             detail_years = sorted(races["season_year"].unique(), reverse=True)
             if st.session_state.get("profile_detail_year") not in detail_years:
-                st.session_state.pop("profile_detail_year", None)
+                st.session_state["profile_detail_year"] = detail_years[0]
             detail_year = st.selectbox(t("career_detail_season"), detail_years, key="profile_detail_year")
         else:
             detail_year = filter_year

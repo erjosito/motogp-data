@@ -1,8 +1,925 @@
 {
   "format_version": 1,
   "reviewed_on": "2026-11-27",
-  "scope": "Individually reviewed Marc Marquez factual subset; no official artwork or biography prose.",
+  "scope": "Threshold-selected sourced factual biographies; no official artwork or copied biography prose.",
+  "selection_policy": {
+    "premier_minimum": 2,
+    "combined_lower_classes_minimum": 5,
+    "operator": "OR",
+    "premier_classes": [
+      "500cc",
+      "MotoGP"
+    ],
+    "lower_classes": [
+      "125cc",
+      "250cc",
+      "350cc",
+      "50cc",
+      "80cc",
+      "Moto2",
+      "Moto3"
+    ],
+    "evidence": "Official rank-one final standings only; qualifying counts are lower bounds where source tables are missing.",
+    "current_season": "Provisional standings are excluded; no assertion that a clinched title is a final table."
+  },
+  "selection_source": {
+    "archive": "motogp-data-2026-11-27-standings.tar.xz",
+    "archive_sha256": "cd025eecdacdac199cfcb1c2c9df853632b9539fedb9cf5853fd7650114072d2",
+    "snapshot_database_time_utc": "2026-11-27T20:14:51.089159"
+  },
+  "coverage": {
+    "profiles": 21,
+    "birth_dates": 21,
+    "birth_cities": 21,
+    "birth_countries": 20,
+    "reported_heights": 7
+  },
   "profiles": [
+    {
+      "rider_id": "7d640b42-b813-46d7-89ef-7331b8fa5627",
+      "profile_id": "e5c82868-d3a9-46b2-b6bd-956129000f1d",
+      "legacy_id": 981,
+      "name": "Angel Nieto",
+      "identity": {
+        "rider_id": "7d640b42-b813-46d7-89ef-7331b8fa5627",
+        "legacy_id": 981,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1964_50cc.json",
+        "snapshot_sha256": "f85fff070587d0cfc2f10eca75dcc8879d8aaea761bdedcfc5428bbeef830eb5"
+      },
+      "biography": {
+        "birth_date": "1947-01-25",
+        "birth_city": "Zamora",
+        "birth_country": "Spain",
+        "height_cm": 174,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 50cc: 1969, 1970, 1972, 1975, 1976, 1977; 125cc: 1971, 1972, 1981, 1982. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/e5c82868-d3a9-46b2-b6bd-956129000f1d",
+        "retrieved_at": "2026-11-27T22:09:56.028156+00:00",
+        "source_sha256": "a154d6641fc653727885f4229008c86a72c555a5ba02bea7effb8da243a603ea"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 0,
+        "lower_class_final_records": 10,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1969,
+            "category": "50cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3826b414-4a3b-4674-90e1-94f7ff3dc9bc&categoryUuid=7f223edb-86d6-462d-a3fa-8efbf0f2fc51"
+          },
+          {
+            "season": 1970,
+            "category": "50cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=fea3cb28-5c7c-4888-8dae-6e851259775a&categoryUuid=7f223edb-86d6-462d-a3fa-8efbf0f2fc51"
+          },
+          {
+            "season": 1971,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=14cd72be-713f-474d-a6af-cc57ca58f252&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1972,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a13b4cfc-89a9-47d5-9734-af4d61bf8b90&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1972,
+            "category": "50cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a13b4cfc-89a9-47d5-9734-af4d61bf8b90&categoryUuid=7f223edb-86d6-462d-a3fa-8efbf0f2fc51"
+          },
+          {
+            "season": 1975,
+            "category": "50cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=82e72174-0426-4b33-af3f-e2f2e3f413e2&categoryUuid=7f223edb-86d6-462d-a3fa-8efbf0f2fc51"
+          },
+          {
+            "season": 1976,
+            "category": "50cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=357e99b8-cc05-4fcd-b11d-2edfbb019809&categoryUuid=7f223edb-86d6-462d-a3fa-8efbf0f2fc51"
+          },
+          {
+            "season": 1977,
+            "category": "50cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=f64bbe89-30bb-461c-acdc-cca30b21fed7&categoryUuid=7f223edb-86d6-462d-a3fa-8efbf0f2fc51"
+          },
+          {
+            "season": 1981,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=8a939600-760d-440f-8e45-0c18d73631e1&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1982,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=502d13a9-3f2e-4e51-aa0f-0a6de157a170&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "8da50702-f7da-4b03-8cc7-a671ae928cc9",
+      "profile_id": "7389bee8-9da0-4d45-b08a-f92210bc558b",
+      "legacy_id": 691,
+      "name": "Anton Mang",
+      "identity": {
+        "rider_id": "8da50702-f7da-4b03-8cc7-a671ae928cc9",
+        "legacy_id": 691,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1975_350cc.json",
+        "snapshot_sha256": "674a6a05e5a8527a357c2d65fd596ec8b84930ad02a06f721d23e267b37bdd0c"
+      },
+      "biography": {
+        "birth_date": "1949-09-29",
+        "birth_city": "Inning",
+        "birth_country": "Germany",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 250cc: 1980, 1981, 1987; 350cc: 1981, 1982. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/7389bee8-9da0-4d45-b08a-f92210bc558b",
+        "retrieved_at": "2026-11-27T22:10:02.001265+00:00",
+        "source_sha256": "db43186eea2106ed41389933d307f4d8d712da220c8b01a14c762374781881b4"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 0,
+        "lower_class_final_records": 5,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1980,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a6215585-eab4-4100-9b8a-365f4e056805&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1981,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=8a939600-760d-440f-8e45-0c18d73631e1&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1981,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=8a939600-760d-440f-8e45-0c18d73631e1&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1982,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=502d13a9-3f2e-4e51-aa0f-0a6de157a170&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1987,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=1b77d8dc-001c-40cc-8a71-8ccd5ef96214&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "68fcb2e0-7979-4b96-8d72-9f59f5b9fab4",
+      "profile_id": "12ebb38a-6385-4380-bf49-c143b0ffa217",
+      "legacy_id": 1007,
+      "name": "Barry Sheene",
+      "identity": {
+        "rider_id": "68fcb2e0-7979-4b96-8d72-9f59f5b9fab4",
+        "legacy_id": 1007,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1970_125cc.json",
+        "snapshot_sha256": "71a77c528cd1bd3218dca14af7781bd595bdbbedd7d68294f66523e1ecab0c52"
+      },
+      "biography": {
+        "birth_date": "1950-09-11",
+        "birth_city": "London",
+        "birth_country": "United Kingdom",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1976, 1977. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/12ebb38a-6385-4380-bf49-c143b0ffa217",
+        "retrieved_at": "2026-11-27T22:09:57.999169+00:00",
+        "source_sha256": "8838531bb2ba3741e29cac4bd59db76f61bca8e244df7088d7258c9ff8d356cb"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 2,
+        "lower_class_final_records": 0,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1976,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=357e99b8-cc05-4fcd-b11d-2edfbb019809&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1977,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=f64bbe89-30bb-461c-acdc-cca30b21fed7&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "a10fec8c-f742-4c1d-a0c7-403f38e9b6fd",
+      "profile_id": "f8f693b0-e633-4b9c-90d0-a6b9125f6ac2",
+      "legacy_id": 1565,
+      "name": "Carlo Ubbiali",
+      "identity": {
+        "rider_id": "a10fec8c-f742-4c1d-a0c7-403f38e9b6fd",
+        "legacy_id": 1565,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1949_125cc.json",
+        "snapshot_sha256": "ad0992e905753193055439b7cf719078962e5cd663a824125cb10d051216f896"
+      },
+      "biography": {
+        "birth_date": "1929-09-24",
+        "birth_city": "Bergamo",
+        "birth_country": "Italy",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 125cc: 1951, 1956, 1958, 1959, 1960; 250cc: 1956, 1959, 1960. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/f8f693b0-e633-4b9c-90d0-a6b9125f6ac2",
+        "retrieved_at": "2026-11-27T22:09:42.003346+00:00",
+        "source_sha256": "d8769deba138e0cabbbfe28379bc0137e22a83c7c17cdcb09c679b0f5ef1ddd2"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 0,
+        "lower_class_final_records": 8,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1951,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=296ab92c-cd8d-48ba-ace1-aad1455d557f&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1956,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=5272bf19-bfe0-4017-b7e7-9754b1ee9aa7&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1956,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=5272bf19-bfe0-4017-b7e7-9754b1ee9aa7&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1958,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=cb64a721-de5b-4fc4-a543-b15c5e5dcf6a&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1959,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=438fc379-7133-47fa-9b73-d8d217f42b88&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1959,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=438fc379-7133-47fa-9b73-d8d217f42b88&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1960,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=0aaccf7d-e525-4505-85aa-ae6e57c60bd8&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1960,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=0aaccf7d-e525-4505-85aa-ae6e57c60bd8&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "34d4b525-ba93-43a3-907b-b67d89e7b1a8",
+      "profile_id": "9d0d31fb-c7de-4f56-b2ef-ab1829c96e43",
+      "legacy_id": 5911,
+      "name": "Casey Stoner",
+      "identity": {
+        "rider_id": "34d4b525-ba93-43a3-907b-b67d89e7b1a8",
+        "legacy_id": 5911,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "2002_250cc.json",
+        "snapshot_sha256": "246a0e0e98c37c434fd081977a75b630f21c6a4cd4368f59da6459b5daaad8f8"
+      },
+      "biography": {
+        "birth_date": "1985-10-16",
+        "birth_city": "Southport",
+        "birth_country": "Australia",
+        "height_cm": 171,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include MotoGP: 2007, 2011. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/9d0d31fb-c7de-4f56-b2ef-ab1829c96e43",
+        "retrieved_at": "2026-11-27T22:10:14.006835+00:00",
+        "source_sha256": "a7f1523dd878e0e1931844f3babb80c032a91547192b7252c1296c43d836aa35"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 2,
+        "lower_class_final_records": 0,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 2007,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a3f86bb3-b914-4dc0-984d-e4949a4f037e&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2011,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=b6cf5327-3c57-41d6-874c-bf330fcfc0fc&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "19070ff1-cabc-404c-9249-bafa759153f1",
+      "profile_id": "3678d39c-a4df-4fd0-8e17-8645365a47ce",
+      "legacy_id": 523,
+      "name": "Eddie Lawson",
+      "identity": {
+        "rider_id": "19070ff1-cabc-404c-9249-bafa759153f1",
+        "legacy_id": 523,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1983_500cc.json",
+        "snapshot_sha256": "3fb08bc554067aa4e0bb8bffcb5cb5c979e504526f58ee0dfd7302e61ed1b279"
+      },
+      "biography": {
+        "birth_date": "1958-03-11",
+        "birth_city": "Upland",
+        "birth_country": "United States of America",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1984, 1986, 1988, 1989. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/3678d39c-a4df-4fd0-8e17-8645365a47ce",
+        "retrieved_at": "2026-11-27T22:10:05.985183+00:00",
+        "source_sha256": "3c7373c27a15f245eb83afd3a058d066dc2c32a0743387f3b0617ab0d3779fcb"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 4,
+        "lower_class_final_records": 0,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1984,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=9e96c443-0c9f-4f67-a3a0-d678cfeab933&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1986,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=8dd7d599-ac03-4486-8d46-edf2edc3146d&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1988,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=b9332591-9e09-441e-938b-9396daf74930&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1989,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e6dac447-28af-4394-a570-93d33d138cc9&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "9cb55304-0ac1-401c-beb6-1a4f445018a4",
+      "profile_id": "66b78301-5826-4986-b11e-fa68a7bd77a7",
+      "legacy_id": 8273,
+      "name": "Francesco Bagnaia",
+      "identity": {
+        "rider_id": "9cb55304-0ac1-401c-beb6-1a4f445018a4",
+        "legacy_id": 8273,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "2013_Moto3.json",
+        "snapshot_sha256": "1b7d97a370c088d431c3cfcb55ee9ddfce87c3cfbbf37029c6bf3f5e0e98f31b"
+      },
+      "biography": {
+        "birth_date": "1997-01-14",
+        "birth_city": "Torino",
+        "birth_country": "Italy",
+        "height_cm": 176,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include Moto2: 2018; MotoGP: 2022, 2023. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/66b78301-5826-4986-b11e-fa68a7bd77a7",
+        "retrieved_at": "2026-11-27T20:43:39.678988+00:00",
+        "source_sha256": "41a0e41506d2b435c7b5e54a5706ea68db7925f22c3f7e6b9d9a78c3c9696afa"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 2,
+        "lower_class_final_records": 1,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 2018,
+            "category": "Moto2",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=c0844c71-783c-4f86-abce-a9a67adcc1a9&categoryUuid=549640b8-fd9c-4245-acfd-60e4bc38b25c"
+          },
+          {
+            "season": 2022,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=db8dc197-c7b2-4c1b-b3a4-6dc534c014ef&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2023,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=db8dc197-c7b2-4c1b-b3a4-6dc534c023ef&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "bdb7d56b-2516-431d-9ff8-2964983303c1",
+      "profile_id": "20e83b35-5a8e-4b8e-8b06-6a5ddb131a40",
+      "legacy_id": 760,
+      "name": "Freddie Spencer",
+      "identity": {
+        "rider_id": "bdb7d56b-2516-431d-9ff8-2964983303c1",
+        "legacy_id": 760,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1980_500cc.json",
+        "snapshot_sha256": "382c264c7c8173ac037e22e6c1ad2b8d3bfcea081461db0c30cfebeaf911c779"
+      },
+      "biography": {
+        "birth_date": "1961-12-20",
+        "birth_city": "Shreveport",
+        "birth_country": "United States of America",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1983, 1985; 250cc: 1985. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/20e83b35-5a8e-4b8e-8b06-6a5ddb131a40",
+        "retrieved_at": "2026-11-27T22:10:03.984773+00:00",
+        "source_sha256": "66a2d0be122358d4803043bebd3e3a0c6bc6c603865c27a0df027a4fb1060ac8"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 2,
+        "lower_class_final_records": 1,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1983,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=17a1aefb-dd07-4fb9-bf03-05e1efd28435&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1985,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=d6747634-7a17-4e50-a5a4-71fdcd5b65bb&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1985,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=d6747634-7a17-4e50-a5a4-71fdcd5b65bb&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "46103939-0f09-4d85-8d5a-1bc11d41538c",
+      "profile_id": "a164eeec-39cd-4ab2-ac25-11665ddf8420",
+      "legacy_id": 1198,
+      "name": "Geoff Duke",
+      "identity": {
+        "rider_id": "46103939-0f09-4d85-8d5a-1bc11d41538c",
+        "legacy_id": 1198,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1950_350cc.json",
+        "snapshot_sha256": "a2c8ef12facd7e431a07b3b36ab8d8d0598b6cc37633ae7757f7c8109f98a09a"
+      },
+      "biography": {
+        "birth_date": "1923-03-29",
+        "birth_city": "St. Helens",
+        "birth_country": "United Kingdom",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 350cc: 1951, 1952; 500cc: 1951, 1953, 1954, 1955. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/a164eeec-39cd-4ab2-ac25-11665ddf8420",
+        "retrieved_at": "2026-11-27T22:09:44.005191+00:00",
+        "source_sha256": "94e3dcb9043c2976910a7026dfcb5191e83f6004b30d8cfec7dd80c9bd3a3bda"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 4,
+        "lower_class_final_records": 2,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1951,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=296ab92c-cd8d-48ba-ace1-aad1455d557f&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1951,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=296ab92c-cd8d-48ba-ace1-aad1455d557f&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1952,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=fbfa8959-79b0-4ec1-8ae1-d9082d0233da&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1953,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=f3cd4e65-3deb-4fac-9755-3360324b2bed&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1954,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=c8497a73-5ac9-4e4d-bc69-3e0bd93d7907&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1955,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e93dc09a-1035-4c14-bd0e-0ae762aad51b&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "ea0101ee-6b38-4d39-a466-fa83d2e1b36f",
+      "profile_id": "a31b9149-6b76-4adb-a677-8bbe0e9383ab",
+      "legacy_id": 1068,
+      "name": "Giacomo Agostini",
+      "identity": {
+        "rider_id": "ea0101ee-6b38-4d39-a466-fa83d2e1b36f",
+        "legacy_id": 1068,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1964_250cc.json",
+        "snapshot_sha256": "3d044a0bacd4ddceef9bf651c68eed40601aad01e7cd58e433358fade279afeb"
+      },
+      "biography": {
+        "birth_date": "1942-06-16",
+        "birth_city": "Brescia",
+        "birth_country": "Italy",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1966, 1967, 1968, 1969, 1970, 1971, 1972, 1975; 350cc: 1968, 1969, 1970, 1971, 1972, 1973, 1974. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/a31b9149-6b76-4adb-a677-8bbe0e9383ab",
+        "retrieved_at": "2026-11-27T22:09:53.998654+00:00",
+        "source_sha256": "b0c9f6ecc2f344adb04c9277259ca0ed3a2fc7686cf229d76b8af8e04511c8f3"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 8,
+        "lower_class_final_records": 7,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1966,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=05f340dd-61dd-4673-b1a9-1ec6d92b93e3&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1967,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=7b04bc94-fa67-472b-88cf-76563ebd5be6&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1968,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=c01c1c33-6457-4755-b1ba-6fd23bf73563&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1968,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=c01c1c33-6457-4755-b1ba-6fd23bf73563&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1969,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3826b414-4a3b-4674-90e1-94f7ff3dc9bc&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1969,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3826b414-4a3b-4674-90e1-94f7ff3dc9bc&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1970,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=fea3cb28-5c7c-4888-8dae-6e851259775a&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1970,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=fea3cb28-5c7c-4888-8dae-6e851259775a&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1971,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=14cd72be-713f-474d-a6af-cc57ca58f252&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1971,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=14cd72be-713f-474d-a6af-cc57ca58f252&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1972,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a13b4cfc-89a9-47d5-9734-af4d61bf8b90&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1972,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a13b4cfc-89a9-47d5-9734-af4d61bf8b90&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1973,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e39a9e8b-7aa8-4d8d-9372-91091f15d98b&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1974,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=7a7c657c-401c-4946-8ee7-f1c66990b608&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1975,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=82e72174-0426-4b33-af3f-e2f2e3f413e2&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "f4b4a902-9a82-46d0-b0ef-f45ef501c488",
+      "profile_id": "7435f9e4-13f7-4053-be64-975735860cc4",
+      "legacy_id": 1160,
+      "name": "Jim Redman",
+      "identity": {
+        "rider_id": "f4b4a902-9a82-46d0-b0ef-f45ef501c488",
+        "legacy_id": 1160,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1959_350cc.json",
+        "snapshot_sha256": "c80215cb49136a47354868a635b95c00e7bb96f069f21d42d0686222dadab397"
+      },
+      "biography": {
+        "birth_date": "1931-11-08",
+        "birth_city": "London",
+        "birth_country": null,
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 250cc: 1962, 1963; 350cc: 1962, 1963, 1964, 1965. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/7435f9e4-13f7-4053-be64-975735860cc4",
+        "retrieved_at": "2026-11-27T22:09:50.000724+00:00",
+        "source_sha256": "f73b4c8814a6a16d902c263a7f328fb45e96e522635adec692b9594bda2da050"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 0,
+        "lower_class_final_records": 6,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1962,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=03b2bfac-203c-4b1f-8656-0cbb8c6d7961&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1962,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=03b2bfac-203c-4b1f-8656-0cbb8c6d7961&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1963,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=473191ae-cd39-443c-bf30-920403670c07&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1963,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=473191ae-cd39-443c-bf30-920403670c07&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1964,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3ff1f0bb-074a-4a8b-94b7-eb536c6589ff&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1965,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3625dc59-bf95-4c13-96b1-56e3064ff62e&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "31acf74b-e5a7-4562-b739-17c4a720bda6",
+      "profile_id": "adc5a02a-d0c7-4c97-96ad-439b71ed31b0",
+      "legacy_id": 1125,
+      "name": "John Surtees",
+      "identity": {
+        "rider_id": "31acf74b-e5a7-4562-b739-17c4a720bda6",
+        "legacy_id": 1125,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1952_500cc.json",
+        "snapshot_sha256": "7c82820fb2b5baa9609322e1b4ed1783b735e82c188dfd9b153e927a2e888ed7"
+      },
+      "biography": {
+        "birth_date": "1934-02-11",
+        "birth_city": "Tatsfield",
+        "birth_country": "United Kingdom",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1956, 1958, 1959, 1960; 350cc: 1958, 1959, 1960. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/adc5a02a-d0c7-4c97-96ad-439b71ed31b0",
+        "retrieved_at": "2026-11-27T22:09:45.995432+00:00",
+        "source_sha256": "47d916b6be6b91fe61eba44bbf0da7b7f2298f253901cd6814e735a4f3c78e6a"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 4,
+        "lower_class_final_records": 3,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1956,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=5272bf19-bfe0-4017-b7e7-9754b1ee9aa7&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1958,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=cb64a721-de5b-4fc4-a543-b15c5e5dcf6a&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1958,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=cb64a721-de5b-4fc4-a543-b15c5e5dcf6a&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1959,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=438fc379-7133-47fa-9b73-d8d217f42b88&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1959,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=438fc379-7133-47fa-9b73-d8d217f42b88&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1960,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=0aaccf7d-e525-4505-85aa-ae6e57c60bd8&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1960,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=0aaccf7d-e525-4505-85aa-ae6e57c60bd8&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "fe7f3311-ebb9-404b-9ab5-ea44b103991e",
+      "profile_id": "d4eaf846-05bc-4a2a-86e4-0f93c27d3234",
+      "legacy_id": 6060,
+      "name": "Jorge Lorenzo",
+      "identity": {
+        "rider_id": "fe7f3311-ebb9-404b-9ab5-ea44b103991e",
+        "legacy_id": 6060,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "2002_125cc.json",
+        "snapshot_sha256": "6f3825dc7546c7564ea04c4d0d8447bfdaae49e85422b4515d59534a34d1f0f9"
+      },
+      "biography": {
+        "birth_date": "1987-05-04",
+        "birth_city": "Palma de Mallorca",
+        "birth_country": "Spain",
+        "height_cm": 172,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 250cc: 2006, 2007; MotoGP: 2010, 2012, 2015. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/d4eaf846-05bc-4a2a-86e4-0f93c27d3234",
+        "retrieved_at": "2026-11-27T22:10:11.999101+00:00",
+        "source_sha256": "af6dfbf0d4eb5b483279ef62764a626c831ae1d8f663ad50e50723f02a34f759"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 3,
+        "lower_class_final_records": 2,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 2006,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=dbb075a1-44f4-46f5-9f9b-95f5ac24949b&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 2007,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a3f86bb3-b914-4dc0-984d-e4949a4f037e&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 2010,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=d5bd3042-f4dc-4fdc-897a-e284d07592e6&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2012,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=1b0857d2-afa8-4b59-b876-079c68084527&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2015,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=cbe871d8-d8fa-47cb-8b63-cabe0015223e&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "ba06b120-316a-4b06-b516-d2e860238661",
+      "profile_id": "9cb1d90f-bcca-4e81-90ed-59d97b857bb3",
+      "legacy_id": 1014,
+      "name": "Kenny Roberts",
+      "identity": {
+        "rider_id": "ba06b120-316a-4b06-b516-d2e860238661",
+        "legacy_id": 1014,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1974_250cc.json",
+        "snapshot_sha256": "c2cd70d29012351b4250a7f42a017ecf94fc9bcac0f8a4be72f246e71142a6eb"
+      },
+      "biography": {
+        "birth_date": "1951-12-31",
+        "birth_city": "Modesto",
+        "birth_country": "United States of America",
+        "height_cm": 155,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1978, 1979, 1980. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/9cb1d90f-bcca-4e81-90ed-59d97b857bb3",
+        "retrieved_at": "2026-11-27T22:09:59.998525+00:00",
+        "source_sha256": "ab1087a239e4a7d7c92cb6e4c76dab7b6f74bf0cb9c8d99e76b682f7037f8c73"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 3,
+        "lower_class_final_records": 0,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1978,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=2ab6e465-bc0d-40a5-be66-fe0dbf0e6ab2&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1979,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=6339eb76-3390-4312-8c83-43a9512c8c25&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1980,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a6215585-eab4-4100-9b8a-365f4e056805&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
     {
       "rider_id": "f55b433d-38b8-4d1d-bb3a-a709c82a0260",
       "profile_id": "23e50438-a657-4fb0-a190-3262b5472f29",
@@ -20,14 +937,453 @@
         "birth_city": "Cervera",
         "birth_country": "Spain",
         "height_cm": 169,
-        "measurement_scope": "source_reported_at_retrieval_not_historical"
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 125cc: 2010; Moto2: 2012; MotoGP: 2013, 2014, 2016, 2017, 2018, 2019, 2025. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
       },
       "source": {
         "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/23e50438-a657-4fb0-a190-3262b5472f29",
         "retrieved_at": "2026-11-27T20:42:41.645924+00:00",
         "source_sha256": "d567ceba9ac2d0df3b5d0d5b25afff25dfea964e9ee959f03ff43c5c167e02aa"
       },
-      "careers": []
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 7,
+        "lower_class_final_records": 2,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 2010,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=d5bd3042-f4dc-4fdc-897a-e284d07592e6&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 2012,
+            "category": "Moto2",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=1b0857d2-afa8-4b59-b876-079c68084527&categoryUuid=549640b8-fd9c-4245-acfd-60e4bc38b25c"
+          },
+          {
+            "season": 2013,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a0def534-ce1b-492c-bc46-e87e95d28230&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2014,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=bf5c15b5-f062-4a88-a304-29892743108d&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2016,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=ba354746-c4da-4dc8-8b8e-776fcc43287d&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2017,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e24e8a8c-4673-498d-86e0-731581d7c586&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2018,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=c0844c71-783c-4f86-abce-a9a67adcc1a9&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2019,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=cbc5dc8d-3aae-4327-bd88-d1cdeea9b654&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2025,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=ae6c6f0d-c652-44f8-94aa-420fc5b3dab4&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "d2d92cdd-4b3e-4078-b75b-107699956e80",
+      "profile_id": "3b535544-17ca-491e-849d-f38c61003dc2",
+      "legacy_id": 60,
+      "name": "Mick Doohan",
+      "identity": {
+        "rider_id": "d2d92cdd-4b3e-4078-b75b-107699956e80",
+        "legacy_id": 60,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1989_500cc.json",
+        "snapshot_sha256": "2b0d81fdbf3bb9971d3b25aa87a58ccc9f004777633b6d43d65079f8dbdfd6e0"
+      },
+      "biography": {
+        "birth_date": "1965-06-04",
+        "birth_city": "Brisbane",
+        "birth_country": "Australia",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1994, 1995, 1996, 1997, 1998. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/3b535544-17ca-491e-849d-f38c61003dc2",
+        "retrieved_at": "2026-11-27T22:10:09.976386+00:00",
+        "source_sha256": "672e816f9d9b86efca37980022720ed2642081a566496a3c522c620401d76c08"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 5,
+        "lower_class_final_records": 0,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1994,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=8e97de51-4291-4162-8952-e222ee738041&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1995,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=5518c28f-48db-423f-8241-b2fe0654ee19&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1996,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=907eee47-4666-4cd4-b41e-b2278821b8f3&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1997,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=6288b239-6282-4411-86db-9dbdbf0351b3&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1998,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=a61f83c3-8a0f-446f-b48e-b468fb5c6476&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "06a9e275-dc3d-4806-9bd2-b2b3d6904ace",
+      "profile_id": "449a1f23-8b83-4561-be0e-a767a7b36c29",
+      "legacy_id": 1129,
+      "name": "Mike Hailwood",
+      "identity": {
+        "rider_id": "06a9e275-dc3d-4806-9bd2-b2b3d6904ace",
+        "legacy_id": 1129,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1958_250cc.json",
+        "snapshot_sha256": "c9532cec63567d1653b33bdf3d9d28d63b9e76273e586969384e0e39a044c860"
+      },
+      "biography": {
+        "birth_date": "1940-04-02",
+        "birth_city": "Great Milton",
+        "birth_country": "United Kingdom",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 250cc: 1961, 1966, 1967; 500cc: 1962, 1963, 1964, 1965; 350cc: 1966, 1967. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/449a1f23-8b83-4561-be0e-a767a7b36c29",
+        "retrieved_at": "2026-11-27T22:09:47.988697+00:00",
+        "source_sha256": "a565300aa6d37f2d8d389c469a162f62a18e2fc179b5088f37cb27d43fa5f292"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 4,
+        "lower_class_final_records": 5,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1961,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=690cd02f-f143-4efd-9198-05bbd64bb86a&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1962,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=03b2bfac-203c-4b1f-8656-0cbb8c6d7961&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1963,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=473191ae-cd39-443c-bf30-920403670c07&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1964,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3ff1f0bb-074a-4a8b-94b7-eb536c6589ff&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1965,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3625dc59-bf95-4c13-96b1-56e3064ff62e&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1966,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=05f340dd-61dd-4673-b1a9-1ec6d92b93e3&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1966,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=05f340dd-61dd-4673-b1a9-1ec6d92b93e3&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          },
+          {
+            "season": 1967,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=7b04bc94-fa67-472b-88cf-76563ebd5be6&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1967,
+            "category": "350cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=7b04bc94-fa67-472b-88cf-76563ebd5be6&categoryUuid=211afccf-202f-4643-beb2-471646cfd0d3"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "d4bffb42-f88f-4766-b617-7a791f8e665d",
+      "profile_id": "7bdcbfe1-ce1e-4bc2-8a2f-f3f31853d139",
+      "legacy_id": 1102,
+      "name": "Phil Read",
+      "identity": {
+        "rider_id": "d4bffb42-f88f-4766-b617-7a791f8e665d",
+        "legacy_id": 1102,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1961_125cc.json",
+        "snapshot_sha256": "5af3d157324183c685b385702827c86cd85597ab93330b48509777771aa80ba9"
+      },
+      "biography": {
+        "birth_date": "1939-01-01",
+        "birth_city": "Luton",
+        "birth_country": "United Kingdom",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 250cc: 1964, 1965, 1968, 1971; 125cc: 1968; 500cc: 1973, 1974. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/7bdcbfe1-ce1e-4bc2-8a2f-f3f31853d139",
+        "retrieved_at": "2026-11-27T22:09:51.978184+00:00",
+        "source_sha256": "886a89d58a08c1f1fb510de2246a0665b4d6627c6acde5715cfef8f33c482fe7"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 2,
+        "lower_class_final_records": 5,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1964,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3ff1f0bb-074a-4a8b-94b7-eb536c6589ff&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1965,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=3625dc59-bf95-4c13-96b1-56e3064ff62e&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1968,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=c01c1c33-6457-4755-b1ba-6fd23bf73563&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1968,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=c01c1c33-6457-4755-b1ba-6fd23bf73563&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1971,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=14cd72be-713f-474d-a6af-cc57ca58f252&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 1973,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e39a9e8b-7aa8-4d8d-9372-91091f15d98b&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1974,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=7a7c657c-401c-4946-8ee7-f1c66990b608&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "b5a5cc5f-9ffd-4570-acc5-59ea8c715e7c",
+      "profile_id": "3e84c9fa-42c3-421e-b591-11fb83219eb4",
+      "legacy_id": 1186,
+      "name": "Umberto Masetti",
+      "identity": {
+        "rider_id": "b5a5cc5f-9ffd-4570-acc5-59ea8c715e7c",
+        "legacy_id": 1186,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1949_125cc.json",
+        "snapshot_sha256": "ad0992e905753193055439b7cf719078962e5cd663a824125cb10d051216f896"
+      },
+      "biography": {
+        "birth_date": "1926-05-04",
+        "birth_city": "Borgo delle Rose",
+        "birth_country": "Italy",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1950, 1952. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/3e84c9fa-42c3-421e-b591-11fb83219eb4",
+        "retrieved_at": "2026-11-27T22:09:40.060529+00:00",
+        "source_sha256": "baa31a760bfba1cd075f902038d5d88c1986138fcece74e7d0769e8f41bd534a"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 2,
+        "lower_class_final_records": 0,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1950,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=fc8a9643-cc67-4952-b589-d26eb6f9f855&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1952,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=fbfa8959-79b0-4ec1-8ae1-d9082d0233da&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "640859bc-3f12-44fe-949a-4eab1f48f02a",
+      "profile_id": "d6f009a8-5a57-49b1-8c68-a9c78349d500",
+      "legacy_id": 158,
+      "name": "Valentino Rossi",
+      "identity": {
+        "rider_id": "640859bc-3f12-44fe-949a-4eab1f48f02a",
+        "legacy_id": 158,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1996_125cc.json",
+        "snapshot_sha256": "78f5a4b263614d3ef8530b6a9514dbdc1198aca4386ab74d6f10e7269e37cd3c"
+      },
+      "biography": {
+        "birth_date": "1979-02-16",
+        "birth_city": "Urbino",
+        "birth_country": "Italy",
+        "height_cm": 181,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 125cc: 1997; 250cc: 1999; 500cc: 2001; MotoGP: 2002, 2003, 2004, 2005, 2008, 2009. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/d6f009a8-5a57-49b1-8c68-a9c78349d500",
+        "retrieved_at": "2026-11-27T20:45:21.756749+00:00",
+        "source_sha256": "2099fffaba8a351399d760a993b79cd8fd70522022b02b9d9d1df52014c25657"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 7,
+        "lower_class_final_records": 2,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1997,
+            "category": "125cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=6288b239-6282-4411-86db-9dbdbf0351b3&categoryUuid=2391edcb-13be-4389-8627-5a5c3f967e85"
+          },
+          {
+            "season": 1999,
+            "category": "250cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=2fd3e95f-5aca-46ba-a8f3-513a36f304b9&categoryUuid=008a50a7-e302-44ba-b468-7e9999324c64"
+          },
+          {
+            "season": 2001,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=ddcfcd44-02fe-4370-8904-6b953075caeb&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2002,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=445a3d24-886b-48c2-97f7-73af994ffec0&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2003,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=632718a6-f1fe-4f5a-b95d-03b8e7635d70&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2004,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=6c0e0734-0e32-4c4a-9987-0439449543ab&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2005,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=6b581433-8531-4c5b-afca-15c7eb27e809&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2008,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=46e254dc-f6d6-402c-b7c8-8e7c14469678&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 2009,
+            "category": "MotoGP",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=6487b826-eaaa-43e6-a2d2-4c5cafa948ae&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
+    },
+    {
+      "rider_id": "b49d369e-a830-4b26-8cca-5ee4541ba1c8",
+      "profile_id": "368b37c0-5a72-475b-85c3-434a50cdb62f",
+      "legacy_id": 488,
+      "name": "Wayne Rainey",
+      "identity": {
+        "rider_id": "b49d369e-a830-4b26-8cca-5ee4541ba1c8",
+        "legacy_id": 488,
+        "method": "official_results_explicit_profile_uuid",
+        "snapshot": "1984_250cc.json",
+        "snapshot_sha256": "74cd521997ab03a847449303f7c62c1ad7aa86c39a5f4a48e92f52668bf8b2ae"
+      },
+      "biography": {
+        "birth_date": "1960-10-23",
+        "birth_city": "Los Angeles",
+        "birth_country": "United States of America",
+        "height_cm": null,
+        "measurement_scope": "source_reported_at_retrieval_not_historical",
+        "career_summary": "Recorded official title-winning seasons include 500cc: 1990, 1991, 1992. This is archive evidence, not a complete career-title total.",
+        "career_summary_scope": "original_text_from_recorded_final_tables"
+      },
+      "source": {
+        "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders/368b37c0-5a72-475b-85c3-434a50cdb62f",
+        "retrieved_at": "2026-11-27T22:10:08.013184+00:00",
+        "source_sha256": "8593e02d194abfa838cc2a55594a15aa17b497606a1532fca6232d41495ea405"
+      },
+      "careers": [],
+      "selection_evidence": {
+        "premier_final_records": 3,
+        "lower_class_final_records": 0,
+        "counts_are": "recorded_final_tables_not_complete_career_totals",
+        "final_tables": [
+          {
+            "season": 1990,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=79ccac73-5093-489c-9d37-e77a005723f9&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1991,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=af5f5823-349b-40ba-b3a5-4ecd9f7f167e&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          },
+          {
+            "season": 1992,
+            "category": "500cc",
+            "source_url": "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=7163a8f0-30a6-4265-99af-d0f8d8002265&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
+          }
+        ]
+      }
     }
   ]
 }

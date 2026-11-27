@@ -8,6 +8,20 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "paddock_link": {"en": "Open Paddock (React)", "es": "Abrir Paddock (React)", "it": "Apri Paddock (React)"},
+    "paddock_link_help": {"en": "Explore the new React dashboard (currently in English). Opens in a new tab.", "es": "Explora el nuevo panel React (actualmente en inglés). Se abre en otra pestaña.", "it": "Esplora la nuova dashboard React (attualmente in inglese). Si apre in una nuova scheda."},
+    "rider_identity_scope": {"en": "{season} · {categories}", "es": "{season} · {categories}", "it": "{season} · {categories}"},
+    "rider_all_seasons": {"en": "All seasons", "es": "Todas las temporadas", "it": "Tutte le stagioni"},
+    "rider_context_error": {"en": "Cannot load rider identity context: {reason}", "es": "No se puede cargar el contexto del piloto: {reason}", "it": "Impossibile caricare il contesto del pilota: {reason}"},
+    "rider_birth_date": {"en": "Born", "es": "Nacimiento", "it": "Data di nascita"},
+    "rider_birthplace": {"en": "Birthplace", "es": "Lugar de nacimiento", "it": "Luogo di nascita"},
+    "rider_reported_height": {"en": "Reported height: **{height} cm** (source retrieved {date}; not a historical measurement).", "es": "Altura declarada: **{height} cm** (fuente consultada el {date}; no es una medida histórica).", "it": "Altezza dichiarata: **{height} cm** (fonte consultata il {date}; non è una misura storica)."},
+    "rider_biography_source": {"en": "Biography source", "es": "Fuente biográfica", "it": "Fonte biografica"},
+    "rider_portrait_credit": {
+        "en": "Photo: {creator} / Wikimedia Commons · [Source]({source}) · [CC BY-SA 4.0]({license}). EXIF-corrected, cropped, resized and converted to WebP; adapted image contributions are also CC BY-SA 4.0. No endorsement implied.",
+        "es": "Foto: {creator} / Wikimedia Commons · [Fuente]({source}) · [CC BY-SA 4.0]({license}). Orientación EXIF corregida, recorte, cambio de tamaño y conversión a WebP; la imagen adaptada también es CC BY-SA 4.0. No implica patrocinio.",
+        "it": "Foto: {creator} / Wikimedia Commons · [Fonte]({source}) · [CC BY-SA 4.0]({license}). Orientamento EXIF corretto, ritaglio, ridimensionamento e conversione WebP; anche l'immagine adattata è CC BY-SA 4.0. Nessuna approvazione implicita.",
+    },
     "career_timeline_title": {"en": "Career by season and class", "es": "Trayectoria por temporada y categoría", "it": "Carriera per stagione e categoria"},
     "career_timeline_method": {
         "en": "Circles show recorded race entries or an official final standing. Counts refer to imported races; P labels and stars show independently stored official final ranks and titles, never inferred from race points. Each racing class stays separate.",
