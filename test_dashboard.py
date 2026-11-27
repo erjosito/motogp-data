@@ -195,9 +195,9 @@ class DashboardTests(unittest.TestCase):
     def test_paddock_link_is_available_in_the_sidebar_in_each_language(self):
         app = self.start_app()
         for language, label in [
-            ("🇬🇧 English", "Open Paddock (React)"),
-            ("🇪🇸 Español", "Abrir Paddock (React)"),
-            ("🇮🇹 Italiano", "Apri Paddock (React)"),
+            ("🇬🇧 English", "Open Paddock App"),
+            ("🇪🇸 Español", "Abrir la app Paddock"),
+            ("🇮🇹 Italiano", "Apri l'app Paddock"),
         ]:
             app.selectbox(key="language").select(language).run()
             self.assertFalse(app.exception)
