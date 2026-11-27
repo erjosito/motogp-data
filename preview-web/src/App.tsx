@@ -507,7 +507,7 @@ export default function App() {
           <Icon size={19} /><span>{name}</span>{view === id && <ChevronRight size={15} className="nav-chevron" />}
         </a>)}</nav>
         <div className="sidebar-bottom"><span className="preview-tag">NEW ENGINE / PREVIEW</span><h3>The people behind the points.</h3><p>Rider stories, season battles and race analysis. The complete suite and all languages are still in Classic.</p>
-          <a className="classic-link" href={classicUrl} target="_blank" rel="noreferrer">Open Classic<ArrowUpRight size={16} /></a>
+          <a className="classic-link" href={classicUrl} target="_blank" rel="noreferrer">Classic (Streamlit)<ArrowUpRight size={16} aria-hidden="true" /></a>
           <div className="sidebar-foot"><Gauge size={14} /><span>Read-only · Sources labeled</span></div>
         </div>
       </div>
@@ -515,6 +515,7 @@ export default function App() {
     <div className="main-shell">
       <header className="topbar"><div className="breadcrumb"><span>{view === 'riders' ? 'The paddock' : category ? categories[category] : 'Unknown category'}</span><ChevronRight size={13} /><strong>{view === 'riders' ? 'Rider stories' : season ?? 'Season'}</strong></div>
         <div className="topbar-actions">
+          <a className="streamlit-link" href={classicUrl} target="_blank" rel="noreferrer" title="Open the Classic Streamlit app in a new tab">Streamlit app<ArrowUpRight size={16} aria-hidden="true" /></a>
           {view !== 'riders' && <><label className="season-select category-select"><span>CATEGORY</span><select aria-label="Category" value={category ?? ''} onChange={(event) => update({ category: event.target.value })}>
             {!category && <option value="" disabled>Unsupported category</option>}
             {Object.entries(categories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}

@@ -16,6 +16,14 @@ afterEach(() => {
 })
 
 describe('category selector and navigation', () => {
+  it('exposes the Streamlit app in the always-visible top bar', () => {
+    const markup = render('?clawpilotTheme=dark')
+    const header = markup.slice(markup.indexOf('<header'), markup.indexOf('</header>'))
+    expect(header).toContain('class="streamlit-link" href="https://motogp-data.com" target="_blank" rel="noreferrer"')
+    expect(header).toContain('Streamlit app')
+    expect(header).toContain('Open the Classic Streamlit app in a new tab')
+  })
+
   it('keeps an extinct category selectable alongside every lineage while resources load', () => {
     const markup = render('?category=80cc&season=1984&view=laps&clawpilotTheme=dark')
     expect(markup).toContain('aria-label="Category"')
