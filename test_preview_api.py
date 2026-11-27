@@ -116,6 +116,58 @@ class PreviewApiTests(unittest.TestCase):
         for value in [None, "", "P", "nan", "inf", "1:65", "-1", "0"]:
             self.assertIsNone(preview_api.seconds(value))
 
+    def test_prefixed_apis_and_canonical_redirect_preserve_query(self):
+        self.assertEqual(self.client.get("/paddock/api/health").json(), {"status": "ok"})
+        with patch.object(preview_api, "query", return_value=[{"season": 2025}]):
+            self.assertEqual(self.client.get("/paddock/api/seasons").json(), [2025])
+        response = self.client.get("/paddock?season=2025&view=laps", follow_redirects=False)
+        self.assertEqual(response.status_code, 308)
+        self.assertEqual(response.headers["location"], "/paddock/?season=2025&view=laps")
+
+    def test_historical_story_preserves_official_tied_ranks_and_has_no_curve(self):
+        rows = [
+            {"position": 1, "rider_id": "ago", "rider": "Giacomo Agostini", "number": None,
+             "points": 46, "constructor": "MV Agusta", "source_url": "https://example.com"},
+            {"position": 2, "rider_id": "hailwood", "rider": "Mike Hailwood", "number": None,
+             "points": 46, "constructor": "Honda", "source_url": "https://example.com"},
+        ]
+        with patch.object(preview_api, "query", return_value=rows):
+            data = self.client.get("/paddock/api/championship?season=1967").json()
+        self.assertEqual([r["rider_id"] for r in data["standings"]], ["ago", "hailwood"])
+        self.assertEqual(data["standings_source"], "official")
+        self.assertEqual(data["story"]["headline"], "Equal points.")
+        self.assertEqual(data["story"]["metric"], 0)
+        self.assertEqual(data["rounds"], [])
+        self.assertIsNone(data["standings"][0]["wins"])
+
+    def test_season_stories_follow_the_data_rather_than_always_claiming_a_comeback(self):
+        rows = [
+            result("one", preview_api.MARC_ID, 25, 1),
+            result("one", "rival", 20, 2),
+            result("two", preview_api.MARC_ID, 25, 1),
+            result("two", "rival", 20, 2),
+        ]
+        data = preview_api.build_championship(rows, 2025)
+        data["standings_source"] = "computed"
+        story = preview_api.season_story(data)
+        self.assertEqual(story["accent"], "Victory became the pattern.")
+        self.assertIsNone(story["context_url"])
+        data["standings"][0].update(rider="Marc Marquez", wins=11)
+        story = preview_api.season_story(data)
+        self.assertEqual(story["headline"], "Back to the summit.")
+        self.assertEqual(story["metric"], 11)
+        self.assertIn("motogp.com", story["context_url"])
+
+    def test_final_session_turnaround_gets_a_decisive_finale_story(self):
+        data = preview_api.build_championship([
+            result("one", "rival", 25, 1),
+            result("one", "winner", 20, 2),
+            result("two", "winner", 25, 1),
+            result("two", "rival", 18, 3),
+        ], 2015)
+        data["standings_source"] = "computed"
+        self.assertEqual(preview_api.season_story(data)["headline"], "The last race changed everything.")
+
 
 if __name__ == "__main__":
     unittest.main()

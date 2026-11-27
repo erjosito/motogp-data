@@ -5,13 +5,19 @@ Downloads comprehensive MotoGP weekend data — **all sessions, lap-by-lap times
 ## New-engine dashboard preview
 
 [Classic dashboard](https://motogp-data.com/) ·
-[New-engine preview](https://motogp-data---preview.bluehill-35b09ccb.swedencentral.azurecontainerapps.io/)
+[Paddock — new engine](https://motogp-data.com/paddock/) ·
+[Preview revision](https://motogp-data---preview.bluehill-35b09ccb.swedencentral.azurecontainerapps.io/)
 
 The React/TypeScript + FastAPI preview runs alongside the classic Streamlit app,
 using the same read-only, managed-identity Azure SQL connection. Its four views
 cover the premier-class championship, session results, rider lap comparisons,
-and sector analysis. The championship highlights Marc Marquez's recovery from
-the verified 102-point deficit, including every imported Sprint and Grand Prix.
+and sector analysis. Every season has an evidence-backed story: dominance,
+consistency, narrow margins or a turnaround, with the actual supporting metric.
+The 2026 championship highlights Marc Marquez's recovery from the verified
+102-point deficit, including every imported Sprint and Grand Prix. His 2025
+story combines the recorded dominance with a clearly attributed MotoGP article
+for the injury-recovery context; injury history is not inferred from race data.
+Stories are generated deterministically from stored results, with no AI API calls.
 
 The preview supports dark/light themes and shareable season/event/session URLs.
 It is English-only; Classic retains the full analysis suite and EN/ES/IT support.
@@ -22,9 +28,13 @@ but sessions awarding no points do not add a phantom GP win or countback finish.
 Lap-only sessions remain available even when the
 official classification is empty. Historical comparisons are not called
 "all-time" until the database genuinely covers the earlier premier-class era.
-Seasons with only missing or placeholder-zero race points do not produce invented
-zero-point standings; official historical championship records need a separate
-read contract, including historic dropped-score and half-point rules.
+For 1949–1989, official final `championship_standings` preserve stored ranks and
+decimal points, including dropped-score and half-point rules. Partial historical
+race classifications are not used to reconstruct title progression, GP-win totals
+or podium totals. A tied points total does not override the official rank.
+Missing usable standings produce an honest incomplete-story state, not invented
+zero-point leaders. Newer seasons are explicitly described as imported results;
+the app does not certify their completeness or any unrecorded points adjustments.
 
 The database does not currently preserve PDF lap/sector cancellation annotations
 or new-versus-used tyre flags. The UI explicitly warns that raw timing comparisons
@@ -46,8 +56,9 @@ Set-Location ..
 python -m uvicorn preview_api:app --host 127.0.0.1 --port 8502
 ```
 
-Open `http://127.0.0.1:8502`. For frontend hot reload, run `npm run dev` from
-`preview-web` in another terminal; Vite proxies `/api` to port 8502.
+Open `http://127.0.0.1:8502/paddock/` (the revision-root URL also works). For
+frontend hot reload, run `npm run dev` from `preview-web` in another terminal;
+Vite proxies both `/api` and `/paddock/api` to port 8502.
 
 ```powershell
 python -m unittest test_preview_api test_sql_connection test_motogp_results
@@ -67,6 +78,36 @@ refuses an ambiguous production traffic split. Both engines use ingress port
 8501; the revision label chooses the engine, not a query parameter or header.
 No new app, database, registry, or environment is created.
 
+### Route the custom domain by URL
+
+`infra/paddock-route.json` uses the existing environment's native HTTP routing:
+the path-segment prefix `/paddock` targets the `preview` label, and all other
+paths target `classic`. `/paddock-other` does not match Paddock. No path rewrite
+is required: React assets, navigation and API requests work under `/paddock/`,
+and `/paddock` redirects there while preserving the query string.
+
+After deploying and verifying the prefixed preview, run:
+
+```powershell
+.\scripts\deploy-paddock-routing.ps1
+# Inspect the printed route-host URL before the hostname cutover:
+.\scripts\deploy-paddock-routing.ps1 -BindDomains
+```
+
+The first command validates the route host without changing custom-domain
+bindings. The second snapshots the two existing app hostname/certificate
+bindings in ignored `.azure\paddock-domain-bindings.json`, removes those bindings
+from the app, and binds the same certificates to the route. It checks Classic,
+React and a SQL-backed story on both domains, and restores the original app
+bindings if cutover fails. Certificates are never deleted or reissued.
+Keep the snapshot for rollback; the script refuses to overwrite it.
+
+TLS bindings select a hostname, not a URL path. These are environment-scoped
+certificates, so the route can reuse them. The existing default Consumption
+ingress is used: no Front Door, Application Gateway or premium ingress is added.
+Build/storage usage and traffic-driven compute, requests, bandwidth and logs
+can still affect the bill; this is not a guarantee of zero incremental cost.
+
 The script prints the label URL after checking revision health and the unchanged
 production traffic allocation. A prebuilt image can be deployed with
 `.\scripts\deploy-preview.ps1 -Tag <existing-tag> -SkipBuild`.
@@ -76,10 +117,12 @@ isolation. Do not reset ingress to `latest=100` or switch back to single revisio
 mode while both engines are in use. Multiple active revisions can incur
 additional compute charges.
 
-For rollback, move the `preview` label back to a known-good **passwordless**
-preview revision; main-domain traffic does not need to change. To remove the
-preview, remove its label and deactivate its revision without touching the
-production classic revision. Never roll back to an old password-based image.
+For a preview-image rollback, move the `preview` label back to a known-good
+**passwordless, `/paddock`-compatible** revision; main-domain traffic does not
+need to change. Before removing Paddock entirely, remove its route rule and
+restore root routing/custom-domain bindings as appropriate, then remove its label
+and deactivate its revision without touching Classic. Never roll back to an old
+password-based image or leave a live route targeting a removed label.
 
 ## Data Sources
 

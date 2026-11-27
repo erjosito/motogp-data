@@ -9,13 +9,14 @@ from pathlib import Path
 
 import pyodbc
 from azure.core.exceptions import ClientAuthenticationError
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
+api = APIRouter()
 logger = logging.getLogger(__name__)
 TOP_CLASS = "(s.category LIKE N'MotoGP%' OR s.category = N'500cc')"
 MARC_ID = "f55b433d-38b8-4d1d-bb3a-a709c82a0260"
@@ -135,12 +136,118 @@ def build_championship(rows: list[dict], season: int) -> dict:
     }
 
 
-@app.get("/api/health")
+def season_story(data: dict) -> dict:
+    season, standings = data["season"], data["standings"]
+    if not standings:
+        return {
+            "headline": f"{season}: the story is still incomplete.",
+            "accent": "The missing points matter.",
+            "summary": "No usable championship standings are available. Session results are not a substitute for missing title points.",
+            "metric_label": "SEASON", "metric": season, "metric_note": "Waiting for usable championship evidence",
+            "context_url": None,
+        }
+    leader = standings[0]
+    second = standings[1] if len(standings) > 1 else None
+    gap = second["gap"] if second else 0
+    name = leader["rider"]
+    official = data["standings_source"] == "official"
+    summary = (
+        f"{name} is officially ranked first on {leader['points']:g} points"
+        if official else f"{name} leads the imported results on {leader['points']:g} points"
+    )
+    if second:
+        summary += f", {gap:g} ahead of {second['rider']}."
+    else:
+        summary += "."
+    story = {
+        "headline": f"{season}: {name}'s season.",
+        "accent": "The points tell the story.",
+        "summary": summary,
+        "metric_label": "POINTS AT THE TOP", "metric": leader["points"],
+        "metric_note": "Official final total" if official else "From imported GP + Sprint classifications",
+        "context_url": None,
+    }
+    if official:
+        story["summary"] += " Period scoring rules and official ranks are preserved; no race-by-race progression is inferred."
+        if second and gap == 0:
+            story.update(headline="Equal points.", accent="One official champion.",
+                         metric_label="POINTS BETWEEN THE TOP TWO", metric=0,
+                         metric_note="The official classification, not a recalculated tie-break, decides the order")
+        elif second and gap <= 10:
+            story.update(headline=f"{name}: a narrow crown.", accent=f"{gap:g} points made the difference.",
+                         metric_label="OFFICIAL WINNING MARGIN", metric=gap,
+                         metric_note=f"Points ahead of {second['rider']}")
+        else:
+            story.update(headline=f"{name} sets the standard.", accent=f"{season}, in the record books.")
+        return story
+
+    comeback = data["comeback"]
+    if season == 2026 and comeback and comeback["verified_102"]:
+        low = next(point for point in comeback["history"] if point["margin"] == -102)
+        story.update(
+            headline="102 points behind.", accent="A title fight rewritten.",
+            summary=f"After {low['label']}, Marc Marquez was 102 points behind the strongest rival. "
+                    f"His latest margin is {comeback['current_margin']:+g} points. The timeline includes every imported Sprint and Grand Prix.",
+            metric_label="THE RECOVERY", metric=comeback["recovered"],
+            metric_note="Points recovered since the lowest recorded margin",
+        )
+    elif season == 2025 and leader["rider_id"] == MARC_ID and leader["wins"] >= 10:
+        story.update(
+            headline="Back to the summit.", accent="Back to dominance.",
+            summary=f"Marc Marquez tops the imported season with {leader['wins']} GP wins, "
+                    f"{leader['points']:g} points and a {gap:g}-point advantage. "
+                    "The results show dominance; MotoGP's account supplies the context of his long injury recovery.",
+            metric_label="GRAND PRIX WINS", metric=leader["wins"],
+            metric_note=f"Across {data['gp_results']} imported GP races",
+            context_url="https://www.motogp.com/en/news/2025/11/27/the-marc-marquez-story-chapter-2-to-hell-and-back/822595",
+        )
+    elif second and second["wins"] > leader["wins"] and leader["wins"] <= data["gp_results"] / 4:
+        story.update(
+            headline="Winning the title fight.", accent="Not just the races.",
+            summary=f"{name} leads by {gap:g} points with {leader['wins']} GP wins. "
+                    f"{second['rider']} won {second['wins']} GPs: winning more races did not mean scoring more points.",
+            metric_label="POINTS BETWEEN THE TOP TWO", metric=gap,
+            metric_note="Imported GP + Sprint points; not race wins alone",
+        )
+    else:
+        margins = []
+        for index, points in enumerate(leader["series"]):
+            rival = max((rider["series"][index] for rider in standings[1:]), default=0)
+            margins.append(points - rival)
+        deficit = max(0, -min(margins, default=0))
+        if len(margins) > 1 and margins[-2] < 0 <= margins[-1]:
+            story.update(headline="The last race changed everything.", accent=f"{name} took the top spot.",
+                         summary=summary + " The leading rider in the imported points changed in the final recorded scoring session.",
+                         metric_label="FINAL RECORDED MARGIN", metric=gap,
+                         metric_note="Points ahead after the last imported session")
+        elif deficit >= 25:
+            story.update(headline=f"{name}: the long way back.", accent=f"From {deficit:g} behind to the top.",
+                         summary=summary + f" Earlier in the imported timeline, the deficit reached {deficit:g} points.",
+                         metric_label="POINTS RECOVERED", metric=deficit + gap,
+                         metric_note="From the lowest margin to the latest imported result")
+        elif data["gp_results"] and leader["wins"] >= data["gp_results"] / 2:
+            story.update(headline=f"{name} takes control.", accent="Victory became the pattern.",
+                         summary=summary + f" {leader['wins']} wins in {data['gp_results']} imported GP races underpin the advantage.",
+                         metric_label="GRAND PRIX WINS", metric=leader["wins"],
+                         metric_note=f"Across {data['gp_results']} imported GP races")
+        elif second and gap <= 10:
+            story.update(headline=f"{name}: every point mattered.", accent=f"Only {gap:g} points between them.",
+                         metric_label="POINTS BETWEEN THE TOP TWO", metric=gap,
+                         metric_note="From imported scoring classifications")
+        elif data["gp_results"] and leader["podiums"] >= data["gp_results"] / 2:
+            story.update(headline=f"{name}: always in the picture.", accent="Consistency wrote the story.",
+                         summary=summary + f" {leader['podiums']} podiums are recorded across {data['gp_results']} GP races.",
+                         metric_label="GRAND PRIX PODIUMS", metric=leader["podiums"],
+                         metric_note=f"Across {data['gp_results']} imported GP races")
+    return story
+
+
+@api.get("/api/health")
 def health():
     return {"status": "ok"}
 
 
-@app.get("/api/seasons")
+@api.get("/api/seasons")
 def seasons():
     rows = query(f"""
         SELECT DISTINCT e.season_year AS season FROM events e
@@ -150,7 +257,7 @@ def seasons():
     return [row["season"] for row in rows]
 
 
-@app.get("/api/events")
+@api.get("/api/events")
 def events(season: int = Query(ge=1949, le=3000)):
     return query(f"""
         SELECT e.event_id, e.short_name, e.event_name, e.circuit_name,
@@ -164,7 +271,7 @@ def events(season: int = Query(ge=1949, le=3000)):
     """, (season,))
 
 
-@app.get("/api/events/{event_id}/sessions")
+@api.get("/api/events/{event_id}/sessions")
 def sessions(event_id: str):
     if not query("SELECT event_id FROM events WHERE event_id = ?", (event_id,)):
         raise HTTPException(404, "Grand Prix not found.")
@@ -179,13 +286,30 @@ def sessions(event_id: str):
     """, (event_id,))
 
 
-@app.get("/api/championship")
+@api.get("/api/championship")
 def championship(season: int = Query(ge=1949, le=3000)):
+    if season < 1990:
+        rows = query("""
+            SELECT cs.position, cs.rider_id, r.full_name AS rider, r.number,
+                   cs.points, cs.constructor_name AS constructor, cs.source_url
+            FROM championship_standings cs JOIN riders r ON r.rider_id = cs.rider_id
+            WHERE cs.season_year = ? AND cs.category = '500cc' AND cs.is_final = 1
+            ORDER BY cs.position
+        """, (season,))
+        data = build_championship([], season)
+        first_points = float(rows[0]["points"]) if rows else 0
+        data["standings"] = [{
+            **row, "points": float(row["points"]), "gap": first_points - float(row["points"]),
+            "team": None, "wins": None, "podiums": None, "series": [],
+        } for row in rows]
+        data["standings_source"] = "official"
+        data["story"] = season_story(data)
+        return data
     rows = query(f"""
         SELECT s.session_id, s.session_type, s.session_label, s.session_date,
                e.event_id, e.short_name, e.date_end, r.rider_id,
                r.full_name AS rider, r.number, c.position, c.points,
-               t.team_name AS team, t.constructor
+               t.team_name AS team, COALESCE(c.constructor_name, t.constructor) AS constructor
         FROM classifications c JOIN riders r ON r.rider_id = c.rider_id
         JOIN sessions s ON s.session_id = c.session_id
         JOIN events e ON e.event_id = s.event_id
@@ -196,10 +320,13 @@ def championship(season: int = Query(ge=1949, le=3000)):
                  CASE WHEN s.session_type = 'SPR' THEN 0 ELSE 1 END,
                  s.session_id, c.position
     """, (season,))
-    return build_championship(rows, season)
+    data = build_championship(rows, season)
+    data["standings_source"] = "computed"
+    data["story"] = season_story(data)
+    return data
 
 
-@app.get("/api/sessions/{session_id}/analysis")
+@api.get("/api/sessions/{session_id}/analysis")
 def analysis(session_id: str):
     metadata = query(f"""
         SELECT s.session_id, s.session_label, s.session_type, s.session_date,
@@ -212,7 +339,7 @@ def analysis(session_id: str):
         raise HTTPException(404, "Session not found.")
     results = query("""
         SELECT r.rider_id, r.full_name AS rider, r.number, c.position,
-               t.team_name AS team, t.constructor, c.total_laps, c.time_text,
+               t.team_name AS team, COALESCE(c.constructor_name, t.constructor) AS constructor, c.total_laps, c.time_text,
                c.gap_first, c.best_lap_time, c.top_speed, c.points, c.status
         FROM classifications c JOIN riders r ON r.rider_id = c.rider_id
         JOIN sessions s ON s.session_id = c.session_id
@@ -236,6 +363,17 @@ def analysis(session_id: str):
     return {"session": metadata[0], "results": results, "laps": laps}
 
 
+app.include_router(api)
+app.include_router(api, prefix="/paddock")
+
+
+@app.get("/paddock", include_in_schema=False)
+def paddock_redirect(request: Request):
+    suffix = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(f"/paddock/{suffix}", status_code=308)
+
+
 web_dist = Path(os.environ.get("MOTOGP_WEB_DIST", Path(__file__).parent / "preview-web" / "dist"))
 if web_dist.is_dir():
+    app.mount("/paddock", StaticFiles(directory=web_dist, html=True), name="paddock")
     app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")

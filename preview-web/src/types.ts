@@ -71,8 +71,8 @@ export interface Standing extends Rider {
   position: number
   points: number
   gap: number
-  wins: number
-  podiums: number
+  wins: number | null
+  podiums: number | null
   team: string | null
   constructor: string | null
   series: number[]
@@ -85,6 +85,16 @@ export interface Championship {
   gp_results: number
   weekends: number
   scoring_sessions: number
+  standings_source: 'official' | 'computed'
+  story: {
+    headline: string
+    accent: string
+    summary: string
+    metric_label: string
+    metric: number
+    metric_note: string
+    context_url: string | null
+  }
   comeback: {
     rider_id: string
     history: ComebackPoint[]
