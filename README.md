@@ -10,7 +10,7 @@ Downloads comprehensive MotoGP weekend data — **all sessions, lap-by-lap times
 
 The React/TypeScript + FastAPI preview runs alongside the classic Streamlit app,
 using the same read-only, managed-identity Azure SQL connection. Its four views
-cover the premier-class championship, session results, rider lap comparisons,
+cover category-scoped championships, session results, rider lap comparisons,
 and sector analysis. Every season has an evidence-backed story: dominance,
 consistency, narrow margins or a turnaround, with the actual supporting metric.
 The 2026 championship highlights Marc Marquez's recovery from the verified
@@ -18,6 +18,17 @@ The 2026 championship highlights Marc Marquez's recovery from the verified
 story combines the recorded dominance with a clearly attributed MotoGP article
 for the injury-recovery context; injury history is not inferred from race data.
 Stories are generated deterministically from stored results, with no AI API calls.
+
+Every available season/category overview includes two evidence-backed charts.
+Layouts adapt to the story rather than using a separate bespoke template for
+each season: comeback curves and floating-bar recovery bridges, decisive-session
+bars, wins-versus-points scatter plots and stacked podiums, victory doughnuts,
+or close-finish rank comparisons and gap lollipops. Snapshot-only seasons use
+official-score bars and classified-point shares without inventing a timeline.
+Missing standings instead show actual stored-record and session coverage counts.
+Win shares use recorded wins as their denominator; point shares describe the
+classified standings table, not all points awarded in races. All profiles retain
+the underlying standings, source caveats and responsive light/dark styling.
 
 The preview supports dark/light themes and shareable season/event/session URLs.
 It is English-only; Classic retains the full analysis suite and EN/ES/IT support.

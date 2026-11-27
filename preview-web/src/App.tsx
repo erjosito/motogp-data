@@ -9,7 +9,9 @@ import { categories, categoryPath, navigationPath, selectedCategory, selectedSea
 import type { Category } from './selection'
 import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed } from './data'
 import type { Analysis, Championship, GrandPrix, Lap, Rider, Session } from './types'
-import type { LineSeries } from './PlotChart'
+import type { PlotChartProps } from './PlotChart'
+import { seasonCharts } from './seasonCharts'
+import type { SeasonChart } from './seasonCharts'
 import './App.css'
 
 const Chart = lazy(() => import('./PlotChart'))
@@ -39,12 +41,12 @@ function Loading({ label = 'Loading race data' }: { label?: string }) {
   return <div className="loading" role="status"><span className="spinner" />{label}</div>
 }
 
-function DataState({ resource, empty }: { resource: { error: string | null; retry: () => void }; empty?: string }) {
-  return <div className="data-state" role={resource.error ? 'alert' : 'status'}>
+function DataState({ resource, empty }: { resource?: { error: string | null; retry: () => void }; empty?: string }) {
+  return <div className="data-state" role={resource?.error ? 'alert' : 'status'}>
     <Flag size={28} aria-hidden="true" />
-    <h3>{resource.error ? 'The data is taking a pit stop' : 'Nothing recorded here yet'}</h3>
-    <p>{resource.error ?? empty}</p>
-    {resource.error && <button className="button" onClick={resource.retry}><RefreshCw size={15} />Try again</button>}
+    <h3>{resource?.error ? 'The data is taking a pit stop' : 'Nothing recorded here yet'}</h3>
+    <p>{resource?.error ?? empty}</p>
+    {resource?.error && <button className="button" onClick={resource.retry}><RefreshCw size={15} />Try again</button>}
   </div>
 }
 
@@ -59,12 +61,20 @@ class ChartBoundary extends Component<{ children: ReactNode }, { failed: boolean
   }
 }
 
-function Plot({ series, yTitle, theme, baseline, timing, height }: {
-  series: LineSeries[]; yTitle: string; theme: string; baseline?: boolean; timing?: boolean; height?: number
-}) {
+function Plot(props: PlotChartProps) {
   return <ChartBoundary><Suspense fallback={<Loading label="Preparing chart" />}>
-    <Chart series={series} yTitle={yTitle} theme={theme} baseline={baseline} timing={timing} height={height} />
+    <Chart {...props} />
   </Suspense></ChartBoundary>
+}
+
+function SeasonChartPanel({ chart, theme }: { chart: SeasonChart; theme: string }) {
+  return <section className="panel season-chart-panel" data-season-chart={chart.id} data-chart-kind={chart.kind} aria-labelledby={`chart-${chart.id}`}>
+    <div className="section-heading"><div><p className="eyebrow">THE STORY IN DATA</p><h2 id={`chart-${chart.id}`}>{chart.title}</h2><p>{chart.description}</p></div>
+      <span className="quiet-badge chart-type">{chart.kind === 'bridge' ? 'Recovery bridge' : chart.kind}</span></div>
+    <Plot series={chart.series} yTitle={chart.yTitle} xTitle={chart.xTitle} baseline={chart.baseline}
+      valueUnit={chart.valueUnit} rank={chart.rank} stacked={chart.stacked} theme={theme} height={420} />
+    <p className="panel-note">{chart.note}</p>
+  </section>
 }
 
 function Stat({ label, value, note }: { label: string; value: string | number; note: string }) {
@@ -76,8 +86,16 @@ function ChampionshipPage({ season, category, theme }: { season: number; categor
   const data = resource.data
   if (resource.error) return <DataState resource={resource} />
   if (!data) return <Loading />
+  return <ChampionshipContent data={data} category={category} theme={theme} />
+}
+
+export function ChampionshipContent({ data, category, theme }: { data: Championship; category: Category; theme: string }) {
+  const season = data.season
+  const visual = seasonCharts(data)
   if (!data.standings.length) return <><div className="page-heading"><div><p className="eyebrow">{season} / SEASON STORY</p><h1>{data.story.headline}</h1><p>{data.story.accent}</p></div></div>
-    <DataState resource={resource} empty={data.story.summary} /></>
+    <DataState empty={data.story.summary} />
+    <div className="season-chart-grid" data-story-layout={visual.layout}>{visual.charts.map((chart) =>
+      <SeasonChartPanel key={`${season}-${category}-${chart.id}`} chart={chart} theme={theme} />)}</div></>
 
   const story = data.comeback
   const featured = category === 'premier' && season === 2026 && story?.verified_102
@@ -116,7 +134,7 @@ function ChampionshipPage({ season, category, theme }: { season: number; categor
           <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? (final ? 'official final rank' : 'official rank to date') : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>points earned</span></div></div>
         </div>
       </div>
-      {featured && story && <div className="story-chart">
+      {featured && story && <div className="story-chart" data-season-chart="gap" data-chart-kind="line">
         <div className="section-heading"><div><h3>The comeback curve</h3><p>Points relative to the strongest title rival after every Sprint and Grand Prix.</p></div><span className="chart-key"><i />Marc Márquez</span></div>
         <Plot series={[{
           id: MARC_ID, name: 'Marc Márquez',
@@ -141,7 +159,10 @@ function ChampionshipPage({ season, category, theme }: { season: number; categor
       <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'preserved final' : 'current official'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
 
-    <div className="championship-grid">
+    {!featured && <div className="season-chart-grid" data-story-layout={visual.layout}>{visual.charts.map((chart) =>
+      <SeasonChartPanel key={`${season}-${category}-${chart.id}`} chart={chart} theme={theme} />)}</div>}
+
+    <div className={featured ? 'championship-grid' : 'standings-section'} data-story-layout={visual.layout}>
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">THE ORDER</p><h2>Championship standings</h2></div><span className="quiet-badge">{season}</span></div>
         <div className="table-scroll"><table className="standings-table">
           <thead><tr><th>Pos</th><th>Rider</th><th>Pts</th><th>Gap</th><th>{official ? 'Imported GP wins' : 'Wins'}</th></tr></thead>
@@ -152,13 +173,9 @@ function ChampionshipPage({ season, category, theme }: { season: number; categor
           </tr>)}</tbody></table></div>
         <p className="panel-note">{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
       </section>
-      <section className="panel progression-panel"><div className="section-heading"><div><p className="eyebrow">THE TRAJECTORY</p><h2>Points on the board</h2><p>The leading five riders, session by session.</p></div></div>
-        {official ? <p className="notice">The official table is independent of imported race points. No cumulative curve is inferred from official totals{final ? '; the final official table is authoritative' : '; this season is not marked final'}.</p> : <Plot series={data.standings.slice(0, 5).map((rider) => ({
-          id: rider.rider_id, name: rider.rider, x: data.rounds.map((round) => round.label), y: rider.series,
-        }))} yTitle="Championship points" theme={theme} height={400} />}
-        <div className="context-note"><Trophy size={22} /><div><strong>{leader.rider} {official ? 'is ranked first' : 'leads'} on {leader.points} points.</strong><p>{featured ? 'The gap chart above tracks Márquez against whichever rival is strongest at each point, not just today’s runner-up.' : 'The headline is grounded in this season’s available evidence. Visit Classic for the complete analysis suite.'}</p></div></div>
-      </section>
+      {featured && <SeasonChartPanel chart={visual.charts[1]} theme={theme} />}
     </div>
+    {official && <p className="notice">These charts use the official standings snapshot{data.is_final ? ', not a reconstructed historical timeline' : ' to date, not a certified final championship'}. Any explicitly labelled imported win counts or comeback curve are independent race evidence.</p>}
     {data.external_sources_used && <p className="notice">External archive evidence is used in the imported race classifications. Missing timing and historical race points are not inferred.</p>}
     {official && leader.source_url && <a className="classic-link" href={leader.source_url} target="_blank" rel="noreferrer">Official championship source<ArrowUpRight size={16} /></a>}
   </>
