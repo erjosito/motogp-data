@@ -1,5 +1,6 @@
 import { useResource } from './api'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { appPath } from './paths'
 import { SourceNote } from './PageNotes'
 import type { Rider } from './types'
@@ -27,35 +28,25 @@ export interface NumberArtwork {
   artwork: { season: number; category: string; number: number; source_url: string; url: string }[]
 }
 
-const numberClasses: Record<Category, readonly string[]> = {
-  premier: ['MotoGP', '500cc'], intermediate: ['Moto2', '250cc'], lightweight: ['Moto3', '125cc'],
-  '350cc': ['350cc'], '50cc': ['50cc'], '80cc': ['80cc'],
-}
+interface NumberScope { rider: Rider; season?: number; category?: Category; fallback?: ReactNode }
 
-interface NumberScope { rider: Rider; season?: number; category?: Category }
-
-export function NumberMark({ rider, data, season, category }: NumberScope & { data?: NumberArtwork | null }) {
+export function NumberMark({ rider, data, fallback }: NumberScope & { data?: NumberArtwork | null }) {
   const [failedImage, setFailedImage] = useState<string | null>(null)
-  const matches = data?.artwork.filter((item) => item.number === rider.number
-    && (season == null || item.season === season) && (category == null || numberClasses[category].includes(item.category))) ?? []
-  // A career identity can use its latest design; a selected season must match exactly.
-  const year = season ?? Math.max(0, ...matches.map((item) => item.season))
-  const candidates = matches.filter((item) => item.season === year)
-  const item = candidates.length === 1 && (season == null) === (category == null) ? candidates[0] : null
+  const item = [...(data?.artwork ?? [])].sort((a, b) => b.season - a.season
+    || a.category.localeCompare(b.category) || a.number - b.number || a.url.localeCompare(b.url))[0]
   const failed = item && failedImage === item.url
   return <>
     {item && !failed ? <img className="number-mark" src={appPath(item.url)}
       alt={`${rider.rider}, number ${item.number}, ${item.season} ${item.category} design`}
-      onError={() => setFailedImage(item.url)} /> : <span aria-label={rider.number == null ? 'Race number unavailable' : `Rider number ${rider.number}`}>{rider.number == null ? '—' : `#${rider.number}`}</span>}
+      onError={() => setFailedImage(item.url)} /> : fallback !== undefined ? fallback : <span aria-label={rider.number == null ? 'Race number unavailable' : `Rider number ${rider.number}`}>{rider.number == null ? '—' : `#${rider.number}`}</span>}
     {item && <SourceNote><p>{rider.rider} · number design: {item.season} · {item.category} · #{item.number} · <a href={item.source_url} target="_blank" rel="noreferrer">Source</a></p>
       {failed && <p role="alert">Number design could not be loaded; showing the plain number.</p>}</SourceNote>}
   </>
 }
 
-export function RiderNumber({ rider, season, category }: NumberScope) {
-  const resource = useResource<NumberArtwork>(rider.number == null || (season == null) !== (category == null)
-    ? null : `/api/riders/${encodeURIComponent(rider.rider_id)}/number-art`)
-  return <><NumberMark rider={rider} season={season} category={category} data={resource.data} />
+export function RiderNumber({ rider, fallback }: NumberScope) {
+  const resource = useResource<NumberArtwork>(`/api/riders/${encodeURIComponent(rider.rider_id)}/number-identity`)
+  return <><NumberMark rider={rider} data={resource.data} fallback={fallback} />
     {resource.error && <SourceNote><p role="alert">{rider.rider}: number design could not be loaded; showing the plain number. <button className="text-button" onClick={resource.retry}>Try again</button></p></SourceNote>}
   </>
 }

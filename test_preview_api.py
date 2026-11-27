@@ -178,6 +178,29 @@ class PreviewApiTests(unittest.TestCase):
                                  {"status": "not_collected", "circuit": None})
             query.assert_not_called()
 
+    def test_number_identity_uses_verified_stable_rider_asset_on_both_mounts(self):
+        asset = {"season": 2024, "category": "MotoGP", "number": 93, "source_url": "https://example.com/design"}
+        with patch("preview_api.read_identity_number", return_value=(asset, b"verified-png")) as read, patch("preview_api.query") as query:
+            for prefix in ["", "/paddock"]:
+                path = f"{prefix}/api/riders/rider/number-identity"
+                response = self.client.get(path + "?season=1970&category=350cc&number=1")
+                self.assertEqual(response.status_code, 200)
+                item = response.json()["artwork"][0]
+                self.assertEqual((item["season"], item["number"]), (2024, 93))
+                image = self.client.get(prefix + item["url"])
+                self.assertEqual(image.status_code, 200)
+                self.assertEqual(image.content, b"verified-png")
+                self.assertEqual(image.headers["content-type"], "image/png")
+            self.assertTrue(all(call.args == ("rider",) for call in read.call_args_list))
+            query.assert_not_called()
+        with patch("preview_api.read_identity_number", return_value=None):
+            self.assertEqual(self.client.get("/api/riders/missing/number-identity").json(), {"artwork": []})
+            self.assertEqual(self.client.get("/api/riders/missing/number-identity/image").status_code, 404)
+        with patch("preview_api.read_identity_number", side_effect=ValueError("private hash mismatch")):
+            response = self.client.get("/api/riders/rider/number-identity")
+            self.assertEqual(response.status_code, 503)
+            self.assertNotIn("private hash", response.text)
+
     def test_portrait_api_serves_only_approved_local_same_season_media(self):
         with patch("preview_api.query") as query:
             for prefix in ["", "/paddock"]:

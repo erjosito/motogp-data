@@ -71,7 +71,7 @@ describe('category selector and navigation', () => {
       expect(html).toContain('The championship finishing record')
       expect(html).not.toContain('0 recorded GP wins')
       expect(html).not.toContain('verification required')
-      expect(html).not.toContain('class="identity-number"')
+      expect(html).toContain('class="identity-number"></span>')
       expect(html).not.toContain('ghost-number')
       const nonChampion = renderToStaticMarkup(<RiderProfileContent data={{ ...data, totals: { ...data.totals, titles: 0 },
         seasons: [{ ...season, position: 5 }], titles: [] }} params={new URLSearchParams()} theme="dark" />)

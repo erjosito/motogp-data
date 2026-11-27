@@ -19,7 +19,7 @@ from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, 
 from rider_profiles import read_enrichment
 from circuit_catalog import circuit_details, projected_outline
 from rider_media import read_portrait
-from rider_numbers import list_numbers, read_number
+from rider_numbers import list_numbers, read_identity_number, read_number
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -469,6 +469,27 @@ def rider_portrait(rider_id: str, season: int = Query(ge=1949, le=3000), categor
             "width": item["width_px"], "height": item["height_px"],
         } for item in sorted(asset["display_derivatives"], key=lambda row: row["width_px"])],
     }}
+
+
+@api.get("/api/riders/{rider_id}/number-identity")
+def rider_number_identity(rider_id: str):
+    result = read_identity_number(rider_id)
+    if result is None:
+        return {"artwork": []}
+    asset, _ = result
+    return {"artwork": [{
+        "season": asset["season"], "category": asset["category"], "number": asset["number"],
+        "source_url": asset["source_url"],
+        "url": f"/api/riders/{rider_id}/number-identity/image",
+    }]}
+
+
+@api.get("/api/riders/{rider_id}/number-identity/image")
+def rider_number_identity_image(rider_id: str):
+    result = read_identity_number(rider_id)
+    if result is None:
+        raise HTTPException(404, "No verified number identity artwork for this rider.")
+    return Response(content=result[1], media_type="image/png")
 
 
 @api.get("/api/riders/{rider_id}/number-art")
