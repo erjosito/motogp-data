@@ -98,6 +98,10 @@ describe('category selector and navigation', () => {
       expect(html).not.toContain('OFFICIAL TITLES RECORDED')
       expect(html).toContain('TITLE SEASONS')
       expect(html).toContain('>GP APPEARANCES</span>')
+      expect(html).toContain('2012<span>Moto2</span>')
+      expect(html).toContain('2013 / MotoGP')
+      expect(html).not.toContain('Moto2 / 250cc')
+      expect(html).not.toContain('MotoGP / 500cc')
     })
   })
 
