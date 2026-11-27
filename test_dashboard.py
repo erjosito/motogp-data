@@ -19,10 +19,34 @@ DASHBOARD = Path(__file__).with_name("dashboard.py")
 def sample_query(sql, conn=None, params=None):
     """Supply explicit test data; never open a database connection."""
     sql = " ".join(sql.split())
+    if "SELECT DISTINCT category FROM sessions WHERE event_id" in sql or "SELECT DISTINCT category FROM sessions WHERE 1=1" in sql:
+        return pd.DataFrame({"category": [labels[0] for labels in CATEGORY_FAMILIES.values()]})
     if "SELECT DISTINCT category" in sql:
         return pd.DataFrame(columns=["category"])
     if "SELECT DISTINCT season_year" in sql:
         return pd.DataFrame({"season_year": [2026, 2025]})
+    if "COUNT(DISTINCT CASE WHEN s.session_type" in sql:
+        return pd.DataFrame({"Year": [2025, 2026], "Sessions": [1, 2], "Races": [1, 2]})
+    if "SELECT DISTINCT full_name" in sql:
+        return pd.DataFrame({"full_name": ["Sample Rider 1", "Sample Rider 2"]})
+    if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+        return pd.DataFrame([
+            dict(season_year=year, short_name="QAT", date_end=f"{year}-11-08",
+                 session_type="RAC", session_label="Race", session_id=f"{year}-{category}",
+                 category=category, position=position, points=points, best_lap_time=None,
+                 top_speed=None, status="INSTND", team_name="Sample Team",
+                 constructor="Sample Bike", circuit_name="Sample Circuit")
+            for year, category, position, points in [
+                (2025, "Moto3", 1, 25), (2026, "Moto2", 2, 20), (2026, "MotoGP", 3, 16)
+            ]
+        ])
+    if "SELECT s.session_id, e.season_year" in sql:
+        return pd.DataFrame({
+            "session_id": ["2025-Moto3", "2026-Moto2", "2026-MotoGP"],
+            "season_year": [2025, 2026, 2026], "short_name": ["QAT"] * 3,
+            "date_end": ["2025-11-08", "2026-11-08", "2026-11-08"],
+            "position": [2, 1, 4],
+        })
     if "FROM championship_standings" in sql:
         return pd.DataFrame(columns=["position", "rider", "points", "constructor", "is_final", "source_url"])
     if "SUM(cl.points) AS race_pts" in sql:
@@ -147,6 +171,70 @@ class DashboardTests(unittest.TestCase):
         app.radio(key="home_view").set_value("home_championship").run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.button), 1)
+
+    def test_rider_career_defaults_to_all_classes_and_does_not_merge_points(self):
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("350cc").run()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertFalse(any(widget.key == "sb_category" for widget in app.selectbox))
+        self.assertEqual(app.selectbox(key="pp_yr").value, "All")
+        self.assertEqual(set(app.multiselect(key="profile_categories").value), {"MotoGP", "Moto2", "Moto3"})
+        summary = app.dataframe[0].value.set_index("Category")
+        self.assertEqual(summary["Points"].to_dict(), {"Moto2": 20, "Moto3": 25, "MotoGP": 16})
+        season_table = next(table.value for table in app.dataframe
+                            if "Year" in table.value and "Category" in table.value)
+        self.assertEqual(len(season_table[season_table["Year"] == 2026]), 2)
+        self.assertEqual(app.metric[5].value, "—")
+        self.assertEqual(app.metric[2].value, "1")
+        career_sql = next(call.args[0] for call in self.read_sql.call_args_list
+                          if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in call.args[0])
+        for family in CATEGORY_FAMILIES:
+            self.assertIn(category_sql(family), career_sql)
+        app.multiselect(key="profile_categories").set_value(["Moto3"]).run()
+        self.assertEqual(app.dataframe[0].value["Category"].tolist(), ["Moto3"])
+
+    def test_views_restore_their_own_filters_without_inheriting_category(self):
+        app = self.start_race_analysis()
+        app.selectbox(key="sb_category").set_value("lightweight").run()
+        app.selectbox(key="sb_gp").set_value("qat").run()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
+        app.selectbox(key="nav_group").set_value("nav_season").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "premier")
+        app.selectbox(key="sb_category").set_value("intermediate").run()
+        app.selectbox(key="nav_group").set_value("nav_race").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "lightweight")
+        self.assertEqual(app.selectbox(key="sb_gp").value, "qat")
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertEqual(app.multiselect(key="profile_categories").value, ["Moto2"])
+        app.selectbox(key="language").select("🇮🇹 Italiano").run()
+        self.assertEqual(app.multiselect(key="profile_categories").value, ["Moto2"])
+
+    def test_race_category_choices_are_bound_to_the_selected_event(self):
+        def available_categories(sql, conn=None, params=None):
+            if "SELECT DISTINCT category FROM sessions WHERE event_id" in sql:
+                return pd.DataFrame({"category": ["Moto2"] if params == ["qat"] else ["MotoGP", "Moto3"]})
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = available_categories
+        app = self.start_race_analysis()
+        self.assertEqual(app.selectbox(key="sb_category").options, ["MotoGP / 500cc", "Moto3 / 125cc"])
+        app.selectbox(key="sb_gp").set_value("qat").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "intermediate")
+        self.assertEqual(app.selectbox(key="sb_gp").value, "qat")
+        self.assertEqual(app.selectbox(key="sb_category").options, ["Moto2 / 250cc"])
+
+    def test_coverage_can_compare_classes_without_pooling_the_detailed_views(self):
+        app = self.start_app()
+        app.radio(key="home_view").set_value("home_coverage").run()
+        app.multiselect(key="scope_categories").set_value(["premier", "intermediate"]).run()
+        self.assertFalse(app.exception)
+        comparison = app.dataframe[0].value
+        self.assertEqual(set(comparison["Category"]), {"MotoGP / 500cc", "Moto2 / 250cc"})
+        app.selectbox(key="sb_category").set_value("intermediate").run()
+        self.assertEqual(app.multiselect(key="scope_categories").value, ["premier", "intermediate"])
+        app.radio(key="home_view").set_value("home_championship").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "premier")
 
     def test_coverage_explanations_follow_their_charts_in_each_language(self):
         app = self.start_app()
@@ -386,7 +474,7 @@ class DashboardTests(unittest.TestCase):
         app.selectbox(key="sb_category").set_value("lightweight").run()
         self.assertFalse(app.exception)
         self.assertEqual(app.radio(key="view_nav_race").value, "viz_position")
-        self.assertEqual(app.selectbox(key="sb_gp").value, "val")
+        self.assertEqual(app.selectbox(key="sb_gp").value, "por")
         self.assertEqual(app.selectbox(key="sb_sess").value, "Race")
         self.assertEqual(len(app.multiselect(key="pos_r").value), 3)
         lap_queries = [call.args[0] for call in self.read_sql.call_args_list
@@ -464,8 +552,10 @@ class DashboardTests(unittest.TestCase):
         app = self.start_app()
         app.selectbox(key="sb_category").set_value("80cc").run()
         app.radio(key="home_view").set_value("home_coverage").run()
+        app.multiselect(key="scope_categories").set_value(["80cc"]).run()
         self.assertFalse(app.exception)
         app.selectbox(key="nav_group").set_value("nav_race").run()
+        app.selectbox(key="sb_category").set_value("80cc").run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.dataframe[0].value), 3)
         self.assertTrue(any("external-derived" in caption.value for caption in app.caption))
@@ -610,7 +700,7 @@ class PremierScopeTests(unittest.TestCase):
         tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
         nodes = [
             node for node in tree.body
-            if (isinstance(node, ast.FunctionDef) and node.name == "premier_q")
+            if (isinstance(node, ast.FunctionDef) and node.name in ("premier_q", "scope_predicate"))
             or (isinstance(node, ast.Assign) and any(
                 isinstance(target, ast.Name) and target.id == "PREMIER_CATEGORY" for target in node.targets
             ))

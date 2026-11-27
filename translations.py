@@ -8,6 +8,26 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "categories": {"en": "Categories", "es": "Categorías", "it": "Categorie"},
+    "category_detail": {"en": "Detailed analysis category", "es": "Categoría del análisis detallado", "it": "Categoria dell'analisi dettagliata"},
+    "select_category": {"en": "Select at least one category.", "es": "Selecciona al menos una categoría.", "it": "Seleziona almeno una categoria."},
+    "category_comparison": {"en": "Imported coverage by category", "es": "Cobertura importada por categoría", "it": "Copertura importata per categoria"},
+    "imported_race_sessions": {"en": "Imported race sessions", "es": "Sesiones de carrera importadas", "it": "Sessioni di gara importate"},
+    "category_comparison_help": {
+        "en": "Selected categories are shown separately, without combining championships or points. The detailed charts below show {category}; use the sidebar to switch the detailed analysis.",
+        "es": "Las categorías seleccionadas se muestran por separado, sin combinar campeonatos ni puntos. Los gráficos detallados muestran {category}; cambia el análisis detallado en la barra lateral.",
+        "it": "Le categorie selezionate sono mostrate separatamente, senza unire campionati o punti. I grafici dettagliati mostrano {category}; cambia l'analisi dettagliata nella barra laterale.",
+    },
+    "profile_scope_help": {
+        "en": "Career view starts with all imported categories and seasons, independently of other pages. Narrow the rider's categories or season in the sidebar.",
+        "es": "La vista de trayectoria comienza con todas las categorías y temporadas importadas, independientemente de otras páginas. Filtra las categorías o la temporada del piloto en la barra lateral.",
+        "it": "La vista carriera inizia con tutte le categorie e stagioni importate, indipendentemente dalle altre pagine. Filtra le categorie o la stagione del pilota nella barra laterale.",
+    },
+    "profile_class_points": {
+        "en": "Career counts span the selected classes. Points are shown separately by class and season; there is no combined championship or cross-class points-efficiency score. Counts reflect imported records, not a guaranteed complete career.",
+        "es": "Los recuentos de trayectoria abarcan las clases seleccionadas. Los puntos se muestran por clase y temporada; no hay un campeonato combinado ni una eficiencia de puntos entre clases. Los recuentos reflejan registros importados, no una trayectoria necesariamente completa.",
+        "it": "I conteggi della carriera includono le classi selezionate. I punti sono mostrati per classe e stagione; non esiste un campionato combinato né un'efficienza dei punti tra classi. I conteggi riflettono record importati, non una carriera necessariamente completa.",
+    },
     "appearance_help": {
         "en": "Light / dark mode: open the ⋮ menu at the top right and choose Light or Dark. Your browser keeps the selection when you change language or navigate.",
         "es": "Modo claro / oscuro: abre el menú ⋮ de arriba a la derecha y elige Light (claro) o Dark (oscuro). Tu navegador conserva la selección al cambiar de idioma o navegar.",
