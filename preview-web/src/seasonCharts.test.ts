@@ -83,6 +83,9 @@ describe('evidence-led season chart pairs', () => {
     expect(charts[0].series[0].y).toEqual([-102, 43])
     expect(charts[1].series[0].base).toEqual([0, -102, 0])
     expect(charts[1].series[0].y).toEqual([-102, 145, 43])
+    const html = renderToStaticMarkup(createElement(ChampionshipContent, { data, category: 'premier', theme: 'light' }))
+    expect(html.indexOf('data-season-chart="recovery-bridge"')).toBeLessThan(html.indexOf('class="standings-table"'))
+    expect(html).toContain('championship standings')
     const single = seasonCharts({ ...data, comeback: { ...data.comeback!, history: [low] } }).charts
     expect(single[1].kind).toBe('bridge')
     expect(single[1].series[0].y).toEqual([-102, 0, -102])

@@ -2,6 +2,7 @@
 
 import logging
 import math
+import re
 import os
 from collections import Counter, defaultdict
 from contextlib import closing
@@ -665,7 +666,54 @@ def analysis(session_id: str, category: str = "premier"):
         lap["sectors"] = [seconds(lap[key]) for key in ["t1", "t2", "t3", "t4"]]
     for result in results:
         result["best_lap_seconds"] = seconds(result["best_lap_time"])
+    add_finish_gaps(metadata[0]["session_type"], results)
     return {"session": metadata[0], "results": results, "laps": laps}
+
+
+def add_finish_gaps(session_type: str, results: list[dict]) -> None:
+    """Compare supported elapsed race times, never heterogeneous source gap text."""
+    winners = [row for row in results if row["position"] == 1]
+    winner = winners[0] if len(winners) == 1 else None
+
+    def elapsed(row):
+        # This legacy column holds the raw source duration string, not milliseconds.
+        raw = row.get("time_ms")
+        if not isinstance(raw, str) or not re.fullmatch(r"\d+:[0-5]\d\.\d{3}", raw):
+            return None
+        return seconds(raw)
+
+    def finished(row):
+        laps = row.get("total_laps")
+        return row.get("status") == "INSTND" and isinstance(laps, int) and not isinstance(laps, bool) and laps > 0
+
+    winner_time = elapsed(winner) if winner and finished(winner) else None
+    if winner and str(winner.get("gap_first") or "").strip().removeprefix("+") not in ("", "0.000"):
+        winner_time = None
+    for row in results:
+        gap = None
+        if session_type not in ("RAC", "SPR"):
+            reason = "Not a race or Sprint."
+        elif winner_time is None:
+            reason = "A unique classified P1 with supported elapsed time is unavailable."
+        elif not isinstance(row["position"], int) or row["position"] < 1 or sum(item["position"] == row["position"] for item in results) != 1:
+            reason = "A unique classification rank is unavailable."
+        elif not finished(row):
+            reason = "A classified finish and positive completed lap count are required."
+        elif row["total_laps"] != winner["total_laps"]:
+            reason = "Different completed lap count; not comparable on this time scale."
+        elif (recorded := elapsed(row)) is None:
+            reason = "Supported elapsed race time is unavailable."
+        elif (difference := round(recorded - winner_time, 3)) < 0:
+            reason = "Elapsed time conflicts with classification order."
+        else:
+            source_gap = str(row.get("gap_first") or "").strip().removeprefix("+")
+            # Compare the source label literally; never turn lap/penalty/status text into seconds.
+            if source_gap and source_gap != f"{difference:.3f}":
+                reason = "Source gap differs from the elapsed-time comparison or has another basis."
+            else:
+                gap, reason = difference, None
+        row["finish_gap_seconds"] = gap
+        row["finish_gap_reason"] = reason
 
 
 app.include_router(api)

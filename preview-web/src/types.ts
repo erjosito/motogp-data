@@ -64,6 +64,8 @@ export interface Result extends Rider {
   top_speed: number | null
   points: number | null
   status: string | null
+  finish_gap_seconds?: number | null
+  finish_gap_reason?: string | null
 }
 
 export interface Lap extends Rider {
