@@ -19,6 +19,7 @@ TRANSLATIONS = {
     "rider_biography_source": {"en": "Biography source", "es": "Fuente biográfica", "it": "Fonte biografica"},
     "rider_number_artwork": {"en": "Rider number artwork", "es": "Diseños de dorsales", "it": "Grafica dei numeri di gara"},
     "rider_number_source": {"en": "Artwork source", "es": "Fuente del diseño", "it": "Fonte della grafica"},
+    "rider_number_reference": {"en": "Number design reference", "es": "Diseño de dorsal de referencia", "it": "Grafica del numero di riferimento"},
     "rider_portrait_credit": {
         "en": "Photo: {creator} / Wikimedia Commons · [Source]({source}) · [CC BY-SA 4.0]({license}). EXIF-corrected, cropped, resized and converted to WebP; adapted image contributions are also CC BY-SA 4.0. No endorsement implied.",
         "es": "Foto: {creator} / Wikimedia Commons · [Fuente]({source}) · [CC BY-SA 4.0]({license}). Orientación EXIF corregida, recorte, cambio de tamaño y conversión a WebP; la imagen adaptada también es CC BY-SA 4.0. No implica patrocinio.",

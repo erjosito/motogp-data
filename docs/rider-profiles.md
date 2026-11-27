@@ -291,8 +291,16 @@ and biography source. The photo appears only for the selected 2026 season when
 the filtered records include MotoGP; All-career, older-year, other-class and
 unpictured views use initials without changing the existing career analytics.
 Creator/source/license/adaptation credits remain visible below the photo.
-Classic packages only the reviewed factual file, approved media metadata and
-the two small WebPs/license notice, never the source package or full local catalog.
+Number artwork can also sit beside the profile name, without removing the
+existing scoped gallery. Career titles use the latest unambiguous design for
+the rider's registered number within the filtered classes, with its actual
+year/class/source visibly labeled as a reference. A selected season requires
+one actual class and an unambiguous classification-level `rider_number`;
+the current registered number is never substituted for missing historical data.
+Missing or ambiguous matches leave the existing name/initials unchanged.
+Classic packages the reviewed factual file, approved media metadata, the two
+small WebPs/license notice and the separately staged user-supplied number bundle,
+never the portrait source package or full local biography catalog.
 Invalid configured enrichment or packaged-media integrity errors are reported,
 not silently presented as an ordinary unpictured rider.
 
