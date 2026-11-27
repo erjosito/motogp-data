@@ -98,9 +98,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
       <SeasonChartPanel key={`${season}-${category}-${chart.id}`} chart={chart} theme={theme} />)}</div></>
 
   const story = data.comeback
-  const pointsWarning = data.points_warning ?? (data.official_points_inconsistent
-    ? 'Supplied official point totals require source verification. Period scoring or source discrepancies may explain this.'
-    : null)
+  const pointsWarning = data.official_points_inconsistent || Boolean(data.points_warning)
   const featured = !pointsWarning && category === 'premier' && season === 2026 && story?.verified_102
   const official = data.standings_source === 'official'
   const final = official && data.is_final
@@ -116,8 +114,6 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
       <p>Not just the standings. The story behind them.</p></div>
       <span className="quiet-badge"><span className="status-dot" />{official ? `${season} · ${officialLabel}` : `Through ${last?.event} · ${dateLabel(last?.date)}`}</span>
     </div>
-    {pointsWarning && <p className="notice" role="alert">{pointsWarning} Official ranks and supplied scores are unchanged; points gaps and title margins are unavailable.</p>}
-
     <section className="story-card" aria-labelledby="season-story-title">
       <div className="story-intro">
         <div className="story-copy">
@@ -127,7 +123,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
           {narrative.context_url && <a className="classic-link" href={narrative.context_url} target="_blank" rel="noreferrer">The injury-recovery story · MotoGP<ArrowUpRight size={16} /></a>}
           <span className="verification verified">
             <Check size={14} />
-            {pointsWarning ? 'Official source ranks preserved · supplied points need verification' : featured ? '102-point deficit verified in race results' : official ? `Based on ${officialLabel.toLowerCase()}` : 'Based on imported race results · coverage shown below'}
+            {featured ? '102-point deficit verified in race results' : official ? `Based on ${officialLabel.toLowerCase()}` : 'Based on imported race results'}
           </span>
         </div>
         <div className="comeback-score">
@@ -135,7 +131,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
           <span className="eyebrow">{narrative.metric_label}</span>
           <div className="recovery-value">{narrative.metric}<ArrowUpRight size={35} aria-hidden="true" /></div>
           <p>{narrative.metric_note}</p>
-          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? (final ? 'official final rank' : 'official rank to date') : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>{pointsWarning ? 'supplied points · verification required' : 'points earned'}</span></div></div>
+          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? (final ? 'official final rank' : 'official rank to date') : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>{pointsWarning ? 'supplied points' : 'points earned'}</span></div></div>
         </div>
       </div>
       {featured && story && <div className="story-chart" data-season-chart="gap" data-chart-kind="line">
@@ -158,8 +154,8 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
     </section>
 
     <div className="stats-grid">
-      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} supplied points · source verification required` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
-      {pointsWarning ? <Stat label="POINTS SOURCE" value="Verification required" note="No reliable points gap or title margin is available" /> : <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : data.standings[1]?.gap == null ? '—' : `${data.standings[1].gap} pts`} note={featured ? 'Relative to the closest title rival' : official ? `From ${officialLabel.toLowerCase()}` : 'Calculated from imported results'} />}
+      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} supplied points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
+      {pointsWarning ? <Stat label="OFFICIAL RANK" value={`P${leader.position}`} note="Position in the official standings" /> : <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : data.standings[1]?.gap == null ? '—' : `${data.standings[1].gap} pts`} note={featured ? 'Relative to the closest title rival' : official ? `From ${officialLabel.toLowerCase()}` : 'Calculated from imported results'} />}
       <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'preserved final' : 'current official'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
 
@@ -169,19 +165,16 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
     <div className={featured ? 'championship-grid' : 'standings-section'} data-story-layout={visual.layout}>
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">THE ORDER</p><h2>Championship standings</h2></div><span className="quiet-badge">{season}</span></div>
         <div className="table-scroll"><table className="standings-table">
-          <thead><tr><th>Pos</th><th>Rider</th><th>{pointsWarning ? 'Supplied pts*' : 'Pts'}</th><th>Gap</th><th>{official ? 'Imported GP wins' : 'Wins'}</th></tr></thead>
+          <thead><tr><th>Pos</th><th>Rider</th><th>Pts</th><th>Gap</th><th>{official ? 'Imported GP wins' : 'Wins'}</th></tr></thead>
           <tbody>{data.standings.map((rider) => <tr key={rider.rider_id} className={featured && rider.rider_id === MARC_ID ? 'featured-row' : ''}>
             <td><span className={`position ${rider.position <= 3 ? 'top-position' : ''}`}>{String(rider.position).padStart(2, '0')}</span></td>
             <td><RiderName rider={rider} /><small>{rider.constructor || rider.team || 'Team not recorded'}</small></td>
             <td className="strong numeric">{rider.points}</td><td className="muted numeric">{pointsWarning || rider.gap == null || rider.gap === 0 ? '—' : `−${rider.gap}`}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
         <p className="panel-note">{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
-        {pointsWarning && <p className="panel-note">*Supplied point totals require source verification. Dashes in the Gap column mean unavailable, not zero.</p>}
       </section>
       {featured && <SeasonChartPanel chart={visual.charts[1]} theme={theme} />}
     </div>
-    {official && <p className="notice">These charts use the official standings snapshot{data.is_final ? ', not a reconstructed historical timeline' : ' to date, not a certified final championship'}. Any explicitly labelled imported win counts or comeback curve are independent race evidence.</p>}
-    {data.external_sources_used && <p className="notice">External archive evidence is used in the imported race classifications. Missing timing and historical race points are not inferred.</p>}
     {official && leader.source_url && <a className="classic-link" href={leader.source_url} target="_blank" rel="noreferrer">Official championship source<ArrowUpRight size={16} /></a>}
   </>
 }

@@ -325,6 +325,8 @@ class CategoryApiTests(unittest.TestCase):
             self.assertEqual(data["story"]["metric_label"], "OFFICIAL RANK")
             self.assertEqual(data["story"]["metric"], 1)
             self.assertEqual(data["story"]["metric_note"], "Official champion rank")
+            self.assertNotIn("verification", str(data["story"]))
+            self.assertNotIn("discrepancies", str(data["story"]))
             self.assertNotIn("-19", str(data["story"]))
             self.assertNotIn("a narrow crown", str(data["story"]))
         self.db.execute("UPDATE championship_standings SET points=46 WHERE rider_id='ago'")

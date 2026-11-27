@@ -439,7 +439,7 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.get("plotly_chart"))
         self.assertIn("counting rules", " ".join(c.value for c in app.caption))
 
-    def test_1970_350cc_anomalous_official_points_remain_raw_and_warn_in_each_language(self):
+    def test_1970_350cc_anomalous_official_points_remain_raw_without_analytic_warnings(self):
         supplied = pd.DataFrame({
             "position": [1, 2, 3], "rider": ["Ago", "Carruthers", "Pasolini"],
             "points": [9, 28, 46], "constructor": ["MV Agusta", "Yamaha", "Benelli"],
@@ -465,12 +465,11 @@ class DashboardTests(unittest.TestCase):
                 app.selectbox(key="language").select(label).run()
                 translator = get_translator(language)
                 self.assertFalse(app.exception)
-                self.assertIn(translator("official_points_verification_warning"),
-                              [warning.value for warning in app.warning])
+                self.assertFalse(app.warning)
                 table = app.dataframe[0].value
                 self.assertEqual(table[translator("position")].tolist(), [1, 2, 3])
                 self.assertEqual(table[translator("rider")].tolist(), ["Ago", "Carruthers", "Pasolini"])
-                self.assertEqual(table[translator("source_points_verification")].tolist(), [9, 28, 46])
+                self.assertEqual(table[translator("points")].tolist(), [9, 28, 46])
                 self.assertNotIn(translator("home_gap_to_leader"), table.columns)
                 self.assertNotIn(translator("official_standings_method"), [c.value for c in app.caption])
                 self.assertFalse(app.metric)
@@ -478,7 +477,7 @@ class DashboardTests(unittest.TestCase):
         app.selectbox(key="nav_group").set_value("nav_season").run()
         app.selectbox(key="sb_category").set_value("350cc").run()
         self.assertFalse(app.exception)
-        self.assertTrue(app.warning)
+        self.assertFalse(app.warning)
         self.assertFalse(app.get("plotly_chart"))
         self.assertEqual(supplied["points"].tolist(), [9, 28, 46])
 
@@ -504,7 +503,7 @@ class DashboardTests(unittest.TestCase):
         app = self.start_app()
         app.selectbox(key="sb_category").set_value("350cc").run()
         self.assertFalse(app.exception)
-        self.assertTrue(app.warning)
+        self.assertFalse(app.warning)
         self.assertFalse(app.metric)
         self.assertFalse(app.get("plotly_chart"))
         app.selectbox(key="nav_group").set_value("nav_season").run()
@@ -527,10 +526,44 @@ class DashboardTests(unittest.TestCase):
                 with patch("streamlit.selectbox", side_effect=selections):
                     app.run()
                 self.assertFalse(app.exception)
-                self.assertTrue(app.warning)
+                self.assertFalse(app.warning)
                 self.assertFalse(app.get("plotly_chart"))
-                self.assertEqual(app.dataframe[0].value[translator("source_points_verification")].tolist(),
+                self.assertEqual(app.dataframe[0].value[translator("points")].tolist(),
                                  [9, 28, 46])
+
+    def test_official_score_warnings_are_confined_to_category_scoped_data_quality(self):
+        def quality_query(sql, conn=None, params=None):
+            if "SELECT cs.season_year, cs.category" in sql and category_sql("350cc", "cs.category") in sql:
+                return pd.DataFrame([
+                    dict(season_year=year, category="350cc", position=rank, points=points,
+                         is_final=True, rider=f"Rider {rank}", source_url=None)
+                    for year, scores in [(1970, [9, 28, 46]), (1969, [46, 28, 9])]
+                    for rank, points in enumerate(scores, 1)
+                ])
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = quality_query
+        app = self.start_app()
+        self.assertFalse(app.warning)
+        app.radio(key="home_view").set_value("home_coverage").run()
+        self.assertFalse(app.warning)
+        app.multiselect(key="scope_categories").set_value(["350cc"]).run()
+        for label, language in [
+            ("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")
+        ]:
+            app.selectbox(key="language").select(label).run()
+            translator = get_translator(language)
+            self.assertFalse(app.exception)
+            self.assertIn(translator("official_points_verification_warning"),
+                          [warning.value for warning in app.warning])
+            self.assertFalse(app.sidebar.warning)
+            table = next(table.value for table in app.dataframe
+                         if translator("source_points_verification") in table.value)
+            self.assertEqual(table[translator("season")].tolist(), [1970] * 3)
+            self.assertEqual(table[translator("category")].tolist(), ["350cc"] * 3)
+            self.assertEqual(table[translator("source_points_verification")].tolist(), [9, 28, 46])
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.warning)
 
     def test_incomplete_sectors_do_not_produce_ideal_laps(self):
         def partial_sectors(sql, conn=None, params=None):
@@ -550,7 +583,7 @@ class DashboardTests(unittest.TestCase):
         for rider in ["Sample Rider 2", "Sample Rider 3"]:
             self.assertEqual(table.loc[rider, "Ideal"], "")
             self.assertTrue(pd.isna(table.loc[rider, "Gap"]))
-        self.assertTrue(app.info)
+        self.assertFalse(app.info)
 
     def test_position_battle_does_not_invent_histories_without_timing(self):
         def missing_rider(sql, conn=None, params=None):
@@ -636,16 +669,22 @@ class DashboardTests(unittest.TestCase):
         self.assertTrue(app.info)
         self.assertFalse(app.button)
 
-    def test_unsupported_source_categories_are_visible(self):
+    def test_unsupported_source_categories_are_only_visible_in_data_quality(self):
         def excluded(sql, conn=None, params=None):
-            if "SELECT DISTINCT category" in sql:
+            if "SELECT DISTINCT category" in sql and "category IS NULL" in sql:
                 self.assertIn(category_sql("intermediate"), sql)
                 return pd.DataFrame({"category": ["Unrecognized", None]})
             return sample_query(sql, conn, params)
         self.read_sql.side_effect = excluded
         app = self.start_app()
+        self.assertFalse(app.warning)
+        app.radio(key="home_view").set_value("home_coverage").run()
         self.assertIn("Unrecognized", app.warning[0].value)
         self.assertNotIn("Moto2", app.warning[0].value)
+        self.assertFalse(app.sidebar.warning)
+        app.selectbox(key="nav_group").set_value("nav_race").run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.warning)
 
     def test_category_changes_bind_queries_and_invalidate_cached_results(self):
         def category_query(sql, conn=None, params=None):

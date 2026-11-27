@@ -364,14 +364,6 @@ def open_championship(year):
 # Sidebar — task filters
 # ---------------------------------------------------------------------------
 
-excluded_categories = q(
-    "SELECT DISTINCT category FROM sessions WHERE category IS NULL OR NOT ("
-    + " OR ".join(f"({category_sql(family)})" for family in CATEGORY_FAMILIES) + ")"
-)
-if not excluded_categories.empty:
-    st.sidebar.warning(t("excluded_categories", categories=", ".join(
-        excluded_categories["category"].fillna("?").astype(str)
-    )))
 needs_session = viz not in ["🏠 Home", "👤 Pilot Profile", "📈 Cross-Year", "🌍 Championship", "🔧 Reliability", "🏢 Teams & Constructors", "🧙 Tyre Whisperers", "🏁 Grid Advantage", "🏟 Circuits", "🏅 Pilot Rankings"]
 selected_category = st.session_state.get("selected_category", "premier")
 comparison_categories = None
@@ -724,13 +716,11 @@ def show_official_standings(standings):
     is_final = standings["is_final"].all()
     needs_verification = final_points_need_verification(standings)
     st.subheader(t("official_final_standings" if is_final else "official_current_standings"))
-    if needs_verification:
-        st.warning(t("official_points_verification_warning"))
-    else:
+    if not needs_verification:
         st.caption(t("official_standings_method"))
     st.dataframe(standings[["position", "rider", "points", "constructor"]].rename(columns={
         "position": t("position"), "rider": t("rider"),
-        "points": t("source_points_verification" if needs_verification else "points"),
+        "points": t("points"),
         "constructor": t("constructor"),
     }), width="stretch", hide_index=True)
     for url in standings["source_url"].dropna().unique():
@@ -1105,6 +1095,37 @@ if viz == "🏠 Home":
     st.caption(t("data_quality_caption"))
     st.caption(t("classification_sources"))
 
+    excluded_categories = q(
+        "SELECT DISTINCT category FROM sessions WHERE category IS NULL OR NOT ("
+        + " OR ".join(f"({category_sql(family)})" for family in CATEGORY_FAMILIES) + ")"
+    )
+    if not excluded_categories.empty:
+        st.warning(t("excluded_categories", categories=", ".join(
+            excluded_categories["category"].fillna("?").astype(str)
+        )))
+    official_scores = q(f"""
+        SELECT cs.season_year, cs.category, cs.position, cs.points, cs.is_final,
+            r.full_name AS rider, cs.source_url
+        FROM championship_standings cs JOIN riders r ON r.rider_id = cs.rider_id
+        WHERE cs.is_final = 1 AND {scope_predicate(comparison_categories or selected_category, 'cs.category')}
+        ORDER BY cs.season_year, cs.category, cs.position
+    """)
+    if not official_scores.empty:
+        official_scores["_category"] = official_scores["category"].map(normalize_category)
+        flagged = [
+            rows for _, rows in official_scores.groupby(["season_year", "_category"])
+            if final_points_need_verification(rows)
+        ]
+        if flagged:
+            st.warning(t("official_points_verification_warning"))
+            st.dataframe(pd.concat(flagged)[[
+                "season_year", "category", "position", "rider", "points", "source_url"
+            ]].rename(columns={
+                "season_year": t("season"), "category": t("category"), "position": t("position"),
+                "rider": t("rider"), "points": t("source_points_verification"),
+                "source_url": t("standings_source"),
+            }), width="stretch", hide_index=True)
+
     dq = premier_q("""
         SELECT e.season_year AS Year,
             COUNT(DISTINCT e.event_id) AS Events,
@@ -1381,8 +1402,6 @@ elif viz == "⏱ Sector Heatmap":
                                      T3=("t3_sec", "min"), T4=("t4_sec", "min"),
                                      Best=("lap_sec", "min")).reset_index()
     sb["Ideal"] = sb[["T1", "T2", "T3", "T4"]].sum(axis=1, min_count=4)
-    if sb["Ideal"].isna().any():
-        st.info(t("incomplete_sectors"))
     sb = sb.sort_values("Best")
     for c in ["T1", "T2", "T3", "T4"]:
         sb[c + "_d"] = sb[c] - sb[c].min()

@@ -171,9 +171,8 @@ def season_story(data: dict) -> dict:
         return {
             "kind": "standings",
             "headline": f"{name}: officially ranked first.",
-            "accent": "Supplied points need verification.",
-            "summary": data["points_warning"] + " Official source ranks and supplied scores are preserved unchanged. "
-                       "No points gaps, title margins or comeback are inferred from these totals.",
+            "accent": "Official standings, in source order.",
+            "summary": "Official positions and supplied scores are preserved unchanged.",
             "metric_label": "OFFICIAL RANK", "metric": leader["position"],
             "metric_note": "Official champion rank" if final else "Official rank to date; not a final result",
             "context_url": None,
