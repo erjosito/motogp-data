@@ -1,0 +1,333 @@
+{
+  "format_version": 1,
+  "created_at_utc": "2026-11-27T20:15:13.538136+00:00",
+  "snapshot_database_time_utc": "2026-11-27T20:14:51.089159",
+  "isolation": "SNAPSHOT",
+  "generator": "export_data.py",
+  "generator_sha256": "3857b2952ed90319934b75b6dbc2f90fe7e2995f22adfcb9f0da03afcb07d50a",
+  "repository_commit": "06f48414c35b79d333f0fe3c28b08a20d30cb6ef",
+  "repository_dirty": false,
+  "compression": {
+    "format": "tar.xz",
+    "lzma_preset": 9,
+    "extreme": true
+  },
+  "csv": {
+    "encoding": "UTF-8",
+    "delimiter": ",",
+    "quotechar": "\"",
+    "lineterminator": "LF",
+    "header": true,
+    "null": "\\N",
+    "escape": "Prefix one backslash to every non-NULL cell starting with a backslash.",
+    "dates": "ISO 8601; SQL temporal precision retained via server-side conversion",
+    "decimals": "Exact decimal strings; do not parse as binary floating point",
+    "booleans": "0 or 1"
+  },
+  "data_license": "NOASSERTION",
+  "redistribution_clearance": "not-established",
+  "scope": "All allowlisted application base tables, raw provenance, and a derived results CSV; no PDFs.",
+  "files": [
+    {
+      "path": "data-rights.json",
+      "bytes": 2594,
+      "sha256": "da77f578b7790e318e4517df3828e854d71deb15214129a9b6f05d633464d917"
+    },
+    {
+      "path": "quality.json",
+      "bytes": 28691,
+      "sha256": "0219ab21d4ac52d811598b6cc7ddb6154e3d12250b296cb40b865d0f0895c9a4"
+    },
+    {
+      "path": "README.md",
+      "bytes": 12872,
+      "sha256": "bd4aae2f174e11d3eedab40b465a0ba777aeb56027fa159c5f0bab11a426e24d"
+    },
+    {
+      "path": "schema.json",
+      "bytes": 61605,
+      "sha256": "8a38a7ec2c2cdfa14d22dfb3194b6d8d84a5167d0ab5cf8d88cd1e168d742188"
+    },
+    {
+      "path": "schema.sql",
+      "bytes": 16382,
+      "sha256": "0d722df7280ca7f08c1008bd82f788369f2a4113c9da737320d9d2db55f0cbc7"
+    },
+    {
+      "path": "tables/dbo.championship_standings.csv",
+      "bytes": 9436926,
+      "sha256": "4f26fdb56c2995cd5e12298c3254b002e687edc75014b94748c7992e5df555f1",
+      "rows": 8578,
+      "columns": [
+        "season_year",
+        "category",
+        "rider_id",
+        "position",
+        "points",
+        "constructor_id",
+        "constructor_name",
+        "is_final",
+        "source_url",
+        "source_json",
+        "fetched_at"
+      ]
+    },
+    {
+      "path": "tables/dbo.classifications.csv",
+      "bytes": 19148910,
+      "sha256": "5ed4b30692e694985ac5558ddba1c1ec511ca6e61ea87708b209a020527a9744",
+      "rows": 107712,
+      "columns": [
+        "session_id",
+        "rider_id",
+        "position",
+        "team_id",
+        "total_laps",
+        "time_ms",
+        "time_text",
+        "gap_first",
+        "gap_prev",
+        "best_lap_number",
+        "best_lap_time",
+        "top_speed",
+        "points",
+        "status",
+        "constructor_id",
+        "constructor_name",
+        "rider_number"
+      ]
+    },
+    {
+      "path": "tables/dbo.events.csv",
+      "bytes": 168355,
+      "sha256": "2ebacbc2997008b0b8e3676cfac977f4f3206622718e59f8c4a5fd1a8c6aa3f7",
+      "rows": 1078,
+      "columns": [
+        "event_id",
+        "season_year",
+        "short_name",
+        "event_name",
+        "sponsored_name",
+        "circuit_name",
+        "circuit_place",
+        "country_name",
+        "country_iso",
+        "date_start",
+        "date_end"
+      ]
+    },
+    {
+      "path": "tables/dbo.external_candidates.csv",
+      "bytes": 12933326,
+      "sha256": "81542ebbf2da5c8c65e0d1c8bd94114b16027021d3b81c654b8599bf3c0c02ab",
+      "rows": 16941,
+      "columns": [
+        "candidate_id",
+        "source_id",
+        "season_year",
+        "category",
+        "event_short",
+        "rider_name",
+        "source_json",
+        "decision",
+        "reason",
+        "session_id",
+        "rider_id",
+        "evidence_url",
+        "decided_at"
+      ]
+    },
+    {
+      "path": "tables/dbo.external_classifications.csv",
+      "bytes": 1671308,
+      "sha256": "d57676873b896422c0dd33803fed14d2f254dd7b0c5697f63455a484e87cef8a",
+      "rows": 11258,
+      "columns": [
+        "session_id",
+        "rider_id",
+        "candidate_id",
+        "position",
+        "constructor_name",
+        "points"
+      ]
+    },
+    {
+      "path": "tables/dbo.external_sources.csv",
+      "bytes": 277,
+      "sha256": "7466f6e454fd8be756aebbf65926efa1d7e771f0223e816f76ae7ef8fd4910e3",
+      "rows": 1,
+      "columns": [
+        "source_id",
+        "source_url",
+        "declared_license",
+        "content_hash",
+        "fetched_at"
+      ]
+    },
+    {
+      "path": "tables/dbo.historical_imports.csv",
+      "bytes": 53692151,
+      "sha256": "6260824a2eb224a557d2bfc91a422745655aa78f376150a7d7562ad90f731295",
+      "rows": 259,
+      "columns": [
+        "season_year",
+        "category",
+        "source_hash",
+        "event_count",
+        "session_count",
+        "classification_count",
+        "standings_count",
+        "source_payload",
+        "imported_at"
+      ]
+    },
+    {
+      "path": "tables/dbo.laps.csv",
+      "bytes": 48430547,
+      "sha256": "ed78a5a85ddc9c4117ea377b3f5f87d20e8dc9d5b11b5c8b96532a6fe2b37003",
+      "rows": 370024,
+      "columns": [
+        "session_id",
+        "rider_id",
+        "lap_number",
+        "lap_time",
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "speed_kmh",
+        "is_pit",
+        "run_number",
+        "front_tyre",
+        "rear_tyre"
+      ]
+    },
+    {
+      "path": "tables/dbo.riders.csv",
+      "bytes": 196800,
+      "sha256": "8847c7ca253ecc8a13315e959dd1ba4dab8a77f8fccefc8d6d51c7a96153a466",
+      "rows": 2773,
+      "columns": [
+        "rider_id",
+        "full_name",
+        "number",
+        "nationality_iso",
+        "nationality"
+      ]
+    },
+    {
+      "path": "tables/dbo.schema_migrations.csv",
+      "bytes": 188,
+      "sha256": "ad1fbb4df83a0bb4b521f70e4ae5fe0c4605035b6368c81b5732117bcba3acff",
+      "rows": 3,
+      "columns": [
+        "version",
+        "applied_at"
+      ]
+    },
+    {
+      "path": "tables/dbo.sessions.csv",
+      "bytes": 1008622,
+      "sha256": "fa7c1afa540eaead34369d18d8661b6b4a217a3f912072b2903e7cdfd20ee925",
+      "rows": 6346,
+      "columns": [
+        "session_id",
+        "event_id",
+        "category",
+        "session_type",
+        "session_number",
+        "session_label",
+        "session_date",
+        "track_condition",
+        "weather",
+        "air_temp",
+        "ground_temp",
+        "humidity",
+        "status",
+        "source_kind"
+      ]
+    },
+    {
+      "path": "tables/dbo.standings_imports.csv",
+      "bytes": 1892787,
+      "sha256": "c975fba93fb7a9caccc42726c0f53065fa7f6c46a6d7ddbd70121be248e0aa58",
+      "rows": 37,
+      "columns": [
+        "season_year",
+        "category",
+        "source_hash",
+        "standings_count",
+        "is_final",
+        "source_url",
+        "source_payload",
+        "imported_at"
+      ]
+    },
+    {
+      "path": "tables/dbo.team_aliases.csv",
+      "bytes": 4534,
+      "sha256": "d47b64a2ffc03024e2e11c99fc883a46f4ea87029012ae8ba7b652ca436afb77",
+      "rows": 127,
+      "columns": [
+        "team_name",
+        "canonical_name"
+      ]
+    },
+    {
+      "path": "tables/dbo.teams.csv",
+      "bytes": 275456,
+      "sha256": "8cbbda7dd2b12271ff13b497283e36f69a260f6e7f1ce3da56ee9aab8f069289",
+      "rows": 2629,
+      "columns": [
+        "team_id",
+        "season_year",
+        "team_name",
+        "constructor",
+        "constructor_id"
+      ]
+    },
+    {
+      "path": "views/results.csv",
+      "bytes": 34394496,
+      "sha256": "fc2888018f3079cb93228f5ce5a8507e353cbcb1ac017402d522be1f24dd633a",
+      "rows": 107714,
+      "columns": [
+        "season_year",
+        "category",
+        "event_short",
+        "event_name",
+        "circuit_name",
+        "country_iso",
+        "session_id",
+        "event_id",
+        "session_type",
+        "session_number",
+        "session_label",
+        "session_date",
+        "rider_id",
+        "rider",
+        "rider_number",
+        "nationality_iso",
+        "team_name",
+        "constructor",
+        "position",
+        "total_laps",
+        "time_raw",
+        "time_text",
+        "gap_first",
+        "gap_prev",
+        "best_lap_number",
+        "best_lap_time",
+        "top_speed",
+        "points",
+        "status",
+        "source_kind"
+      ]
+    }
+  ],
+  "archive": {
+    "name": "motogp-data-2026-11-27-standings.tar.xz",
+    "bytes": 12586236,
+    "sha256": "cd025eecdacdac199cfcb1c2c9df853632b9539fedb9cf5853fd7650114072d2"
+  }
+}

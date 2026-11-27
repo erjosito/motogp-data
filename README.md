@@ -632,7 +632,7 @@ anomalous scores and lower-class timing coverage.
 
 ### Compressed snapshots
 
-`python export_data.py --output exports\motogp-data-2026-11-27.tar.xz` creates a
+`python export_data.py --output exports\motogp-data-2026-11-27-standings.tar.xz` creates a
 maximum-compression, consistent CSV snapshot of all application tables, including
 source provenance, live schema/keys, a convenient flat results file, quality
 metadata and verified checksums. `python export_data.py --verify <archive>`
@@ -642,11 +642,14 @@ encoding, consumption and restoration instructions, and
 The combined dataset has **no blanket redistribution license**; archives remain
 local and Git-ignored pending permission review.
 
-The 2026-11-27 snapshot contains 13 base tables / 526,662 rows, plus 107,714
-effective results in the convenience CSV. Its payload is 180,230,185 bytes,
-compressed to **12,478,976 bytes (12.48 MB)**. The versioned
-[manifest](exports/motogp-data-2026-11-27.manifest.json) records per-file counts,
-hashes, source revision and encoding; the data archive itself is local only.
+The refreshed 2026-11-27 standings snapshot contains 14 base tables / 527,766
+rows, plus 107,714 effective results in the convenience CSV, compressed to
+**12,586,236 bytes (12.59 MB)**. Its versioned
+[manifest](exports/motogp-data-2026-11-27-standings.manifest.json) records per-file
+counts, hashes, source revision and encoding; the data archive itself is local
+only. This includes 8,578 championship standings and 37 standings-only import
+records. The [original manifest](exports/motogp-data-2026-11-27.manifest.json)
+remains available for the earlier 13-table snapshot.
 
 ## API Reference
 
