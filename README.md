@@ -415,6 +415,42 @@ python -m unittest test_dashboard test_motogp_results
 
 ## Official Grand Prix Archive
 
+### Archive analytics contracts
+
+Historical constructors come from the classification when available, falling
+back to the team record, never the other way round. Unknown teams do not remove
+known historical constructors from the charts.
+
+Points efficiency is a **nominal recorded-entry metric**, not championship
+efficiency over the scheduled calendar. It uses 25 per recorded race entry
+from 1993 and 12 per recorded Sprint entry from 2023, including recorded DNS
+entries. Earlier scoring systems, missing scores and totals outside these
+bounds remain unavailable rather than becoming zero. Shortened-race maxima
+are not inferred. Official full-season points are never divided by partial
+imported start counts. Only official final rank-one standings establish titles.
+See the [scoring-system history](https://www.boxrepsol.com/en/motogp-en/motogp-scoring-system-history-and-evolution/).
+
+Grid analytics use an explicitly labeled **qualifying-order proxy**, not an
+official starting grid: Q2 followed by non-promoted Q1 riders. Supported
+two-stage formats are MotoGP from 2013 (12 in Q2, two promoted) and Moto2/Moto3
+from 2019 (18 in Q2, four promoted). Both complete stages and a matching order
+for every recorded starter are required. DNS entries are excluded; DNF and
+unclassified starters remain in finish-conversion denominators. Position gains
+use classified finishes only. Grid penalties, older formats and incomplete
+orders are not guessed. See the [2013 format](https://www.crash.net/motogp/news/189421/1/motogps-2013-qualifying-format-explained)
+and [official 2019 qualifying archive](https://www.motogp.com/en/videopass/archive/season-2019/malaysia).
+Pole statistics count recorded Q2 winners only within these supported formats;
+missing qualifying records are unavailable, not zero historical career poles.
+
+Circuit pace uses the race winner's recorded non-pit laps and classification
+best lap, keyed to physical circuit names/curated aliases rather than GP short
+codes. Separate observations do not imply unchanged layouts or conditions.
+Cancellation flags are not yet stored, so these are recorded times, not
+certified valid-lap rankings. This diagnostic is presented only on the data
+quality dashboard; analytical charts retain ordinary methodology captions.
+
+### Importing the archive
+
 `import_historical.py` imports official race classifications and independent
 standings in bounded season/class transactions, separately from full-weekend
 practice/qualifying ingestion. It supports 500cc (1949–2001), MotoGP (2002–),
