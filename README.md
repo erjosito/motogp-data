@@ -258,8 +258,17 @@ can affect standings. **Data coverage** retains the historical
 database statistics and coverage charts. Navigation and filters are preserved
 when switching between English, Spanish, and Italian.
 
-The shared light theme is configured in `.streamlit/config.toml` and included
-in the Docker image. The visual refresh retains the database schema and existing
+The default light theme is configured in `.streamlit/config.toml` and included
+in the Docker image. Switch light/dark appearance through Streamlit's top-right
+**menu > Light / Dark**; localized sidebar guidance points to this control.
+The native control themes widgets, tables, charts, and custom cards without a
+server restart, preserving filters and language. The preference is browser-local,
+not a process-global setting. Custom light/dark variants require Streamlit 1.51
+or newer, as specified in `requirements.txt`. Streamlit has no supported Python theme setter,
+so the dashboard uses its native control rather than a simulated sidebar toggle.
+Plotly uses Streamlit's theme-aware template, including animation axes and labels;
+explicit podium and in-bar label color pairs retain their readable contrast.
+The visual refresh retains the database schema and existing
 analytical views. Both championship views share the same Race + Sprint points
 calculation. Both views show tied points as shared positions, without
 claiming to apply official championship countback rules.

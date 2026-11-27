@@ -8,6 +8,11 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "appearance_help": {
+        "en": "Light / dark mode: open the ⋮ menu at the top right and choose Light or Dark. Your browser keeps the selection when you change language or navigate.",
+        "es": "Modo claro / oscuro: abre el menú ⋮ de arriba a la derecha y elige Light (claro) o Dark (oscuro). Tu navegador conserva la selección al cambiar de idioma o navegar.",
+        "it": "Modalità chiara / scura: apri il menu ⋮ in alto a destra e scegli Light (chiara) o Dark (scura). Il browser mantiene la selezione quando cambi lingua o navighi.",
+    },
     "session_types_explainer": {
         "en": "Counts show imported premier-class sessions grouped by recorded session type, not races or rider-lap records. FP means free practice; P/PR practice; Q qualifying; WUP warm-up; SPR sprint race; and RAC race. Unrecognized source codes are displayed unchanged. Coverage depends on available sources and import progress.",
         "es": "Los recuentos muestran sesiones importadas de la categoría reina agrupadas por su tipo registrado, no carreras ni registros de piloto y vuelta. FP indica entrenamientos libres; P/PR entrenamientos; Q clasificación; WUP calentamiento; SPR carrera sprint; y RAC carrera. Los códigos desconocidos se muestran sin modificar. La cobertura depende de las fuentes disponibles y del progreso de la importación.",
