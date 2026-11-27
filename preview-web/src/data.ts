@@ -1,6 +1,14 @@
 import type { Lap } from './types'
 import type { ChartSeries } from './PlotChart'
 
+export function statisticText(text: string) {
+  return text.replace(/\b(?:recorded|imported|supplied|stored|official|officially)\b\s*/gi, '')
+    .replace(/\s+in this rider['’]s archive\b/gi, '')
+    .replace(/\bsource order\b/gi, 'classification order')
+    .replace(/\bsource ranks?\b/gi, 'rank')
+    .replace(/\s{2,}/g, ' ').trim()
+}
+
 export function categoryTicks(series: ChartSeries[], maximum: number) {
   const labels = [...new Set(series.filter((line) => line.orientation !== 'h' && line.type !== 'pie').flatMap((line) => line.x).filter((value): value is string => typeof value === 'string'))]
   if (labels.length <= maximum) return labels

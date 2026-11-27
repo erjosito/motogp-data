@@ -228,7 +228,7 @@ def season_story(data: dict) -> dict:
             summary=f"After {low['label']}, Marc Marquez was 102 points behind the strongest rival. "
                     f"His latest margin is {comeback['current_margin']:+g} points. The timeline includes every imported Sprint and Grand Prix.",
             metric_label="THE RECOVERY", metric=comeback["recovered"],
-            metric_note="Points recovered since the lowest recorded margin",
+            metric_note="Points recovered since the lowest margin",
         )
         if official:
             story["summary"] += " The curve uses imported race points; the table preserves official standings to date, not a final championship."
@@ -263,8 +263,8 @@ def season_story(data: dict) -> dict:
         if len(margins) > 1 and margins[-2] < 0 <= margins[-1]:
             story.update(kind="late-surge", headline="The latest race changed the lead." if season == 2026 else "The last race changed everything.",
                          accent=f"{name} took the top spot.",
-                         summary=summary + " The leading rider in the imported points changed in the latest recorded scoring session.",
-                         metric_label="LATEST RECORDED MARGIN" if season == 2026 else "FINAL RECORDED MARGIN", metric=gap,
+                         summary=summary + " The leading rider in the imported points changed in the latest scoring session.",
+                         metric_label="LATEST MARGIN" if season == 2026 else "FINAL MARGIN", metric=gap,
                          metric_note="Points ahead after the last imported session")
         elif deficit >= 25:
             story.update(kind="comeback", headline=f"{name}: the long way back.", accent=f"From {deficit:g} behind to the top.",
@@ -282,7 +282,7 @@ def season_story(data: dict) -> dict:
                          metric_note="From imported scoring classifications")
         elif data["gp_results"] and leader["podiums"] >= data["gp_results"] / 2:
             story.update(kind="consistency", headline=f"{name}: always in the picture.", accent="Consistency wrote the story.",
-                         summary=summary + f" {leader['podiums']} podiums are recorded across {data['gp_results']} GP races.",
+                         summary=summary + f" {leader['podiums']} podiums across {data['gp_results']} GP races.",
                          metric_label="GRAND PRIX PODIUMS", metric=leader["podiums"],
                          metric_note=f"Across {data['gp_results']} imported GP races")
     return story
@@ -363,10 +363,10 @@ def build_rider_profile(rider: dict, races: list[dict], standings: list[dict]) -
     is_marc = rider["rider_id"] == MARC_ID
     name = rider["rider"].split(" ")[0]
     headline = "The art of coming back." if is_marc else (
-        f"{len(titles)} recorded titles. One remarkable rider." if titles and all(row["position"] is not None for row in career) else
+        f"{len(titles)} titles. One remarkable rider." if titles and all(row["position"] is not None for row in career) else
         f"{name}, at the sharp end." if totals["gp_wins"] else f"{name}, beyond the standings.")
     if best and best["gp_wins"]:
-        summary = f"{best['gp_wins']} recorded GP wins in {best['season']}: the strongest winning season in this rider's archive."
+        summary = f"{best['gp_wins']} GP wins in {best['season']}: the strongest winning season."
     elif titles:
         summary = "A career defined by official championship-winning seasons."
     else:

@@ -29,8 +29,16 @@ Paddock's always-visible **Data analysis** shortcut opens Classic in a new tab.
 Career profiles use a reusable visual identity card: individually reviewed
 biography facts where collected, a licensed, season-labeled portrait where
 approved, and initials/plain numbers otherwise. Portrait credits, license links
-and adaptation notices stay next to the image. Unapproved official image
+and adaptation notices are collected in **Sources, credits & data notes** at the
+bottom of the page, alongside biography/circuit sources and statistical methods.
+Image season/team and current-layout labels stay with their visuals. Unapproved official image
 references and the full local biography catalog are not shipped.
+Approved number designs replace plain numbers in profile titles, featured
+championship identities and race podiums; they are not a separate artwork gallery.
+A career title uses the latest unambiguous design for that rider's number, with
+its actual year/class credited below. Season-specific views require an exact
+year/class/number match. Missing, ambiguous or failed designs retain the plain
+number (or initials when the race number is unknown).
 
 The other views cover category-scoped championships, session results, rider lap
 comparisons, and sector analysis. Explicit season/event/session deep links retain
@@ -53,9 +61,13 @@ On mobile, championship headlines stay with the main graphic and recovery
 bridges precede standings. Long classifications, standings, career records and
 comparison controls have explicit Show/Hide disclosures (open initially on
 desktop). Collapsing them does not unmount searches or filter selections.
-Source/timing qualifications outside advanced controls stay visible. Narrow
+Source/timing qualifications stay accessible in the bottom notes, including
+when detail tables and advanced controls are collapsed. Primary statistics and
+chart labels omit provenance qualifiers such as "recorded" and "imported";
+final/to-date distinctions, units and unavailable values remain explicit. Narrow
 charts reduce axis-label density without removing data; hover/tap retains full
-labels.
+labels. Chart zoom/pan, wheel/pinch zoom and double-click zoom are disabled on all
+devices; chart hover/tap and normal browser scrolling/accessibility zoom remain available.
 
 Every season has an evidence-backed story: dominance,
 consistency, narrow margins or a turnaround, with the actual supporting metric.
@@ -90,7 +102,7 @@ decimal points, including dropped-score and half-point rules. Partial historical
 race classifications are not used to reconstruct title progression, GP-win totals
 or podium totals. A tied points total does not override the official rank.
 Missing usable standings produce an honest incomplete-story state, not invented
-zero-point leaders. Newer seasons are explicitly described as imported results;
+zero-point leaders. Bottom notes describe newer seasons as imported results;
 the app does not certify their completeness or any unrecorded points adjustments.
 
 The database does not currently preserve PDF lap/sector cancellation annotations

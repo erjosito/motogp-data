@@ -391,6 +391,16 @@ class CategoryApiTests(unittest.TestCase):
         self.assertEqual(data["venues"], [])
         self.assertIn("archival", [row["rider_id"] for row in self.client.get("/api/riders").json()])
 
+    def test_title_headline_has_no_recorded_qualifier_on_either_mount(self):
+        self.db.execute("INSERT INTO riders VALUES ('champion','Champion Rider',NULL)")
+        for season in range(1966, 1981):
+            self.db.execute("INSERT INTO championship_standings VALUES (?,'500cc',1,'champion',9,NULL,'https://example.com',1)", (season,))
+        for prefix in ["", "/paddock"]:
+            data = self.client.get(f"{prefix}/api/riders/champion").json()
+            self.assertEqual(data["headline"], "15 titles. One remarkable rider.")
+            self.assertEqual(data["totals"]["titles"], 15)
+            self.assertEqual(data["totals"]["gp_appearances"], 0)
+
     def test_rider_profile_excludes_practice_and_unfinished_sessions_and_counts_dnf_as_appearance(self):
         self.db.execute("UPDATE sessions SET session_type='FP1' WHERE session_id='session-0'")
         self.db.execute("UPDATE sessions SET status='NOTSTARTED' WHERE session_id='session-1'")
