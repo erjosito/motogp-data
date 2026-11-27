@@ -344,10 +344,25 @@ not replaced with final finishing positions, and Q2 is not treated as a grid.
 
 Category selection uses the shared allowlist in `category_scope.py`: premier
 (MotoGP/500cc), intermediate (Moto2/250cc), lightweight (Moto3/125cc), and separate
-350cc, 50cc and 80cc championships. Premier remains the default. Source labels are
+350cc, 50cc and 80cc championships. Source labels are
 preserved; predicates ignore the trademark suffix, surrounding spaces and case.
 These were independent world championships, not a universal feeder ladder.
 Points and standings must never be summed across categories.
+
+Classic filters belong to the active task and are remembered independently:
+race analysis selects season, GP, available category, then session; championship
+views require a season and a single category, defaulting to premier class.
+**Riders > Pilot Profile** starts with every imported category and season for
+the selected rider, regardless of the category used on another page. Narrow the
+career using its category multiselect and **Season > All** or a particular year.
+Points and season statistics remain separated by actual class, including riders
+who contested several classes during the same year. Head-to-head comparisons
+match the same session, not unrelated classes at the same GP.
+Coverage, circuit history and cross-year views allow several category families
+for a labeled comparison of imported race/session coverage. The detailed
+analytics underneath are for the selected **Detailed analysis category**;
+they never silently pool championships or point totals. Empty selections show
+an explicit prompt. Navigation and language changes retain each task's filters.
 
 Pilot Rhythm and Sector Heatmap compare absolute times within one selected
 session, not across unrelated circuits or conditions. Pace cleaning excludes
