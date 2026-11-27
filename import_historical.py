@@ -214,9 +214,24 @@ def apply_migration(conn):
     print("Archive schema migrations verified", flush=True)
 
 
+def unavailable_legacy_score_sessions(data):
+    if data["year"] < 1990 or canonical_category(data["category"]) not in {"125cc", "250cc"}:
+        return set()
+    return {
+        item["session"]["id"]
+        for event in data["events"] for item in event["sessions"]
+        if item["classification"]
+        and any(entry.get("position") == 1 for entry in item["classification"])
+        and all(entry.get("points") is None or float(entry["points"]) == 0
+                for entry in item["classification"])
+    }
+
+
 def race_entries(data):
+    unavailable = unavailable_legacy_score_sessions(data)
     return [
-        (item["session"]["id"], entry)
+        (item["session"]["id"],
+         {**entry, "points": None} if item["session"]["id"] in unavailable else entry)
         for event in data["events"] for item in event["sessions"]
         for entry in item["classification"]
     ]
@@ -282,6 +297,14 @@ def persist_season(conn, data):
             year, category,
         ).fetchone()
         if existing and existing[0] == fingerprint:
+            unavailable = unavailable_legacy_score_sessions(data)
+            if unavailable:
+                cursor = conn.cursor()
+                cursor.fast_executemany = True
+                cursor.executemany(
+                    "UPDATE classifications SET points=NULL WHERE session_id=? AND points=0",
+                    [(session_id,) for session_id in sorted(unavailable)],
+                )
             verify_season(conn, data)
             print(f"{year}: unchanged archive verified", flush=True)
             return

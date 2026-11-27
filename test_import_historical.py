@@ -51,6 +51,46 @@ class HistoricalImportTests(unittest.TestCase):
         self.assertEqual(params[4], 0)
         self.assertEqual(params[12], 0)
 
+    def test_all_zero_legacy_race_scores_are_unavailable_without_mutating_source(self):
+        for category in ("125cc", "250cc"):
+            with self.subTest(category=category):
+                data = snapshot()
+                data.update(year=1995, category=category)
+                original = deepcopy(data)
+                self.assertIsNone(historical.race_entries(data)[0][1]["points"])
+                self.assertEqual(data, original)
+
+    def test_scored_legacy_races_and_modern_unawarded_race_parts_keep_zeroes(self):
+        data = snapshot()
+        data.update(year=1995, category="250cc")
+        entries = data["events"][0]["sessions"][0]["classification"]
+        entries[0]["points"] = 25
+        entries.append({**deepcopy(entries[0]), "position": 20, "points": 0})
+        self.assertEqual([entry["points"] for _, entry in historical.race_entries(data)], [25, 0])
+        data.update(year=2026, category="Moto2\u2122")
+        for entry in entries:
+            entry["points"] = 0
+        self.assertEqual([entry["points"] for _, entry in historical.race_entries(data)], [0, 0])
+
+    def test_cached_legacy_score_mapping_is_upgraded_before_verification(self):
+        import hashlib
+        import json
+
+        data = snapshot()
+        data.update(year=1995, category="250cc")
+        fingerprint = hashlib.sha256(json.dumps(
+            data, ensure_ascii=True, sort_keys=True,
+        ).encode("utf-8")).hexdigest()
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = (fingerprint,)
+        with patch.object(historical, "verify_season") as verify, \
+                contextlib.redirect_stdout(io.StringIO()):
+            historical.persist_season(connection, data)
+        sql, parameters = connection.cursor.return_value.executemany.call_args.args
+        self.assertIn("points=NULL", sql)
+        self.assertEqual(parameters, [("race",)])
+        verify.assert_called_once_with(connection, data)
+
     def test_fetch_excludes_other_classes_and_retains_independent_standings(self):
         data = snapshot()
 
