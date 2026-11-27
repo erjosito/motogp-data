@@ -5,6 +5,8 @@ import {
   Gauge, Layers3, Menu, Moon, RefreshCw, Sun, Timer, Trophy,
 } from 'lucide-react'
 import { useResource } from './api'
+import { categories, categoryPath, navigationPath, selectedCategory, selectedSeason, selectionParams } from './selection'
+import type { Category } from './selection'
 import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed } from './data'
 import type { Analysis, Championship, GrandPrix, Lap, Rider, Session } from './types'
 import type { LineSeries } from './PlotChart'
@@ -69,8 +71,8 @@ function Stat({ label, value, note }: { label: string; value: string | number; n
   return <div className="stat"><span className="eyebrow">{label}</span><strong>{value}</strong><span>{note}</span></div>
 }
 
-function ChampionshipPage({ season, theme }: { season: number; theme: string }) {
-  const resource = useResource<Championship>(`/api/championship?season=${season}`)
+function ChampionshipPage({ season, category, theme }: { season: number; category: Category; theme: string }) {
+  const resource = useResource<Championship>(categoryPath(`/api/championship?season=${season}`, category))
   const data = resource.data
   if (resource.error) return <DataState resource={resource} />
   if (!data) return <Loading />
@@ -78,8 +80,10 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
     <DataState resource={resource} empty={data.story.summary} /></>
 
   const story = data.comeback
-  const featured = season === 2026 && story?.verified_102
+  const featured = category === 'premier' && season === 2026 && story?.verified_102
   const official = data.standings_source === 'official'
+  const final = official && data.is_final
+  const officialLabel = final ? 'Official final standings' : 'Official standings to date'
   const narrative = data.story
   const marc = data.standings.find((rider) => rider.rider_id === MARC_ID)
   const leader = data.standings[0]
@@ -89,7 +93,7 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
   return <>
     <div className="page-heading"><div><p className="eyebrow">THE BIG PICTURE</p><h1>The title fight.</h1>
       <p>Not just the standings. The story behind them.</p></div>
-      <span className="quiet-badge"><span className="status-dot" />{official ? `${season} · Official final standings` : `Through ${last?.event} · ${dateLabel(last?.date)}`}</span>
+      <span className="quiet-badge"><span className="status-dot" />{official ? `${season} · ${officialLabel}` : `Through ${last?.event} · ${dateLabel(last?.date)}`}</span>
     </div>
 
     <section className="story-card" aria-labelledby="season-story-title">
@@ -101,7 +105,7 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
           {narrative.context_url && <a className="classic-link" href={narrative.context_url} target="_blank" rel="noreferrer">The injury-recovery story · MotoGP<ArrowUpRight size={16} /></a>}
           <span className="verification verified">
             <Check size={14} />
-            {featured ? '102-point deficit verified in race results' : official ? 'Based on official final standings' : 'Based on imported race results · coverage shown below'}
+            {featured ? '102-point deficit verified in race results' : official ? `Based on ${officialLabel.toLowerCase()}` : 'Based on imported race results · coverage shown below'}
           </span>
         </div>
         <div className="comeback-score">
@@ -109,7 +113,7 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
           <span className="eyebrow">{narrative.metric_label}</span>
           <div className="recovery-value">{narrative.metric}<ArrowUpRight size={35} aria-hidden="true" /></div>
           <p>{narrative.metric_note}</p>
-          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? 'official final rank' : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>points earned</span></div></div>
+          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? (final ? 'official final rank' : 'official rank to date') : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>points earned</span></div></div>
         </div>
       </div>
       {featured && story && <div className="story-chart">
@@ -132,29 +136,31 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
     </section>
 
     <div className="stats-grid">
-      <Stat label={official ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={`${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} Grand Prix wins`}`} />
-      <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : `${data.standings[1]?.gap ?? 0} pts`} note={featured ? 'Relative to the closest title rival' : official ? 'From official final standings' : 'Calculated from imported results'} />
-      <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? 'Riders in the preserved final standings' : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
+      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={`${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
+      <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : `${data.standings[1]?.gap ?? 0} pts`} note={featured ? 'Relative to the closest title rival' : official ? `From ${officialLabel.toLowerCase()}` : 'Calculated from imported results'} />
+      <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'preserved final' : 'current official'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
 
     <div className="championship-grid">
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">THE ORDER</p><h2>Championship standings</h2></div><span className="quiet-badge">{season}</span></div>
         <div className="table-scroll"><table className="standings-table">
-          <thead><tr><th>Pos</th><th>Rider</th><th>Pts</th><th>Gap</th><th>Wins</th></tr></thead>
+          <thead><tr><th>Pos</th><th>Rider</th><th>Pts</th><th>Gap</th><th>{official ? 'Imported GP wins' : 'Wins'}</th></tr></thead>
           <tbody>{data.standings.map((rider) => <tr key={rider.rider_id} className={featured && rider.rider_id === MARC_ID ? 'featured-row' : ''}>
             <td><span className={`position ${rider.position <= 3 ? 'top-position' : ''}`}>{String(rider.position).padStart(2, '0')}</span></td>
             <td><RiderName rider={rider} /><small>{rider.constructor || rider.team || 'Team not recorded'}</small></td>
             <td className="strong numeric">{rider.points}</td><td className="muted numeric">{rider.gap ? `−${rider.gap}` : '—'}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
-        <p className="panel-note">{official ? 'Official final positions and decimal points preserve period counting rules. Missing race wins are not inferred from incomplete archival classifications.' : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
+        <p className="panel-note">{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
       </section>
       <section className="panel progression-panel"><div className="section-heading"><div><p className="eyebrow">THE TRAJECTORY</p><h2>Points on the board</h2><p>The leading five riders, session by session.</p></div></div>
-        {official ? <p className="notice">Historical race points are unavailable or incomplete. There is no reliable cumulative championship curve for this season; the final official table is authoritative.</p> : <Plot series={data.standings.slice(0, 5).map((rider) => ({
+        {official ? <p className="notice">The official table is independent of imported race points. No cumulative curve is inferred from official totals{final ? '; the final official table is authoritative' : '; this season is not marked final'}.</p> : <Plot series={data.standings.slice(0, 5).map((rider) => ({
           id: rider.rider_id, name: rider.rider, x: data.rounds.map((round) => round.label), y: rider.series,
         }))} yTitle="Championship points" theme={theme} height={400} />}
         <div className="context-note"><Trophy size={22} /><div><strong>{leader.rider} {official ? 'is ranked first' : 'leads'} on {leader.points} points.</strong><p>{featured ? 'The gap chart above tracks Márquez against whichever rival is strongest at each point, not just today’s runner-up.' : 'The headline is grounded in this season’s available evidence. Visit Classic for the complete analysis suite.'}</p></div></div>
       </section>
     </div>
+    {data.external_sources_used && <p className="notice">External archive evidence is used in the imported race classifications. Missing timing and historical race points are not inferred.</p>}
+    {official && leader.source_url && <a className="classic-link" href={leader.source_url} target="_blank" rel="noreferrer">Official championship source<ArrowUpRight size={16} /></a>}
   </>
 }
 
@@ -179,7 +185,7 @@ function ResultTable({ data }: { data: Analysis }) {
         <table className="results-table"><thead><tr><th>Pos</th><th>Rider / team</th><th>Laps</th><th>Time</th><th>Gap</th><th>Best lap</th><th>Top speed</th><th>Pts</th><th>Status</th></tr></thead>
           <tbody>{results.map((rider) => <tr key={rider.rider_id}>
             <td><span className={`position ${(rider.position ?? 99) <= 3 ? 'top-position' : ''}`}>{rider.position == null ? '—' : String(rider.position).padStart(2, '0')}</span></td>
-            <td><RiderName rider={rider} /><small>{rider.team ?? rider.constructor ?? 'Not recorded'}</small></td>
+            <td><RiderName rider={rider} /><small>{rider.team ?? rider.constructor ?? 'Not recorded'}</small>{rider.source_kind !== 'official-api' && <small>{rider.source_kind === 'external' ? 'External archive classification' : 'Official classification · externally augmented'}</small>}</td>
             <td className="numeric">{rider.total_laps ?? '—'}</td><td className="numeric">{rider.time_text || '—'}</td><td className="numeric muted">{rider.gap_first || '—'}</td>
             <td className="numeric">{lapTime(rider.best_lap_seconds)}</td><td className="numeric">{rider.top_speed == null ? '—' : `${rider.top_speed.toFixed(1)}`}</td><td className="strong numeric">{rider.points ?? '—'}</td><td><span className="status-label">{rider.status ?? '—'}</span></td>
           </tr>)}</tbody>
@@ -281,16 +287,16 @@ function AnalysisPanel({ data, view, theme }: { data: Analysis; view: View; them
   </>
 }
 
-function SessionWorkspace({ season, params, update, view, theme }: {
-  season: number; params: URLSearchParams; update: UpdateLocation; view: View; theme: string
+function SessionWorkspace({ season, category, params, update, view, theme }: {
+  season: number; category: Category; params: URLSearchParams; update: UpdateLocation; view: View; theme: string
 }) {
-  const eventResource = useResource<GrandPrix[]>(`/api/events?season=${season}`)
+  const eventResource = useResource<GrandPrix[]>(categoryPath(`/api/events?season=${season}`, category))
   const events = eventResource.data ?? []
   const event = events.find((item) => item.event_id === params.get('event')) ?? events.at(-1)
-  const sessionResource = useResource<Session[]>(event ? `/api/events/${event.event_id}/sessions` : null)
+  const sessionResource = useResource<Session[]>(event ? categoryPath(`/api/events/${event.event_id}/sessions`, category) : null)
   const sessions = sessionResource.data ?? []
   const session = sessions.find((item) => item.session_id === params.get('session')) ?? sessions.findLast((item) => item.session_type === 'RAC') ?? sessions.at(-1)
-  const analysis = useResource<Analysis>(session ? `/api/sessions/${session.session_id}/analysis` : null)
+  const analysis = useResource<Analysis>(session ? categoryPath(`/api/sessions/${session.session_id}/analysis`, category) : null)
   const failed = [eventResource, sessionResource, analysis].find((resource) => resource.error)
   const viewInfo = views.find((item) => item.id === view)!
   const invalidEvent = params.has('event') && events.length > 0 && !events.some((item) => item.event_id === params.get('event'))
@@ -309,11 +315,12 @@ function SessionWorkspace({ season, params, update, view, theme }: {
     </div>
     {(invalidEvent || invalidSession) && <p className="notice" role="status">The requested {invalidEvent ? 'Grand Prix' : 'session'} is unavailable in this scope. Showing the latest available race.</p>}
     {event && session && <div className="event-strip"><div><strong>{event.circuit_name ?? event.event_name}</strong><span>{event.country_name} · {dateLabel(session.session_date)}</span></div><div>{session.weather && <span>{session.weather}</span>}{session.air_temp && <span>Air {session.air_temp}</span>}{session.ground_temp && <span>Track {session.ground_temp}</span>}</div></div>}
+    {analysis.data?.results.some((row) => row.source_kind !== 'official-api') && <p className="notice">This classification includes verified external archive supplementation. Source labels identify supplemented and external-only rows; no missing timing is invented.</p>}
     <p className="notice" role="status">Timing limitation: cancellation flags are not yet stored. Recorded lap and sector comparisons may include cancelled times; they are not official valid-lap rankings.</p>
     {failed ? <DataState resource={failed} />
       : eventResource.loading || sessionResource.loading || analysis.loading ? <Loading />
         : !events.length || !sessions.length ? <DataState resource={{ error: null, retry: () => {} }} empty="No classified sessions have been imported for this season or event." />
-          : analysis.data && <AnalysisPanel key={analysis.data.session.session_id} data={analysis.data} view={view} theme={theme} />}
+          : analysis.data && <AnalysisPanel key={`${category}:${analysis.data.session.session_id}`} data={analysis.data} view={view} theme={theme} />}
   </>
 }
 
@@ -321,10 +328,10 @@ export default function App() {
   const [params, setParams] = useState(() => new URLSearchParams(window.location.search))
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? 'light')
   const [menuOpen, setMenuOpen] = useState(false)
-  const resource = useResource<number[]>('/api/seasons')
+  const category = selectedCategory(params.get('category'))
+  const resource = useResource<number[]>(category ? categoryPath('/api/seasons', category) : null)
   const seasons = resource.data ?? []
-  const requestedSeason = Number(params.get('season'))
-  const season = seasons.includes(requestedSeason) ? requestedSeason : seasons[0]
+  const season = selectedSeason(params, seasons)
   const view: View = views.find((item) => item.id === params.get('view'))?.id ?? 'championship'
 
   useEffect(() => {
@@ -340,11 +347,7 @@ export default function App() {
   }, [])
 
   const update: UpdateLocation = (values) => {
-    const next = new URLSearchParams(window.location.search)
-    for (const [key, value] of Object.entries(values)) {
-      if (value == null) next.delete(key)
-      else next.set(key, value)
-    }
+    const next = selectionParams(new URLSearchParams(window.location.search), values)
     window.history.pushState(null, '', `${window.location.pathname}?${next}`)
     setParams(next)
   }
@@ -358,25 +361,31 @@ export default function App() {
   return <div className="app-shell">
     <a className="skip-link" href="#main">Skip to content</a>
     <aside className={`sidebar ${menuOpen ? 'menu-open' : ''}`}>
-      <a className="brand" href="?view=championship" onClick={(event) => { event.preventDefault(); update({ view: 'championship' }) }}>
+      <a className="brand" href={navigationPath(params, 'championship')} onClick={(event) => { event.preventDefault(); update({ view: 'championship' }) }}>
         <span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span><span>MotoGP<span className="brand-sub">RACE INTELLIGENCE</span></span>
       </a>
       <button className="mobile-menu icon-button" aria-label="Toggle navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><Menu size={23} /></button>
       <div className="sidebar-content">
         <p className="nav-caption">THE PADDOCK</p>
-        <nav aria-label="Main navigation">{views.map(({ id, name, icon: Icon }) => <a key={id} href={`?view=${id}&season=${season ?? ''}`} className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined}
-          onClick={(event) => { event.preventDefault(); update({ view: id, season: season ? String(season) : null }); setMenuOpen(false) }}>
+        <nav aria-label="Main navigation">{views.map(({ id, name, icon: Icon }) => <a key={id} href={navigationPath(params, id)} className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined}
+          onClick={(event) => { event.preventDefault(); update({ view: id }); setMenuOpen(false) }}>
           <Icon size={19} /><span>{name}</span>{view === id && <ChevronRight size={15} className="nav-chevron" />}
         </a>)}</nav>
         <div className="sidebar-bottom"><span className="preview-tag">NEW ENGINE / PREVIEW</span><h3>A new way to read the race.</h3><p>Four focused tools. The complete suite and all languages are still in Classic.</p>
           <a className="classic-link" href={classicUrl} target="_blank" rel="noreferrer">Open Classic<ArrowUpRight size={16} /></a>
-          <div className="sidebar-foot"><Gauge size={14} /><span>Read-only · Official source data</span></div>
+          <div className="sidebar-foot"><Gauge size={14} /><span>Read-only · Sources labeled</span></div>
         </div>
       </div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumb"><span>Premier class</span><ChevronRight size={13} /><strong>{season ?? 'Season'}</strong></div>
-        <div className="topbar-actions"><label className="season-select"><span>SEASON</span><select aria-label="Season" value={season ?? ''} disabled={!seasons.length} onChange={(event) => update({ season: event.target.value, event: null, session: null })}>
+      <header className="topbar"><div className="breadcrumb"><span>{category ? categories[category] : 'Unknown category'}</span><ChevronRight size={13} /><strong>{season ?? 'Season'}</strong></div>
+        <div className="topbar-actions">
+          <label className="season-select category-select"><span>CATEGORY</span><select aria-label="Category" value={category ?? ''} onChange={(event) => update({ category: event.target.value })}>
+            {!category && <option value="" disabled>Unsupported category</option>}
+            {Object.entries(categories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select></label>
+          <label className="season-select"><span>SEASON</span><select aria-label="Season" value={season ?? ''} disabled={!seasons.length} onChange={(event) => update({ season: event.target.value })}>
+          {season && !seasons.includes(season) && <option value={season}>{season} · not imported</option>}
           {!seasons.length && <option value="">—</option>}{seasons.map((year) => <option key={year} value={year}>{year}</option>)}
         </select></label>
           <button className="icon-button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
@@ -384,13 +393,14 @@ export default function App() {
         </div>
       </header>
       <main id="main">
-        {params.has('season') && seasons.length > 0 && !seasons.includes(requestedSeason) && <p className="notice" role="status">The requested season is unavailable. Showing {season}.</p>}
-        {resource.error ? <DataState resource={resource} /> : resource.loading ? <Loading />
-          : !season ? <DataState resource={resource} empty="No seasons have been imported yet." />
-            : view === 'championship' ? <ChampionshipPage season={season} theme={theme} />
-              : <SessionWorkspace season={season} params={params} update={update} view={view} theme={theme} />}
+        {category && params.has('season') && seasons.length > 0 && Number(params.get('season')) !== season && <p className="notice" role="status">The requested season value is invalid. Showing {season}.</p>}
+        {!category ? <DataState resource={{ error: null, retry: () => {} }} empty="This category key is unsupported. Choose a Grand Prix category above." />
+          : resource.error ? <DataState resource={resource} /> : resource.loading ? <Loading />
+          : !season || !seasons.includes(season) ? <DataState resource={resource} empty={`No data has been imported for ${categories[category]}${season ? ` in ${season}` : ''}. This is not a zero-point result. Choose another season or category; extinct classes remain separate.`} />
+            : view === 'championship' ? <ChampionshipPage key={category} season={season} category={category} theme={theme} />
+              : <SessionWorkspace key={`${category}:${season}`} season={season} category={category} params={params} update={update} view={view} theme={theme} />}
       </main>
-      <footer><span>MotoGP Race Intelligence <span className="footer-divider">/</span> Engine preview · English</span><span>PulseLive API & official timing PDFs <ArrowRight size={13} /></span></footer>
+      <footer><span>MotoGP Race Intelligence <span className="footer-divider">/</span> Engine preview · English</span><span>Official API, timing PDFs & labeled archives <ArrowRight size={13} /></span></footer>
     </div>
   </div>
 }

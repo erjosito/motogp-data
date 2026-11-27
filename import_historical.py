@@ -6,7 +6,9 @@ from decimal import Decimal
 import hashlib
 import json
 from pathlib import Path
+import time
 from urllib.parse import urlencode
+import requests
 
 import load_to_sql as loader
 from sql_connection import connect_to_sql
@@ -15,6 +17,36 @@ from category_scope import CATEGORY_YEARS, canonical_category, normalize_categor
 
 MIGRATION = Path(__file__).parent / "migrations" / "20261126_01_historical_archive.sql"
 CATEGORY = "500cc"
+
+
+class ArchiveSource:
+    """Cache successful official responses and space requests for resumable imports."""
+
+    def __init__(self, cache_dir, refresh=False):
+        self.cache_dir = cache_dir
+        self.refresh = refresh
+        self.last_request = 0
+
+    def __call__(self, endpoint, params=None):
+        query = urlencode(sorted((params or {}).items()))
+        key = hashlib.sha256(f"{endpoint}?{query}".encode()).hexdigest()
+        path = self.cache_dir / f"{key}.json"
+        if path.exists() and not self.refresh:
+            return json.loads(path.read_text(encoding="utf-8"))
+        time.sleep(max(0, 2 - (time.monotonic() - self.last_request)))
+        self.last_request = time.monotonic()
+        response = requests.get(f"{loader.API_BASE_URL}/{endpoint}", params=params, timeout=60)
+        if response.status_code == 429:
+            raise requests.HTTPError(
+                f"Official API rate limit; stop requests and honor Retry-After "
+                f"{response.headers.get('Retry-After', 'not supplied')} before resuming",
+                response=response,
+            )
+        response.raise_for_status()
+        data = response.json()
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=True), encoding="utf-8")
+        return data
 STANDINGS_SQL = """
     MERGE championship_standings AS target
     USING (SELECT ? AS season_year, ? AS category, ? AS rider_id) AS source
@@ -50,8 +82,14 @@ def parse_years(value):
 def validate_snapshot(data, year, category=CATEGORY):
     if data["version"] != 1 or data["year"] != year or normalize_category(data["category"]) != normalize_category(category):
         raise ValueError("Historical snapshot version/year/category mismatch")
-    if not data["events"] or not data["standings"]["classification"]:
+    first, last = CATEGORY_YEARS[canonical_category(category)]
+    if not first <= year <= last:
+        raise ValueError(f"{category} did not run in {year}")
+    if not data["events"]:
         raise ValueError(f"{year}: empty race archive or official standings")
+    if not data["standings"]["classification"]:
+        if data.get("standings_available") is not False:
+            raise ValueError(f"{year}: empty official standings without an explicit source-gap marker")
     session_ids = set()
     for event in data["events"]:
         event_year = (event["event"].get("season") or {}).get("year")
@@ -73,6 +111,8 @@ def validate_snapshot(data, year, category=CATEGORY):
             if not any(entry.get("position") == 1 for entry in entries):
                 raise ValueError(f"{year}: session {session['id']} has no classified winner")
     standings = data["standings"]["classification"]
+    if not standings and data.get("standings_available") is False:
+        return data
     validate_riders(standings)
     champions = [entry for entry in standings if entry.get("position") == 1]
     if len(champions) != 1 or Decimal(str(champions[0]["points"])) <= 0:
@@ -97,13 +137,20 @@ def validate_riders(entries):
         raise ValueError("Empty classification or duplicate rider IDs")
 
 
-def fetch_snapshot(year, category=CATEGORY):
+def fetch_snapshot(year, category=CATEGORY, source=None):
     canonical = canonical_category(category)
     first, last = CATEGORY_YEARS[canonical]
     if not first <= year <= last:
         raise ValueError(f"{canonical} did not run in {year}")
-    season_id, _ = loader.get_season_id(year)
-    events = loader.api_get("events", {"seasonUuid": season_id, "isFinished": "true"})
+    api = source or loader.api_get
+    if source:
+        season = next((s for s in api("seasons") if s["year"] == year), None)
+        if season is None:
+            raise ValueError(f"Official season {year} not available")
+        season_id = season["id"]
+    else:
+        season_id, _ = loader.get_season_id(year)
+    events = api("events", {"seasonUuid": season_id, "isFinished": "true"})
     data = {
         "version": 1, "year": year, "category": canonical, "season_id": season_id,
         "is_final": year < datetime.now(timezone.utc).year,
@@ -114,7 +161,7 @@ def fetch_snapshot(year, category=CATEGORY):
     for event in sorted(events, key=lambda e: e["date_end"]):
         if event.get("test"):
             continue
-        categories = loader.api_get("categories", {"eventUuid": event["id"]})
+        categories = api("categories", {"eventUuid": event["id"]})
         source_category = next((c for c in categories if normalize_category(c["name"]) == normalize_category(canonical)), None)
         if source_category is None:
             data["skipped_events"].append({
@@ -124,14 +171,16 @@ def fetch_snapshot(year, category=CATEGORY):
             continue
         category_id = source_category["id"]
         data["category"] = source_category["name"]
-        sessions = [
-            s for s in loader.get_all_sessions(event["id"], category_id) if s["type"] in ("RAC", "SPR")
-        ]
+        available = (api("sessions", {"eventUuid": event["id"], "categoryUuid": category_id})
+                     if source else loader.get_all_sessions(event["id"], category_id))
+        sessions = [s for s in available if s["type"] in ("RAC", "SPR") and s["status"] == "FINISHED"]
         if not sessions:
             data["skipped_events"].append({"event": event["short_name"], "reason": f"no finished {canonical} race"})
             continue
         items = [
-            {"session": session, "classification": loader.get_classification(session["id"])}
+            {"session": session, "classification":
+             (api(f"session/{session['id']}/classification").get("classification", [])
+              if source else loader.get_classification(session["id"]))}
             for session in sessions
         ]
         if not data["is_final"]:
@@ -146,7 +195,8 @@ def fetch_snapshot(year, category=CATEGORY):
     if category_id is None:
         raise ValueError(f"{year}: no {canonical} category found")
     params = {"seasonUuid": season_id, "categoryUuid": category_id}
-    data["standings"] = loader.api_get("standings", params)
+    data["standings"] = api("standings", params)
+    data["standings_available"] = bool(data["standings"]["classification"])
     data["standings_url"] = f"{loader.API_BASE_URL}/standings?{urlencode(params)}"
     return validate_snapshot(data, year, canonical)
 
@@ -269,7 +319,8 @@ def persist_season(conn, data):
             )
             key = (year, category, entry["rider"]["id"])
             standings_rows.append((*key, *values, *key, *values))
-        cursor.executemany(STANDINGS_SQL, standings_rows)
+        if standings_rows:
+            cursor.executemany(STANDINGS_SQL, standings_rows)
         verify_season(conn, data)
         cursor.fast_executemany = False
         cursor.execute("""
@@ -287,10 +338,54 @@ def persist_season(conn, data):
             len(entries), len(standings_rows), payload,
             year, category, fingerprint, len(data["events"]),
             sum(len(e["sessions"]) for e in data["events"]), len(entries), len(standings_rows), payload)
-    champion = next(entry for entry in data["standings"]["classification"] if entry["position"] == 1)
+    champion = next((entry for entry in data["standings"]["classification"] if entry["position"] == 1), None)
+    title = ("champion" if data.get("is_final", True) else "current leader")
+    leader = (f"{title} {champion['rider']['full_name']} ({champion['points']} points)"
+              if champion else "official standings unavailable")
     print(f"{year}: verified {len(data['events'])} GPs, {len(entries)} race results, "
-          f"{len(standings_rows)} standings; champion {champion['rider']['full_name']} "
-          f"({champion['points']} points)", flush=True)
+          f"{len(standings_rows)} standings; {leader}", flush=True)
+
+
+def persist_race_laps(conn, data):
+    for event in data["events"]:
+        for item in event["sessions"]:
+            session = item["session"]
+            url = loader.get_analysis_pdf_url(session)
+            if not url:
+                continue
+            content = loader.download_pdf(url)
+            if not content:
+                raise ValueError(f"Advertised race PDF unavailable: {url}")
+            parsed = loader.parse_analysis_pdf(content)
+            if not parsed:
+                raise ValueError(f"Advertised race PDF yielded no laps: {url}")
+            with conn:
+                cursor = conn.cursor()
+                numbers, names = loader.build_rider_lookup(cursor, session["id"])
+                expected = {}
+                for rider in parsed:
+                    rid = loader.resolve_rider_id_fast(numbers, names, rider["rider"], rider.get("number"))
+                    if rid is None:
+                        raise ValueError(f"Unmatched race PDF rider: {rider['rider']}")
+                    for lap in rider["laps"]:
+                        expected[(rid, lap["lap"])] = (
+                            rid, lap["lap"], lap["lap_time"], lap["T1"], lap["T2"], lap["T3"], lap["T4"],
+                            lap["speed"], bool(lap.get("pit")), lap.get("run"),
+                            lap.get("front_tyre"), lap.get("rear_tyre"),
+                        )
+                for entry in item["classification"]:
+                    laps = entry.get("total_laps") or 0
+                    if laps > 0 and sum(rid == entry["rider"]["id"] for rid, _ in expected) != laps:
+                        raise ValueError(f"Race PDF lap coverage differs for {entry['rider']['full_name']}: {url}")
+                loader.insert_laps(cursor, session["id"], parsed)
+                actual = conn.execute("""
+                    SELECT rider_id,lap_number,lap_time,t1,t2,t3,t4,speed_kmh,is_pit,run_number,
+                           front_tyre,rear_tyre FROM laps WHERE session_id=?
+                """, session["id"]).fetchall()
+                if sorted(map(tuple, actual)) != sorted(expected.values()):
+                    raise ValueError(f"Stored race laps differ from PDF: {url}")
+            print(f"{data['year']} {data['category']} {event['event']['short_name']} "
+                  f"{loader.get_session_label(session)}: {len(expected)} race laps field-verified", flush=True)
 
 
 def main():
@@ -301,11 +396,15 @@ def main():
     parser.add_argument("--apply", action="store_true", help="Write verified seasons to Azure SQL")
     parser.add_argument("--migrate", action="store_true", help="Apply the additive schema migration")
     parser.add_argument("--refresh", action="store_true", help="Refetch cached official archives")
+    parser.add_argument("--include-laps", action="store_true", help="Import and verify advertised race timing PDFs")
     parser.add_argument("--cache-dir", type=Path, default=Path("historical_cache"))
     args = parser.parse_args()
     if args.migrate and not args.apply:
         parser.error("--migrate requires --apply")
+    if args.include_laps and not args.apply:
+        parser.error("--include-laps requires --apply")
     args.cache_dir.mkdir(parents=True, exist_ok=True)
+    source = ArchiveSource(args.cache_dir / "http", refresh=args.refresh)
     conn = connect_to_sql() if args.apply else None
     try:
         if args.migrate:
@@ -315,7 +414,7 @@ def main():
             if path.exists() and not args.refresh:
                 data = validate_snapshot(json.loads(path.read_text(encoding="utf-8")), year, args.category)
             else:
-                data = fetch_snapshot(year, args.category)
+                data = fetch_snapshot(year, args.category, source=source)
                 path.write_text(json.dumps(data, ensure_ascii=True, sort_keys=True), encoding="utf-8")
             missing = [
                 event["event"]["short_name"] for event in data["events"]
@@ -326,6 +425,8 @@ def main():
                   f"empty race classifications: {','.join(missing) or 'none'}", flush=True)
             if conn is not None:
                 persist_season(conn, data)
+                if args.include_laps:
+                    persist_race_laps(conn, data)
     finally:
         if conn is not None:
             conn.close()

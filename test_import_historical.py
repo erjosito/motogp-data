@@ -3,6 +3,8 @@ import contextlib
 from copy import deepcopy
 from decimal import Decimal
 import io
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -148,6 +150,37 @@ class HistoricalImportTests(unittest.TestCase):
         for value in ["all", "sidecar", "'; DROP TABLE riders;--"]:
             with self.subTest(value=value), self.assertRaises(ValueError):
                 category_sql(value)
+
+    def test_explicit_official_standings_gap_preserves_available_race_archive(self):
+        data = snapshot()
+        data["standings"]["classification"] = []
+        data["standings_available"] = False
+        self.assertEqual(historical.validate_snapshot(data, 1966), data)
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = None
+        with patch.object(historical, "verify_season"), contextlib.redirect_stdout(io.StringIO()):
+            historical.persist_season(connection, data)
+        self.assertFalse(any(
+            call.args[0] == historical.STANDINGS_SQL
+            for call in connection.cursor.return_value.executemany.call_args_list
+        ))
+
+    def test_archive_cache_does_not_store_or_retry_rate_limit_responses(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = historical.ArchiveSource(Path(directory))
+            response = MagicMock(status_code=200)
+            response.json.return_value = [{"id": "season"}]
+            with patch.object(historical.requests, "get", return_value=response) as get:
+                self.assertEqual(source("seasons"), source("seasons"))
+                self.assertEqual(get.call_count, 1)
+            response.status_code = 429
+            response.headers = {"Retry-After": "300"}
+            with patch.object(historical.requests, "get", return_value=response) as get, \
+                    patch.object(historical.time, "sleep"):
+                with self.assertRaisesRegex(historical.requests.HTTPError, "300"):
+                    source("events", {"seasonUuid": "season"})
+                self.assertEqual(get.call_count, 1)
+            self.assertEqual(len(list(Path(directory).glob("*.json"))), 1)
 
 
 if __name__ == "__main__":

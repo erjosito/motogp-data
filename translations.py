@@ -9,19 +9,19 @@ Usage:
 
 TRANSLATIONS = {
     "session_types_explainer": {
-        "en": "Counts show imported premier-class sessions grouped by recorded session type, not races or rider-lap records. FP means free practice; P/PR practice; Q qualifying; WUP warm-up; SPR sprint race; and RAC race. Unrecognized source codes are displayed unchanged. Coverage depends on available sources and import progress.",
-        "es": "Los recuentos muestran sesiones importadas de la categoría reina agrupadas por su tipo registrado, no carreras ni registros de piloto y vuelta. FP indica entrenamientos libres; P/PR entrenamientos; Q clasificación; WUP calentamiento; SPR carrera sprint; y RAC carrera. Los códigos desconocidos se muestran sin modificar. La cobertura depende de las fuentes disponibles y del progreso de la importación.",
-        "it": "I conteggi mostrano sessioni importate della classe regina raggruppate per tipo registrato, non gare né record di pilota e giro. FP indica prove libere; P/PR prove; Q qualifiche; WUP warm-up; SPR gara sprint; e RAC gara. I codici sconosciuti sono mostrati invariati. La copertura dipende dalle fonti disponibili e dall'avanzamento dell'importazione.",
+        "en": "Counts show imported sessions in the selected category lineage grouped by recorded session type, not races or rider-lap records. FP means free practice; P/PR practice; Q qualifying; WUP warm-up; SPR sprint race; and RAC race. Unrecognized source codes are displayed unchanged. Coverage depends on available sources and import progress.",
+        "es": "Los recuentos muestran sesiones importadas de la categoría seleccionada agrupadas por su tipo registrado, no carreras ni registros de piloto y vuelta. FP indica entrenamientos libres; P/PR entrenamientos; Q clasificación; WUP calentamiento; SPR carrera sprint; y RAC carrera. Los códigos desconocidos se muestran sin modificar. La cobertura depende de las fuentes disponibles y del progreso de la importación.",
+        "it": "I conteggi mostrano sessioni importate della categoria selezionata raggruppate per tipo registrato, non gare né record di pilota e giro. FP indica prove libere; P/PR prove; Q qualifiche; WUP warm-up; SPR gara sprint; e RAC gara. I codici sconosciuti sono mostrati invariati. La copertura dipende dalle fonti disponibili e dall'avanzamento dell'importazione.",
     },
     "races_coverage_explanation": {
-        "en": "Counts show imported GP weekends with a premier-class session, not individual races or a complete historical calendar. Missing weekends can reflect source availability or an unfinished import; they do not prove that no race took place.",
-        "es": "Los recuentos muestran los fines de semana de GP importados con una sesión de la categoría reina, no carreras individuales ni un calendario histórico completo. Las ausencias pueden deberse a las fuentes disponibles o a una importación incompleta; no demuestran que no hubiera carrera.",
-        "it": "I conteggi mostrano i weekend di GP importati con una sessione della classe regina, non singole gare né un calendario storico completo. Le assenze possono dipendere dalle fonti disponibili o da un'importazione incompleta; non dimostrano che non si sia disputata una gara.",
+        "en": "Counts show imported GP weekends with a session in the selected category lineage, not individual races or a complete historical calendar. Missing weekends can reflect source availability or an unfinished import; they do not prove that no race took place.",
+        "es": "Los recuentos muestran los fines de semana de GP importados con una sesión de la categoría seleccionada, no carreras individuales ni un calendario histórico completo. Las ausencias pueden deberse a las fuentes disponibles o a una importación incompleta; no demuestran que no hubiera carrera.",
+        "it": "I conteggi mostrano i weekend di GP importati con una sessione della categoria selezionata, non singole gare né un calendario storico completo. Le assenze possono dipendere dalle fonti disponibili o da un'importazione incompleta; non dimostrano che non si sia disputata una gara.",
     },
     "laps_coverage_explanation": {
-        "en": "Bars count imported rider-lap records across sessions, not laps actually raced. Green means a T1 sector is recorded; it does not guarantee all four sectors. Classifications and standings use official results sources (API and standings archives), while detailed lap/sector timing comes from available timing PDFs. Recent seasons generally offer richer downloadable timing archives and more recorded sessions. Historical classifications and standings can therefore exist without detailed timing: the 1949–1989 backfill adds no lap/sector records. Missing bars or small counts may also reflect events not yet imported. Missing timing is unavailable data, not zero laps raced or poorer rider performance; coverage varies by source and import progress.",
-        "es": "Las barras cuentan registros importados de piloto y vuelta entre sesiones, no las vueltas realmente disputadas. El verde indica que hay un sector T1 registrado; no garantiza los cuatro sectores. Las clasificaciones y tablas del campeonato usan fuentes oficiales (API y archivos del campeonato), mientras que los tiempos detallados de vueltas y sectores proceden de los PDF disponibles. Las temporadas recientes suelen tener archivos descargables más completos y más sesiones registradas. Por eso puede haber clasificaciones históricas sin tiempos detallados: la importación de 1949–1989 no añade registros de vueltas ni sectores. Las barras ausentes o pequeñas también pueden reflejar eventos aún no importados. La falta de tiempos es información no disponible, no cero vueltas disputadas ni peor rendimiento; la cobertura depende de las fuentes y del progreso de la importación.",
-        "it": "Le barre contano i record importati di pilota e giro nelle varie sessioni, non i giri realmente disputati. Il verde indica un settore T1 registrato; non garantisce tutti e quattro i settori. Le classifiche usano fonti ufficiali (API e archivi del campionato), mentre i tempi dettagliati di giri e settori provengono dai PDF disponibili. Le stagioni recenti offrono generalmente archivi scaricabili più ricchi e più sessioni registrate. Possono quindi esistere classifiche storiche senza tempi dettagliati: l'importazione del 1949–1989 non aggiunge record di giri o settori. Barre assenti o piccole possono anche indicare eventi non ancora importati. Tempi mancanti significano dati non disponibili, non zero giri disputati né prestazioni peggiori; la copertura dipende dalle fonti e dall'avanzamento dell'importazione.",
+        "en": "Bars count imported rider-lap records in the selected category, not laps actually raced. Green means a recorded T1 sector, not necessarily all four sectors. Detailed timing comes from available official PDFs; recent seasons generally have richer archives. Official season-final scores are separate from race classifications, which can include verified external points and corroborated missing rows. The pre-1990 backfill adds no lap/sector records. Missing timing or small counts mean unavailable or not-yet-imported data, not zero laps raced or poorer performance.",
+        "es": "Las barras cuentan registros de piloto y vuelta de la categoría seleccionada, no vueltas realmente disputadas. El verde indica T1, no necesariamente los cuatro sectores. Los tiempos proceden de PDF oficiales disponibles; los archivos recientes suelen ser más completos. Los puntos finales oficiales del campeonato son distintos de los resultados de carreras, que pueden incluir puntos externos verificados y filas ausentes corroboradas. La importación anterior a 1990 no añade vueltas ni sectores. Las ausencias indican datos no disponibles o aún no importados, no cero vueltas ni peor rendimiento.",
+        "it": "Le barre contano record di pilota e giro della categoria selezionata, non giri realmente disputati. Il verde indica T1, non necessariamente tutti i settori. I tempi provengono dai PDF ufficiali disponibili; gli archivi recenti sono generalmente più ricchi. I punteggi finali ufficiali del campionato sono distinti dai risultati delle gare, che possono includere punti esterni verificati e righe mancanti corroborate. L'importazione precedente al 1990 non aggiunge giri o settori. Le assenze indicano dati non disponibili o non ancora importati, non zero giri né prestazioni peggiori.",
     },
     "pace_single_session": {
         "en": "Absolute pace and sector comparisons use one session only. Pit laps, invalid times, and laps at least 15% slower than the session median are excluded.",
@@ -29,9 +29,36 @@ TRANSLATIONS = {
         "it": "I confronti di passo e settori usano una sola sessione. Sono esclusi giri ai box, tempi non validi e giri almeno il 15% piu lenti della mediana della sessione.",
     },
     "excluded_categories": {
-        "en": "Premier-class scope: MotoGP / historical 500cc. Excluded source categories: {categories}",
-        "es": "Categoria reina: MotoGP / 500cc historica. Categorias excluidas: {categories}",
-        "it": "Classe regina: MotoGP / 500cc storica. Categorie escluse: {categories}",
+        "en": "Unsupported source categories (excluded from all category families): {categories}",
+        "es": "Categorías de origen no admitidas (excluidas de todas las familias): {categories}",
+        "it": "Categorie di origine non supportate (escluse da tutte le famiglie): {categories}",
+    },
+    "category": {"en": "Category", "es": "Categoría", "it": "Categoria"},
+    "category_scope": {
+        "en": "Selected lineage: {category}. All results, timing, coverage and points are confined to this family.",
+        "es": "Familia seleccionada: {category}. Resultados, tiempos, cobertura y puntos se limitan a esta familia.",
+        "it": "Famiglia selezionata: {category}. Risultati, tempi, copertura e punti sono limitati a questa famiglia.",
+    },
+    "official_classification_gap": {
+        "en": "No classification rows are imported for this session. An official classification gap is not evidence that no race took place.",
+        "es": "No hay resultados importados para esta sesión. Una laguna en la clasificación oficial no demuestra que no hubiera carrera.",
+        "it": "Non sono importati risultati per questa sessione. Una lacuna nella classifica ufficiale non dimostra che non si sia disputata una gara.",
+    },
+    "external_classification_rows": {
+        "en": "Includes external-derived classification rows or external supplements to official rows. Official API gaps may remain; unavailable points and timing are not reconstructed.",
+        "es": "Incluye resultados derivados de fuentes externas o suplementos a resultados oficiales. Puede haber lagunas en la API oficial; no se reconstruyen puntos ni tiempos no disponibles.",
+        "it": "Include risultati derivati da fonti esterne o integrazioni ai risultati ufficiali. Possono restare lacune nell'API ufficiale; punti e tempi non disponibili non vengono ricostruiti.",
+    },
+    "classification_sources": {
+        "en": "Effective classifications retain official API results and clearly identify external-derived rows/supplements. Official classification gaps can remain even where external results exist. No lower-class lap history is imported yet; timing gaps are unavailable data, not zero laps.",
+        "es": "Las clasificaciones conservan resultados de la API oficial e identifican las filas y suplementos externos. Puede haber lagunas oficiales aunque existan resultados externos. Todavía no hay historial de vueltas de categorías inferiores; la falta de tiempos no significa cero vueltas.",
+        "it": "Le classifiche conservano i risultati dell'API ufficiale e identificano righe e integrazioni esterne. Possono restare lacune ufficiali anche con risultati esterni. Non è ancora importata una cronologia di giri delle classi inferiori; tempi mancanti non significano zero giri.",
+    },
+    "classification_source": {"en": "Classification source", "es": "Fuente del resultado", "it": "Fonte del risultato"},
+    "point_animation_limits": {
+        "en": "Points animation uses known imported race scores from 1990 onward within the selected lineage, not official season-final scores. Pre-1990 partial points are excluded; missing scores are unavailable, not zero.",
+        "es": "La animación usa puntos de carreras importadas desde 1990 de la familia seleccionada, no puntos finales oficiales. Se excluyen puntos parciales anteriores a 1990; los puntos ausentes no son cero.",
+        "it": "L'animazione usa punti delle gare importate dal 1990 della famiglia selezionata, non punteggi finali ufficiali. Sono esclusi punti parziali precedenti al 1990; punti mancanti non sono zero.",
     },
     "race_timing_limits": {
         "en": "Reconstructed from complete lap timing, including slow and pit laps; not official live positions. Missing timing leaves gaps. Comparisons require complete timing for the selected riders; positions require all riders still racing at that lap.",
@@ -121,9 +148,9 @@ TRANSLATIONS = {
     "home_championship": {"en": "World Championship", "es": "Campeonato del Mundo", "it": "Campionato del Mondo"},
     "home_coverage": {"en": "Data coverage", "es": "Cobertura de datos", "it": "Copertura dati"},
     "home_championship_title": {
-        "en": "{year} MotoGP World Championship",
-        "es": "Campeonato del Mundo de MotoGP {year}",
-        "it": "Campionato del Mondo MotoGP {year}",
+        "en": "{year} {category} World Championship",
+        "es": "Campeonato del Mundo de {category} {year}",
+        "it": "Campionato del Mondo {category} {year}",
     },
     "home_championship_through": {
         "en": "Imported results through {gp} · {date}",
@@ -169,9 +196,9 @@ TRANSLATIONS = {
     "countries_visited": {"en": "Countries Visited", "es": "Países visitados", "it": "Paesi Visitati"},
     "sessions_by_type": {"en": "Sessions by Type", "es": "Sesiones por tipo", "it": "Sessioni per Tipo"},
     "data_source": {
-        "en": "Data source: api.motogp.pulselive.com + resources.motogp.com (official timing PDFs)",
-        "es": "Fuente: api.motogp.pulselive.com + resources.motogp.com (PDFs oficiales de cronometraje)",
-        "it": "Fonte dati: api.motogp.pulselive.com + resources.motogp.com (PDF cronometraggio ufficiali)",
+        "en": "Sources: official MotoGP API, official standings archives and timing PDFs; external-derived classification rows/supplements are identified separately. Coverage varies by selected category and import progress.",
+        "es": "Fuentes: API MotoGP, archivos oficiales del campeonato y PDF de tiempos; los resultados y suplementos externos se identifican por separado. La cobertura varía según la categoría y el progreso de la importación.",
+        "it": "Fonti: API MotoGP, archivi ufficiali del campionato e PDF dei tempi; risultati e integrazioni esterne sono identificati separatamente. La copertura varia per categoria e avanzamento dell'importazione.",
     },
     "data_quality_title": {
         "en": "📊 Data Quality & Coverage",
@@ -179,9 +206,9 @@ TRANSLATIONS = {
         "it": "📊 Qualità e copertura dati",
     },
     "data_quality_caption": {
-        "en": "Coverage reflects imported records, not a complete race archive. Classifications come from available official API results; lap and sector timing comes from available official timing PDFs. Source availability and import progress vary by season and event.",
-        "es": "La cobertura refleja registros importados, no un archivo completo de carreras. Las clasificaciones proceden de los resultados disponibles de la API oficial; los tiempos de vueltas y sectores, de los PDF oficiales disponibles. Las fuentes y el progreso de la importación varían según la temporada y el evento.",
-        "it": "La copertura riflette i record importati, non un archivio completo delle gare. Le classifiche provengono dai risultati disponibili dell'API ufficiale; i tempi di giri e settori, dai PDF ufficiali disponibili. Le fonti e l'avanzamento dell'importazione variano per stagione ed evento.",
+        "en": "Coverage reflects imported records in the selected category lineage, not a complete race archive. Effective classifications include official API results and identified external-derived rows/supplements; timing comes from available official PDFs. Source availability and import progress vary by category, season and event.",
+        "es": "La cobertura refleja registros importados de la categoría seleccionada, no un archivo completo. Las clasificaciones incluyen resultados oficiales y filas o suplementos externos identificados; los tiempos proceden de los PDF oficiales disponibles. Las fuentes y el progreso varían según la categoría, temporada y evento.",
+        "it": "La copertura riflette record importati della categoria selezionata, non un archivio completo. Le classifiche includono risultati ufficiali e righe o integrazioni esterne identificate; i tempi provengono dai PDF ufficiali disponibili. Fonti e avanzamento variano per categoria, stagione ed evento.",
     },
     "classifications": {"en": "Classifications", "es": "Clasificaciones", "it": "Classifiche"},
     "lap_entries": {"en": "Lap entries", "es": "Registros de vueltas", "it": "Registri giri"},
@@ -231,15 +258,26 @@ TRANSLATIONS = {
         "es": "Clasificación final oficial",
         "it": "Classifica finale ufficiale",
     },
+    "official_current_standings": {
+        "en": "Official current standings (not final)",
+        "es": "Clasificación oficial actual (no final)",
+        "it": "Classifica ufficiale attuale (non finale)",
+    },
+    "official_standings_method": {
+        "en": "Imported official positions and points are authoritative, including official tie-breaking. Current standings are snapshots, not live or necessarily final. Progress charts use imported race points only.",
+        "es": "Las posiciones y puntos oficiales importados son la referencia, incluidos los desempates. La clasificación actual es una instantánea, no en directo ni necesariamente final. Los gráficos usan solo puntos de carreras importadas.",
+        "it": "Posizioni e punti ufficiali importati sono autorevoli, inclusi gli spareggi. La classifica attuale è un'istantanea, non in diretta né necessariamente finale. I grafici usano solo punti delle gare importate.",
+    },
+    "standings_source": {"en": "Standings source", "es": "Fuente del campeonato", "it": "Fonte della classifica"},
     "historical_standings_method": {
-        "en": "Official 500cc final positions and points, including the counting rules of the period. Historical race classifications can be incomplete; unavailable per-race points and lap/sector timing are not reconstructed. No cumulative points progression is inferred.",
-        "es": "Posiciones y puntos finales oficiales de 500cc, con las reglas de puntuación de la época. Las clasificaciones históricas de carreras pueden estar incompletas; no se reconstruyen puntos por carrera ni tiempos de vueltas o sectores no disponibles. No se infiere una progresión acumulada de puntos.",
-        "it": "Posizioni e punti finali ufficiali della 500cc, secondo le regole dell'epoca. Le classifiche storiche delle gare possono essere incomplete; punti per gara e tempi di giri o settori non disponibili non vengono ricostruiti. Non viene dedotta una progressione cumulativa dei punti.",
+        "en": "Official final positions and season scores for the selected category use the counting rules of the period. These finals are separate from augmented race classifications, which may contain verified external point facts and corroborated missing rows but remain incomplete. Unknown points and lap/sector timing are unavailable, not zero. No cumulative progression or championship title is inferred from partial race scores.",
+        "es": "Las posiciones y puntos finales oficiales de la categoría seleccionada usan las reglas de la época. Son distintos de los resultados de carreras ampliados con puntos externos verificados y filas ausentes corroboradas, que pueden seguir incompletos. Los puntos y tiempos desconocidos no son cero. No se deducen progresiones ni títulos de puntos parciales.",
+        "it": "Posizioni e punteggi finali ufficiali della categoria selezionata usano le regole dell'epoca. Sono distinti dai risultati delle gare integrati con punti esterni verificati e righe mancanti corroborate, che possono restare incompleti. Punti e tempi sconosciuti non sono zero. Non si deducono progressioni né titoli da punteggi parziali.",
     },
     "historical_standings_missing": {
-        "en": "Official final standings have not been imported for this season.",
-        "es": "Todavía no se ha importado la clasificación final oficial de esta temporada.",
-        "it": "La classifica finale ufficiale di questa stagione non è stata ancora importata.",
+        "en": "Official final standings are unavailable for this category and season. Race archives may still exist; partial or augmented race scores are not used to infer a championship title.",
+        "es": "La clasificación final oficial no está disponible para esta categoría y temporada. Puede haber archivos de carreras; los puntos parciales o ampliados no se usan para deducir un título.",
+        "it": "La classifica finale ufficiale non è disponibile per questa categoria e stagione. Possono esistere archivi delle gare; punteggi parziali o integrati non sono usati per dedurre un titolo.",
     },
     "championship_caption": {
         "en": "Points accumulated after each race weekend (Race + Sprint).",
@@ -691,7 +729,7 @@ era più veloce rispetto al campo negli ultimi giri.
 
     # --- Cross-Year ---
     "cross_year_header": {"en": "📈 Cross-Year Evolution", "es": "📈 Evolución multi-Temporada", "it": "📈 Evoluzione Multi-Stagione"},
-    "cross_year_caption": {"en": "How has MotoGP evolved across seasons? All charts show trends over the loaded years.", "es": "¿Cómo ha evolucionado MotoGP a lo largo de las temporadas? Todos los gráficos muestran tendencias sobre los años cargados.", "it": "Come si è evoluta la MotoGP nelle stagioni? Tutti i grafici mostrano tendenze sugli anni caricati."},
+    "cross_year_caption": {"en": "How has the selected category lineage evolved across seasons? Charts show imported records, not complete archives or inferred historical finals.", "es": "¿Cómo ha evolucionado la categoría seleccionada? Los gráficos muestran registros importados, no archivos completos ni finales históricas inferidas.", "it": "Come si è evoluta la categoria selezionata? I grafici mostrano record importati, non archivi completi né classifiche finali storiche dedotte."},
     "chart_label": {"en": "Chart", "es": "Gráfico", "it": "Grafico"},
     "cross_bar_chart_race": {"en": "Animated Bar Chart Race", "es": "Carrera de barras animada", "it": "Gara di barre animata"},
     "bar_chart_race_title": {"en": "🎬 Animated Bar Chart Race", "es": "🎬 Carrera de barras animada", "it": "🎬 Gara di barre animata"},

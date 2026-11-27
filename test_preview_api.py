@@ -1,4 +1,6 @@
 import unittest
+import sqlite3
+import re
 from unittest.mock import patch
 
 import pyodbc
@@ -94,6 +96,13 @@ class ChampionshipTests(unittest.TestCase):
         self.assertEqual(data["scoring_sessions"], 0)
         self.assertEqual(len(data["rounds"]), 1)
 
+    def test_marc_features_are_scoped_to_premier_even_for_a_shared_rider_id(self):
+        rows = [result("one", "rival", 102, 1), result("one", preview_api.MARC_ID, 0, 2)]
+        data = preview_api.build_championship(rows, 2026, "intermediate")
+        data["standings_source"] = "computed"
+        self.assertIsNone(data["comeback"])
+        self.assertNotEqual(preview_api.season_story(data)["headline"], "102 points behind.")
+
 
 class PreviewApiTests(unittest.TestCase):
     def setUp(self):
@@ -167,6 +176,162 @@ class PreviewApiTests(unittest.TestCase):
         ], 2015)
         data["standings_source"] = "computed"
         self.assertEqual(preview_api.season_story(data)["headline"], "The last race changed everything.")
+
+
+class CategoryApiTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(preview_api.app)
+        self.db = sqlite3.connect(":memory:", check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.executescript("""
+            ATTACH DATABASE ':memory:' AS dbo;
+            CREATE TABLE events (event_id TEXT, season_year INT, short_name TEXT,
+                event_name TEXT, circuit_name TEXT, country_name TEXT, date_end TEXT);
+            CREATE TABLE sessions (session_id TEXT, event_id TEXT, category TEXT,
+                session_type TEXT, session_label TEXT, session_date TEXT, session_number INT,
+                status TEXT, weather TEXT, air_temp TEXT, ground_temp TEXT);
+            CREATE TABLE riders (rider_id TEXT, full_name TEXT, number INT);
+            CREATE TABLE teams (team_id TEXT, season_year INT, team_name TEXT, constructor TEXT);
+            CREATE TABLE dbo.vw_effective_classifications (
+                session_id TEXT, rider_id TEXT, position INT, team_id TEXT,
+                total_laps INT, time_ms INT, time_text TEXT, gap_first TEXT, gap_prev TEXT,
+                best_lap_number INT, best_lap_time TEXT, top_speed REAL, points REAL,
+                status TEXT, constructor_id TEXT, constructor_name TEXT, rider_number INT, source_kind TEXT);
+            CREATE TABLE laps (session_id TEXT, rider_id TEXT, lap_number INT, lap_time TEXT,
+                t1 TEXT, t2 TEXT, t3 TEXT, t4 TEXT, speed_kmh REAL, is_pit INT,
+                run_number INT, front_tyre TEXT, rear_tyre TEXT);
+            CREATE TABLE championship_standings (season_year INT, category TEXT, position INT,
+                rider_id TEXT, points REAL, constructor_name TEXT, source_url TEXT, is_final INT);
+            INSERT INTO events VALUES ('gp',2026,'GP','Grand Prix',NULL,NULL,'2026-06-01');
+            INSERT INTO riders VALUES ('rider','Shared rider',99);
+            INSERT INTO teams VALUES ('team',2026,'Team','Bike');
+        """)
+        for index, category in enumerate(["MotoGP™", " Moto2™ ", "Moto3", "350cc", "50cc", "80cc"]):
+            self.db.execute("INSERT INTO sessions VALUES (?, 'gp', ?, 'RAC', 'Race', NULL, ?, 'FINISHED', NULL, NULL, NULL)",
+                            (f"session-{index}", category, index))
+            self.db.execute("INSERT INTO dbo.vw_effective_classifications VALUES (?, 'rider', 1, 'team', 1, NULL, NULL, NULL, NULL, NULL, '1:02.345', NULL, ?, NULL, NULL, 'Bike', ?, ?)",
+                            (f"session-{index}", 10 + index, 20 + index, "official-api+external" if index == 1 else "official-api"))
+        self.db.execute("INSERT INTO laps VALUES ('session-1','rider',1,'1:02.345',NULL,NULL,NULL,NULL,NULL,0,1,NULL,NULL)")
+        self.db.execute("INSERT INTO championship_standings VALUES (2026,'Moto2',1,'rider',123,'Bike','https://example.com/standings',0)")
+        self.mock = patch.object(preview_api, "query", side_effect=self.query)
+        self.mock.start()
+        self.addCleanup(self.mock.stop)
+        self.addCleanup(self.db.close)
+
+    def query(self, sql, params=()):
+        sql = re.sub(r"\bN'", "'", sql)
+        return [dict(row) for row in self.db.execute(sql, params)]
+
+    def test_every_family_isolates_sessions_and_both_mounts(self):
+        for prefix in ["", "/paddock"]:
+            for index, family in enumerate(preview_api.CATEGORY_FAMILIES):
+                with self.subTest(prefix=prefix, family=family):
+                    query = f"?category={family}"
+                    self.assertEqual(self.client.get(f"{prefix}/api/seasons{query}").json(), [2026])
+                    events = self.client.get(f"{prefix}/api/events?season=2026&category={family}").json()
+                    self.assertEqual([event["event_id"] for event in events], ["gp"])
+                    sessions = self.client.get(f"{prefix}/api/events/gp/sessions{query}").json()
+                    self.assertEqual([session["session_id"] for session in sessions], [f"session-{index}"])
+                    response = self.client.get(f"{prefix}/api/sessions/session-{index}/analysis{query}")
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.json()["results"][0]["number"], 20 + index)
+                    self.assertEqual(self.client.get(f"{prefix}/api/sessions/session-{(index + 1) % 6}/analysis{query}").status_code, 404)
+        self.assertEqual(self.client.get("/api/sessions/session-1/analysis").status_code, 404)
+
+    def test_unsupported_keys_are_rejected_before_database_access(self):
+        with patch.object(preview_api, "query") as query:
+            for endpoint in ["/seasons", "/events?season=2026", "/events/gp/sessions",
+                             "/championship?season=2026", "/sessions/session-1/analysis"]:
+                separator = "&" if "?" in endpoint else "?"
+                for key in ["Moto2", "unknown", "premier' OR 1=1", ""]:
+                    response = self.client.get(f"/api{endpoint}{separator}category={key}")
+                    self.assertEqual(response.status_code, 422)
+            query.assert_not_called()
+
+    def test_official_current_standings_are_independent_not_a_final_title(self):
+        data = self.client.get("/api/championship?season=2026&category=intermediate").json()
+        self.assertEqual(data["standings"][0]["points"], 123)
+        self.assertFalse(data["is_final"])
+        self.assertEqual(data["standings_source"], "official")
+        self.assertEqual(data["standings"][0]["series"], [])
+        self.assertEqual(data["standings"][0]["wins"], 1)
+        self.assertEqual(data["standings"][0]["number"], 21)
+        self.assertIsNone(data["comeback"])
+        self.assertIn("not a final", data["story"]["summary"])
+        self.assertTrue(data["external_sources_used"])
+        premier = self.client.get("/api/championship?season=2026").json()
+        self.assertEqual(premier["standings"][0]["points"], 10)
+
+    def test_external_supplementation_and_laps_preserve_source_specific_number(self):
+        data = self.client.get("/api/sessions/session-1/analysis?category=intermediate").json()
+        self.assertEqual(data["results"][0]["source_kind"], "official-api+external")
+        self.assertEqual(data["laps"][0]["number"], 21)
+        self.assertEqual(data["laps"][0]["lap_seconds"], 62.345)
+        self.assertTrue({"time_ms", "gap_prev", "best_lap_number", "constructor_id",
+                         "rider_number", "source_kind"}.issubset(data["results"][0]))
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET source_kind='external' WHERE session_id='session-1'")
+        self.assertEqual(self.client.get("/api/sessions/session-1/analysis?category=intermediate").json()["results"][0]["source_kind"], "external")
+
+    def test_historical_lineages_do_not_mix_with_distinct_extinct_classes(self):
+        for index, label in enumerate(["500cc", "250cc", "125cc"]):
+            self.db.execute("UPDATE sessions SET category=? WHERE session_id=?", (label, f"session-{index}"))
+        for index, family in enumerate(["premier", "intermediate", "lightweight"]):
+            rows = self.client.get(f"/api/events/gp/sessions?category={family}").json()
+            self.assertEqual([row["session_id"] for row in rows], [f"session-{index}"])
+
+    def test_official_current_table_does_not_hide_verified_premier_comeback(self):
+        self.db.execute("INSERT INTO riders VALUES (?, 'Marc Marquez',93)", (preview_api.MARC_ID,))
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET points=102 WHERE session_id='session-0'")
+        self.db.execute("INSERT INTO dbo.vw_effective_classifications VALUES ('session-0', ?, 2, 'team', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 'Bike', 93, 'official-api')",
+                        (preview_api.MARC_ID,))
+        self.db.execute("INSERT INTO championship_standings VALUES (2026,'MotoGP',1,'rider',102,'Bike','https://example.com',0)")
+        self.db.execute("INSERT INTO championship_standings VALUES (2026,'MotoGP',2,?,0,'Bike','https://example.com',0)",
+                        (preview_api.MARC_ID,))
+        data = self.client.get("/api/championship?season=2026").json()
+        self.assertTrue(data["comeback"]["verified_102"])
+        self.assertEqual(data["story"]["headline"], "102 points behind.")
+        self.assertFalse(data["is_final"])
+
+    def test_official_2025_table_preserves_evidence_backed_marc_story(self):
+        self.db.execute("UPDATE events SET season_year=2025")
+        self.db.execute("UPDATE riders SET rider_id=?, full_name='Marc Marquez'", (preview_api.MARC_ID,))
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET rider_id=?", (preview_api.MARC_ID,))
+        for index in range(1, 11):
+            self.db.execute("INSERT INTO sessions VALUES (?, 'gp', 'MotoGP', 'RAC', 'Race', NULL, ?, 'FINISHED', NULL, NULL, NULL)",
+                            (f"race-{index}", index))
+            self.db.execute("INSERT INTO dbo.vw_effective_classifications VALUES (?, ?, 1, 'team', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 25, NULL, NULL, 'Bike', 93, 'official-api')",
+                            (f"race-{index}", preview_api.MARC_ID))
+        self.db.execute("INSERT INTO championship_standings VALUES (2025,'MotoGP',1,?,500,'Bike','https://example.com',1)",
+                        (preview_api.MARC_ID,))
+        data = self.client.get("/api/championship?season=2025").json()
+        self.assertTrue(data["is_final"])
+        self.assertEqual(data["standings"][0]["points"], 500)
+        self.assertEqual(data["story"]["headline"], "Back to the summit.")
+        self.assertIn("motogp.com", data["story"]["context_url"])
+
+    def test_missing_historical_finals_never_become_titles_from_race_points(self):
+        self.db.execute("UPDATE events SET season_year=1969")
+        self.db.execute("UPDATE sessions SET category='250cc' WHERE session_id='session-1'")
+        data = self.client.get("/api/championship?season=1969&category=intermediate").json()
+        self.assertEqual(data["standings"], [])
+        self.assertFalse(data["is_final"])
+        self.assertIn("Official final standings are unavailable", data["story"]["summary"])
+        self.assertEqual(len(self.client.get("/api/events?season=1969&category=intermediate").json()), 1)
+
+    def test_historical_official_rank_and_points_win_over_augmented_race_totals(self):
+        self.db.execute("UPDATE events SET season_year=1969")
+        self.db.execute("UPDATE sessions SET category='125cc' WHERE session_id='session-2'")
+        self.db.execute("INSERT INTO championship_standings VALUES (1969,'125cc',1,'rider',46,'Bike','https://example.com',1)")
+        data = self.client.get("/api/championship?season=1969&category=lightweight").json()
+        self.assertTrue(data["is_final"])
+        self.assertEqual(data["standings"][0]["points"], 46)
+        self.assertEqual(data["rounds"], [])
+        self.assertIsNone(data["standings"][0]["wins"])
+
+    def test_standings_only_season_and_known_empty_family(self):
+        self.db.execute("INSERT INTO championship_standings VALUES (1967,'80cc',1,'rider',40,'Bike','https://example.com',1)")
+        self.assertEqual(self.client.get("/api/seasons?category=80cc").json(), [2026, 1967])
+        self.assertEqual(self.client.get("/api/events?season=2000&category=80cc").json(), [])
 
 
 if __name__ == "__main__":

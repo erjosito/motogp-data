@@ -113,8 +113,6 @@ def upsert_rider(cursor, rider: dict):
     cursor.execute("""
         MERGE riders AS target
         USING (SELECT ? AS rider_id) AS source ON target.rider_id = source.rider_id
-        WHEN MATCHED THEN UPDATE SET
-            full_name=target.full_name
         WHEN NOT MATCHED THEN INSERT
             (rider_id, full_name, number, nationality_iso, nationality)
         VALUES (?, ?, ?, ?, ?);

@@ -14,12 +14,18 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
+from category_scope import CATEGORY_FAMILIES, category_sql
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
 logger = logging.getLogger(__name__)
-TOP_CLASS = "(s.category LIKE N'MotoGP%' OR s.category = N'500cc')"
 MARC_ID = "f55b433d-38b8-4d1d-bb3a-a709c82a0260"
+
+
+def selected_class(category: str, column: str = "s.category") -> str:
+    if category not in CATEGORY_FAMILIES:
+        raise HTTPException(422, "Unsupported category family.")
+    return category_sql(category, column)
 
 
 @app.exception_handler(pyodbc.Error)
@@ -59,7 +65,7 @@ def seconds(value) -> float | None:
         return None
 
 
-def build_championship(rows: list[dict], season: int) -> dict:
+def build_championship(rows: list[dict], season: int, category: str = "premier") -> dict:
     sessions = {}
     riders = {}
     finishes = defaultdict(Counter)
@@ -94,7 +100,7 @@ def build_championship(rows: list[dict], season: int) -> dict:
             totals[row["rider_id"]] += float(row["points"] or 0)
         for rid in riders:
             series[rid].append(totals[rid])
-        if MARC_ID in totals:
+        if category == "premier" and MARC_ID in totals:
             rival = max((value for rid, value in totals.items() if rid != MARC_ID), default=0)
             comeback_history.append({
                 **rounds[-1], "points": totals[MARC_ID], "margin": totals[MARC_ID] - rival,
@@ -129,7 +135,8 @@ def build_championship(rows: list[dict], season: int) -> dict:
             "verified_102": any(point["margin"] == -102 for point in comeback_history),
         }
     return {
-        "season": season, "standings": standings, "rounds": rounds, "comeback": comeback,
+        "season": season, "category": category, "standings": standings, "rounds": rounds, "comeback": comeback,
+        "external_sources_used": any(row.get("source_kind", "official-api") != "official-api" for row in rows),
         "weekends": len(scoring_events),
         "gp_results": len(gp_events),
         "scoring_sessions": scoring_sessions,
@@ -142,7 +149,13 @@ def season_story(data: dict) -> dict:
         return {
             "headline": f"{season}: the story is still incomplete.",
             "accent": "The missing points matter.",
-            "summary": "No usable championship standings are available. Session results are not a substitute for missing title points.",
+            "summary": (
+                "Official final standings are unavailable for this season and category. "
+                "Available race classifications, including external supplementation, are not a substitute "
+                "and cannot establish a final championship or champion."
+                if season < 1990 else
+                "No usable championship standings are available. Session results are not a substitute for missing title points."
+            ),
             "metric_label": "SEASON", "metric": season, "metric_note": "Waiting for usable championship evidence",
             "context_url": None,
         }
@@ -151,6 +164,7 @@ def season_story(data: dict) -> dict:
     gap = second["gap"] if second else 0
     name = leader["rider"]
     official = data["standings_source"] == "official"
+    final = data.get("is_final", official)
     summary = (
         f"{name} is officially ranked first on {leader['points']:g} points"
         if official else f"{name} leads the imported results on {leader['points']:g} points"
@@ -164,10 +178,12 @@ def season_story(data: dict) -> dict:
         "accent": "The points tell the story.",
         "summary": summary,
         "metric_label": "POINTS AT THE TOP", "metric": leader["points"],
-        "metric_note": "Official final total" if official else "From imported GP + Sprint classifications",
+        "metric_note": ("Official final total" if final else "Official standings to date") if official else "From imported GP + Sprint classifications",
         "context_url": None,
     }
-    if official:
+    marc_dominance = (data.get("category", "premier") == "premier" and season == 2025
+                      and leader["rider_id"] == MARC_ID and (leader["wins"] or 0) >= 10)
+    if official and final and not marc_dominance:
         story["summary"] += " Period scoring rules and official ranks are preserved; no race-by-race progression is inferred."
         if second and gap == 0:
             story.update(headline="Equal points.", accent="One official champion.",
@@ -180,9 +196,13 @@ def season_story(data: dict) -> dict:
         else:
             story.update(headline=f"{name} sets the standard.", accent=f"{season}, in the record books.")
         return story
+    if official and not marc_dominance and not (data.get("category", "premier") == "premier" and season == 2026
+                                               and data["comeback"] and data["comeback"]["verified_102"]):
+        story["summary"] += " These are standings to date, not a final championship result."
+        return story
 
     comeback = data["comeback"]
-    if season == 2026 and comeback and comeback["verified_102"]:
+    if data.get("category", "premier") == "premier" and season == 2026 and comeback and comeback["verified_102"]:
         low = next(point for point in comeback["history"] if point["margin"] == -102)
         story.update(
             headline="102 points behind.", accent="A title fight rewritten.",
@@ -191,7 +211,9 @@ def season_story(data: dict) -> dict:
             metric_label="THE RECOVERY", metric=comeback["recovered"],
             metric_note="Points recovered since the lowest recorded margin",
         )
-    elif season == 2025 and leader["rider_id"] == MARC_ID and leader["wins"] >= 10:
+        if official:
+            story["summary"] += " The curve uses imported race points; the table preserves official standings to date, not a final championship."
+    elif marc_dominance:
         story.update(
             headline="Back to the summit.", accent="Back to dominance.",
             summary=f"Marc Marquez tops the imported season with {leader['wins']} GP wins, "
@@ -201,6 +223,8 @@ def season_story(data: dict) -> dict:
             metric_note=f"Across {data['gp_results']} imported GP races",
             context_url="https://www.motogp.com/en/news/2025/11/27/the-marc-marquez-story-chapter-2-to-hell-and-back/822595",
         )
+        if official:
+            story["summary"] += " Points and rank use the official standings; the win count uses imported GP classifications."
     elif second and second["wins"] > leader["wins"] and leader["wins"] <= data["gp_results"] / 4:
         story.update(
             headline="Winning the title fight.", accent="Not just the races.",
@@ -216,9 +240,10 @@ def season_story(data: dict) -> dict:
             margins.append(points - rival)
         deficit = max(0, -min(margins, default=0))
         if len(margins) > 1 and margins[-2] < 0 <= margins[-1]:
-            story.update(headline="The last race changed everything.", accent=f"{name} took the top spot.",
-                         summary=summary + " The leading rider in the imported points changed in the final recorded scoring session.",
-                         metric_label="FINAL RECORDED MARGIN", metric=gap,
+            story.update(headline="The latest race changed the lead." if season == 2026 else "The last race changed everything.",
+                         accent=f"{name} took the top spot.",
+                         summary=summary + " The leading rider in the imported points changed in the latest recorded scoring session.",
+                         metric_label="LATEST RECORDED MARGIN" if season == 2026 else "FINAL RECORDED MARGIN", metric=gap,
                          metric_note="Points ahead after the last imported session")
         elif deficit >= 25:
             story.update(headline=f"{name}: the long way back.", accent=f"From {deficit:g} behind to the top.",
@@ -248,100 +273,126 @@ def health():
 
 
 @api.get("/api/seasons")
-def seasons():
+def seasons(category: str = "premier"):
+    scope = selected_class(category)
+    standings_scope = selected_class(category, "cs.category")
     rows = query(f"""
-        SELECT DISTINCT e.season_year AS season FROM events e
+        SELECT e.season_year AS season FROM events e
         JOIN sessions s ON s.event_id = e.event_id
-        WHERE {TOP_CLASS} ORDER BY season DESC
+        WHERE {scope}
+        UNION
+        SELECT cs.season_year AS season FROM championship_standings cs
+        WHERE {standings_scope}
+        ORDER BY season DESC
     """)
     return [row["season"] for row in rows]
 
 
 @api.get("/api/events")
-def events(season: int = Query(ge=1949, le=3000)):
+def events(season: int = Query(ge=1949, le=3000), category: str = "premier"):
+    scope = selected_class(category)
     return query(f"""
         SELECT e.event_id, e.short_name, e.event_name, e.circuit_name,
                e.country_name, e.date_end
         FROM events e WHERE e.season_year = ? AND EXISTS (
-            SELECT 1 FROM sessions s WHERE s.event_id = e.event_id AND {TOP_CLASS}
+            SELECT 1 FROM sessions s WHERE s.event_id = e.event_id AND {scope}
                 AND s.status = 'FINISHED' AND (EXISTS (
-                    SELECT 1 FROM classifications c WHERE c.session_id = s.session_id
+                    SELECT 1 FROM dbo.vw_effective_classifications c WHERE c.session_id = s.session_id
                 ) OR EXISTS (SELECT 1 FROM laps l WHERE l.session_id = s.session_id))
         ) ORDER BY e.date_end, e.short_name
     """, (season,))
 
 
 @api.get("/api/events/{event_id}/sessions")
-def sessions(event_id: str):
+def sessions(event_id: str, category: str = "premier"):
+    scope = selected_class(category)
     if not query("SELECT event_id FROM events WHERE event_id = ?", (event_id,)):
         raise HTTPException(404, "Grand Prix not found.")
     return query(f"""
         SELECT s.session_id, s.session_type, s.session_label, s.session_date,
                s.weather, s.air_temp, s.ground_temp
-        FROM sessions s WHERE s.event_id = ? AND {TOP_CLASS}
+        FROM sessions s WHERE s.event_id = ? AND {scope}
             AND s.status = 'FINISHED' AND (EXISTS (
-                SELECT 1 FROM classifications c WHERE c.session_id = s.session_id
+                SELECT 1 FROM dbo.vw_effective_classifications c WHERE c.session_id = s.session_id
             ) OR EXISTS (SELECT 1 FROM laps l WHERE l.session_id = s.session_id))
         ORDER BY s.session_date, s.session_number
     """, (event_id,))
 
 
 @api.get("/api/championship")
-def championship(season: int = Query(ge=1949, le=3000)):
-    if season < 1990:
-        rows = query("""
+def championship(season: int = Query(ge=1949, le=3000), category: str = "premier"):
+    scope = selected_class(category)
+    standings_scope = selected_class(category, "cs.category")
+    official_rows = query(f"""
             SELECT cs.position, cs.rider_id, r.full_name AS rider, r.number,
-                   cs.points, cs.constructor_name AS constructor, cs.source_url
+                   cs.points, cs.constructor_name AS constructor, cs.source_url, cs.is_final
             FROM championship_standings cs JOIN riders r ON r.rider_id = cs.rider_id
-            WHERE cs.season_year = ? AND cs.category = '500cc' AND cs.is_final = 1
+            WHERE cs.season_year = ? AND {standings_scope}
+                  {"AND cs.is_final = 1" if season < 1990 else ""}
             ORDER BY cs.position
         """, (season,))
-        data = build_championship([], season)
-        first_points = float(rows[0]["points"]) if rows else 0
+    if season < 1990:
+        data = build_championship([], season, category)
+        first_points = float(official_rows[0]["points"]) if official_rows else 0
         data["standings"] = [{
             **row, "points": float(row["points"]), "gap": first_points - float(row["points"]),
             "team": None, "wins": None, "podiums": None, "series": [],
-        } for row in rows]
+        } for row in official_rows]
         data["standings_source"] = "official"
+        data["is_final"] = bool(official_rows) and all(row.get("is_final", season < 1990) for row in official_rows)
         data["story"] = season_story(data)
         return data
     rows = query(f"""
         SELECT s.session_id, s.session_type, s.session_label, s.session_date,
                e.event_id, e.short_name, e.date_end, r.rider_id,
-               r.full_name AS rider, r.number, c.position, c.points,
+               r.full_name AS rider, COALESCE(c.rider_number, r.number) AS number, c.position, c.points, c.source_kind,
                t.team_name AS team, COALESCE(c.constructor_name, t.constructor) AS constructor
-        FROM classifications c JOIN riders r ON r.rider_id = c.rider_id
+        FROM dbo.vw_effective_classifications c JOIN riders r ON r.rider_id = c.rider_id
         JOIN sessions s ON s.session_id = c.session_id
         JOIN events e ON e.event_id = s.event_id
         LEFT JOIN teams t ON t.team_id = c.team_id AND t.season_year = e.season_year
-        WHERE e.season_year = ? AND {TOP_CLASS}
+        WHERE e.season_year = ? AND {scope}
               AND s.session_type IN ('RAC', 'SPR') AND s.status = 'FINISHED'
         ORDER BY e.date_end, s.session_date,
                  CASE WHEN s.session_type = 'SPR' THEN 0 ELSE 1 END,
                  s.session_id, c.position
     """, (season,))
-    data = build_championship(rows, season)
+    data = build_championship(rows, season, category)
     data["standings_source"] = "computed"
+    data["is_final"] = False
+    if official_rows:
+        first_points = float(official_rows[0]["points"])
+        imported = {row["rider_id"]: row for row in data["standings"]}
+        data["standings"] = [{
+            **row, "points": float(row["points"]), "gap": first_points - float(row["points"]),
+            "team": None,
+            "number": imported.get(row["rider_id"], {}).get("number", row["number"]),
+            "wins": imported.get(row["rider_id"], {}).get("wins"),
+            "podiums": imported.get(row["rider_id"], {}).get("podiums"),
+            "series": [],
+        } for row in official_rows]
+        data["standings_source"] = "official"
+        data["is_final"] = all(row["is_final"] for row in official_rows)
     data["story"] = season_story(data)
     return data
 
 
 @api.get("/api/sessions/{session_id}/analysis")
-def analysis(session_id: str):
+def analysis(session_id: str, category: str = "premier"):
+    scope = selected_class(category)
     metadata = query(f"""
         SELECT s.session_id, s.session_label, s.session_type, s.session_date,
                s.weather, s.air_temp, s.ground_temp, e.event_id, e.short_name,
-               e.event_name, e.circuit_name, e.country_name, e.season_year
+               e.event_name, e.circuit_name, e.country_name, e.season_year, s.category
         FROM sessions s JOIN events e ON e.event_id = s.event_id
-        WHERE s.session_id = ? AND {TOP_CLASS}
+        WHERE s.session_id = ? AND {scope}
     """, (session_id,))
     if not metadata:
         raise HTTPException(404, "Session not found.")
     results = query("""
-        SELECT r.rider_id, r.full_name AS rider, r.number, c.position,
-               t.team_name AS team, COALESCE(c.constructor_name, t.constructor) AS constructor, c.total_laps, c.time_text,
-               c.gap_first, c.best_lap_time, c.top_speed, c.points, c.status
-        FROM classifications c JOIN riders r ON r.rider_id = c.rider_id
+        SELECT c.*, r.full_name AS rider, COALESCE(c.rider_number, r.number) AS number,
+               t.team_name AS team, COALESCE(c.constructor_name, t.constructor) AS constructor
+        FROM dbo.vw_effective_classifications c JOIN riders r ON r.rider_id = c.rider_id
         JOIN sessions s ON s.session_id = c.session_id
         JOIN events e ON e.event_id = s.event_id
         LEFT JOIN teams t ON t.team_id = c.team_id AND t.season_year = e.season_year
@@ -349,10 +400,11 @@ def analysis(session_id: str):
         ORDER BY CASE WHEN c.position IS NULL THEN 1 ELSE 0 END, c.position, r.full_name
     """, (session_id,))
     laps = query("""
-        SELECT l.rider_id, r.full_name AS rider, r.number, l.lap_number,
+        SELECT l.rider_id, r.full_name AS rider, COALESCE(c.rider_number, r.number) AS number, l.lap_number,
                l.lap_time, l.t1, l.t2, l.t3, l.t4, l.speed_kmh,
                l.is_pit, l.run_number, l.front_tyre, l.rear_tyre
         FROM laps l JOIN riders r ON r.rider_id = l.rider_id
+        LEFT JOIN dbo.vw_effective_classifications c ON c.session_id = l.session_id AND c.rider_id = l.rider_id
         WHERE l.session_id = ? ORDER BY r.full_name, l.lap_number
     """, (session_id,))
     for lap in laps:

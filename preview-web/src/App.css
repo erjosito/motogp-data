@@ -27,6 +27,7 @@ nav a.active { background: var(--cp-accent-soft); color: var(--cp-accent); }
 .season-select { display: flex; align-items: center; gap: 12px; }
 .season-select span { font-size: 9px; letter-spacing: 1.5px; font-weight: 700; color: var(--cp-text-soft); }
 .season-select select { background: var(--cp-surface); border: 1px solid var(--cp-border); padding: 8px 12px; border-radius: .625rem; font-weight: 650; }
+.category-select select { max-width: 180px; }
 .icon-button { background: var(--cp-bg-elevated); color: var(--cp-text-muted); display: grid; place-items: center; border-radius: .625rem; width: 36px; height: 36px; }
 .icon-button:hover { background: var(--cp-accent-soft); color: var(--cp-accent); }
 main { flex: 1; padding: 32px 40px 48px; max-width: 1600px; width: 100%; margin: 0 auto; }
@@ -163,7 +164,9 @@ footer > span { display: flex; gap: 8px; align-items: center; }
   .sidebar-bottom { padding-top: 24px; }
   .sidebar-bottom h3, .sidebar-bottom p, .sidebar-foot { display: none; }
   .classic-link { margin-top: 12px; }
-  .topbar { height: 68px; padding: 0 20px; }
+  .topbar { min-height: 68px; height: auto; padding: 12px 20px; flex-wrap: wrap; gap: 10px; }
+  .topbar-actions { flex-wrap: wrap; }
+  .category-select select { max-width: 155px; }
   main { padding: 24px 20px; }
   .page-heading { flex-wrap: wrap; align-items: start; margin-bottom: 24px; }
   .page-heading h1 { font-size: 34px; }

@@ -328,12 +328,12 @@ is a reconstruction, not official live timing: each lap requires complete times
 for every rider whose classification reports reaching that lap. Missing data is
 not replaced with final finishing positions, and Q2 is not treated as a grid.
 
-All dashboard selectors, analytics, and coverage counts use the same premier-class
-session scope: `MotoGP` (with or without the trademark suffix, ignoring case and
-surrounding spaces) and historical `500cc`. Moto2, Moto3, and unknown source
-categories are excluded and listed in a sidebar notice. Source labels are not
-rewritten. The read-only query layer applies this scope through a SQL CTE, so no
-schema migration or dashboard write permission is required.
+Category selection uses the shared allowlist in `category_scope.py`: premier
+(MotoGP/500cc), intermediate (Moto2/250cc), lightweight (Moto3/125cc), and separate
+350cc, 50cc and 80cc championships. Premier remains the default. Source labels are
+preserved; predicates ignore the trademark suffix, surrounding spaces and case.
+These were independent world championships, not a universal feeder ladder.
+Points and standings must never be summed across categories.
 
 Pilot Rhythm and Sector Heatmap compare absolute times within one selected
 session, not across unrelated circuits or conditions. Pace cleaning excludes
@@ -346,11 +346,14 @@ its all-session/event/season aggregation.
 python -m unittest test_dashboard test_motogp_results
 ```
 
-## Historical Premier-Class Archive (1949–1989)
+## Official Grand Prix Archive
 
-`import_historical.py` imports the official **500cc** archive in bounded phases,
-independently of the modern full-weekend/PDF loader. Other classes, including
-Agostini's 350cc results, are not included. Install `requirements.txt` and sign
+`import_historical.py` imports official race classifications and independent
+standings in bounded season/class transactions, separately from full-weekend
+practice/qualifying ingestion. It supports 500cc (1949–2001), MotoGP (2002–),
+250cc (1949–2009), Moto2 (2010–), 125cc (1949–2011), Moto3 (2012–), 350cc
+(1949–1982), 50cc (1962–1983) and 80cc (1984–1989).
+Install `requirements.txt` and sign
 in with an Entra account authorized to write to the database.
 
 ```powershell
@@ -364,11 +367,19 @@ python import_historical.py --years 1966,1975 --apply --migrate
 python import_historical.py --years 1976-1989 --apply
 python import_historical.py --years 1960-1974 --apply
 python import_historical.py --years 1949-1959 --apply
+
+# Lower-class pilots and modern race/PDF imports
+python import_historical.py --years 1969 --category 50cc --apply
+python import_historical.py --years 1969 --category 350cc --apply
+python import_historical.py --years 1984 --category 80cc --apply
+python import_historical.py --years 2026 --category Moto2 --apply --include-laps
+python import_historical.py --years 2026 --category Moto3 --apply --include-laps
 ```
 
 Apply the checked-in migration before running the updated normal SQL loader
-or dashboard against an existing database; it adds classification constructor
-columns and the archive tables, and updates the classification view. It does
+or dashboard against an existing database; migrations add classification
+constructors, session-specific rider numbers, archive/provenance tables and the
+effective classification view. They do
 not rewrite existing timings, classifications, or laps. Azure SQL authentication
 remains passwordless; the deployed app needs only its existing read permissions.
 
@@ -378,14 +389,17 @@ The importer preserves:
 - **Official final championship standings** in `championship_standings`,
   including fractional points and source-provided ranking, rather than applying
   today's scoring rules to historical results.
+- Current-season standings remain explicitly non-final. Where the official API
+  supplies race results but no standings, a source-gap marker is retained and
+  no official final ranking is invented.
 - A JSON source snapshot, SHA-256 fingerprint and verified row counts in
   `historical_imports`. Original existing rider profiles are not overwritten.
 
 **Coverage is not completeness.** The API sometimes labels a historical race
 `FINISHED` but returns an empty classification. Those sessions remain empty:
 no winner, zero score, or lap timing is invented. Some weekends do not list
-500cc at all; the snapshot records that source limitation without asserting
-that a 500cc race never took place. Zero placeholders for unavailable historical
+the selected class at all; the snapshot records that source limitation without
+asserting that its race never took place. Zero placeholders for unavailable historical
 race points, lap counts and top speeds become SQL `NULL`. Official final
 standings are stored separately and must not be derived by summing those gaps.
 The pilots, for example, provide Agostini's official 36 points in 1966 and
@@ -396,6 +410,47 @@ the stored rows without duplicating them; `--refresh` refetches official data.
 Each season commits only after comparison with its source. If verification fails,
 that season rolls back and the command stops; earlier committed seasons remain.
 Unexpected existing rows are not silently deleted to force a match.
+Successful HTTP responses are also cached for interrupted fetches. Uncached
+requests are spaced two seconds apart. HTTP 429 stops the import without caching
+an error as empty data; honor `Retry-After` when supplied and allow a cooldown
+before resuming. Do not bypass source access restrictions or run parallel
+uncached archive fetches.
+
+### Audited external supplementation
+
+`import_external.py` pins the public Kaggle dataset to a reviewed SHA-256 and
+records its publisher-declared CC0 license, URL, raw candidate facts and decision
+reasons. Numeric dataset rider IDs are **not** official UUIDs. Matching requires a
+unique official season/class/name and race identity; ambiguous identities,
+negative status markers and conflicting positions/points remain held.
+
+Accepted facts live in `external_classifications`, not the official base table.
+`vw_effective_classifications` prefers official positions, timing and non-NULL
+points. A corroborated external score can fill an official NULL score; provenance
+is exposed as `official-api+external` or `external`. Official final championship
+rankings remain independent and authoritative. Historical scoring tables are
+used to corroborate candidate race scores, **not** to reconstruct final totals.
+1949's fastest-lap bonus needs additional evidence.
+
+The premier pilot stages 4,656 candidates: 3,072 accepted, 30 corroborated without
+augmentation, and 1,554 held. Accepted facts include **two** independently
+cross-checked 1966 Senior TT finishes (Hailwood/Agostini); that is a partial
+recovery, not a complete TT classification or recovery of all 106 candidate races.
+No external elapsed times, speed, tyre data, negative statuses or `0 Lap`
+placeholders are imported as timing. Reference-only archives with unestablished
+bulk reuse permissions are not scraped wholesale.
+
+```powershell
+python import_external.py                         # Audit only; no writes
+python import_external.py --apply --rollback      # Real SQL rollback verification
+python import_external.py --apply                 # Verified, repeat-safe facts
+```
+
+Lower-class expansion is staged. Initial verified coverage includes modern
+Moto2/Moto3 through Portugal and historical 50/125/250/350/80cc pilots/archives;
+the broader uncached expansion encountered an official API rate limit and must
+resume after cooldown. The complete premier archive is preserved. Lower-class
+coverage is not yet a claim of complete careers or all 13 Nieto/15 Agostini titles.
 
 ```powershell
 python -m unittest test_import_historical test_load_to_sql test_dashboard

@@ -24,6 +24,7 @@ export interface Rider {
 }
 
 export interface Result extends Rider {
+  source_kind: 'official-api' | 'official-api+external' | 'external'
   position: number | null
   team: string | null
   constructor: string | null
@@ -68,6 +69,7 @@ export interface ComebackPoint extends Round {
 }
 
 export interface Standing extends Rider {
+  source_url?: string
   position: number
   points: number
   gap: number
@@ -86,6 +88,8 @@ export interface Championship {
   weekends: number
   scoring_sessions: number
   standings_source: 'official' | 'computed'
+  is_final: boolean
+  external_sources_used: boolean
   story: {
     headline: string
     accent: string

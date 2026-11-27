@@ -166,6 +166,11 @@ LAP_RE = re.compile(
     r"(?:\s+(\d+\.?\d*))?\s*$"                    # speed (not recorded on out laps)
 )
 
+PARTIAL_LAP_RE = re.compile(
+    r"^(\d+)\s+(\d+[':]\d+\.\d+)"
+    r"(?:\s+(?:\d+(?:[':]\d+)?\.\d+|\*|P))*\s*$"
+)
+
 # Rider header: "Firstname SURNAME CONSTRUCTOR NAT"
 # Name must have at least two words (first + last) to avoid matching team names
 # like "Pro Honda LCR" as a rider.
@@ -338,7 +343,8 @@ def parse_analysis_column(text: str) -> list[dict]:
 
         # Lap data line
         m = LAP_RE.match(line)
-        if m and current_rider:
+        partial = PARTIAL_LAP_RE.match(line) if not m else None
+        if (m or partial) and current_rider:
             pit = "P" in line
             cancelled_sectors = []
             raw_parts = line.split()
@@ -346,14 +352,17 @@ def parse_analysis_column(text: str) -> list[dict]:
                 if part == "*":
                     cancelled_sectors.append(idx)
 
+            # Blank PDF cells collapse in extracted text: retain elapsed time,
+            # but do not guess which remaining values belong to which sector.
+            timing = m or partial
             current_rider["laps"].append({
-                "lap": int(m.group(1)),
-                "lap_time": m.group(2).replace("'", ":"),
-                "T1": m.group(3).replace("'", ":"),
-                "T2": m.group(4).replace("'", ":"),
-                "T3": m.group(5).replace("'", ":"),
-                "T4": m.group(6).replace("'", ":"),
-                "speed": float(m.group(7)) if m.group(7) else None,
+                "lap": int(timing.group(1)),
+                "lap_time": timing.group(2).replace("'", ":"),
+                "T1": m.group(3).replace("'", ":") if m else None,
+                "T2": m.group(4).replace("'", ":") if m else None,
+                "T3": m.group(5).replace("'", ":") if m else None,
+                "T4": m.group(6).replace("'", ":") if m else None,
+                "speed": float(m.group(7)) if m and m.group(7) else None,
                 "pit": pit,
                 "run": current_run,
                 "front_tyre": front_tyre,

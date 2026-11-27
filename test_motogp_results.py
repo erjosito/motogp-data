@@ -99,6 +99,20 @@ class AnalysisParserTests(unittest.TestCase):
         self.assertEqual(second["speed"], 340.6)
         self.assertEqual(second["T3"], "15.994")
 
+    def test_retains_lower_class_lap_when_sector_cells_are_blank(self):
+        riders = motogp.parse_analysis_column(
+            "Senna AGIUS LIQUI MOLY Dynavolt AUS\n23rd 81\n"
+            "1 1'38.025 22.667 28.171 22.488 24.699 271.3\n"
+            "2 1'35.740 20.604 24.663 276.9\n"
+        )
+        self.assertEqual(len(riders[0]["laps"]), 2)
+        partial = riders[0]["laps"][1]
+        self.assertEqual(partial["lap_time"], "1:35.740")
+        self.assertEqual(partial["lap"], 2)
+        for field in ["T1", "T2", "T3", "T4", "speed"]:
+            self.assertIsNone(partial[field])
+        self.assertEqual(riders[0]["laps"][0]["T2"], "28.171")
+
     def test_preserves_historical_rider_headers(self):
         headers = [
             ("1st 12 Maverick VINALES YAMAHA S\nMovistar Yamaha MotoGP\n",

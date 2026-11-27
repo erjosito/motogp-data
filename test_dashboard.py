@@ -9,6 +9,7 @@ import numpy as np
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 from translations import get_translator
+from category_scope import CATEGORY_FAMILIES, category_sql
 
 
 DASHBOARD = Path(__file__).with_name("dashboard.py")
@@ -21,6 +22,8 @@ def sample_query(sql, conn=None, params=None):
         return pd.DataFrame(columns=["category"])
     if "SELECT DISTINCT season_year" in sql:
         return pd.DataFrame({"season_year": [2026, 2025]})
+    if "FROM championship_standings" in sql:
+        return pd.DataFrame(columns=["position", "rider", "points", "constructor", "is_final", "source_url"])
     if "SUM(cl.points) AS race_pts" in sql:
         return pd.DataFrame([
             {"short_name": gp, "date_end": date, "rider": f"Sample Rider {rider}", "race_pts": points}
@@ -54,7 +57,7 @@ def sample_query(sql, conn=None, params=None):
             "constructor": "Sample Bike", "total_laps": 3,
             "time_text": "5:03.000", "gap_first": "" if position == 1 else f"+{position}.000",
             "best_lap_time": None, "top_speed": None, "points": 26 - position,
-            "status": "INSTND",
+            "status": "INSTND", "source_kind": "official-api",
         } for position in range(1, 4)])
     if "l.lap_number, l.lap_time" in sql:
         return pd.DataFrame([{
@@ -200,6 +203,7 @@ class DashboardTests(unittest.TestCase):
                 return pd.DataFrame({
                     "position": [1, 2, 3], "rider": ["Lawson", "Rainey", "Sarron"],
                     "points": [228, 210.5, 165.5], "constructor": ["Honda", "Yamaha", "Yamaha"],
+                    "is_final": [True] * 3, "source_url": [None] * 3,
                 })
             if params == [1989] and "SUM(cl.points)" in sql:
                 raise AssertionError("Historical standings must not be reconstructed from race points")
@@ -319,15 +323,152 @@ class DashboardTests(unittest.TestCase):
         self.assertTrue(app.info)
         self.assertFalse(app.button)
 
-    def test_excluded_source_categories_are_visible(self):
+    def test_unsupported_source_categories_are_visible(self):
         def excluded(sql, conn=None, params=None):
             if "SELECT DISTINCT category" in sql:
-                return pd.DataFrame({"category": ["Moto2", "Unrecognized", None]})
+                self.assertIn(category_sql("intermediate"), sql)
+                return pd.DataFrame({"category": ["Unrecognized", None]})
             return sample_query(sql, conn, params)
         self.read_sql.side_effect = excluded
         app = self.start_app()
         self.assertIn("Unrecognized", app.warning[0].value)
-        self.assertIn("Moto2", app.warning[0].value)
+        self.assertNotIn("Moto2", app.warning[0].value)
+
+    def test_category_changes_bind_queries_and_invalidate_cached_results(self):
+        def category_query(sql, conn=None, params=None):
+            data = sample_query(sql, conn, params)
+            if "SUM(cl.points) AS race_pts" in sql and category_sql("intermediate") in sql:
+                data["race_pts"] *= 2
+            return data
+        self.read_sql.side_effect = category_query
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("intermediate").run()
+        self.assertFalse(app.exception)
+        self.assertIn("2026 Moto2 World Championship", [h.value for h in app.subheader])
+        self.assertEqual(app.dataframe[0].value["Points"].tolist(), [132, 122, 92, 22])
+        app.selectbox(key="language").select("🇪🇸 Español").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.selectbox(key="sb_category").value, "intermediate")
+        app.selectbox(key="sb_category").set_value("premier").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.dataframe[0].value["Puntos"].tolist(), [66, 61, 46, 11])
+
+    def test_category_change_resets_event_session_and_rider_filters(self):
+        app = self.start_race_analysis()
+        app.radio(key="view_nav_race").set_value("viz_position").run()
+        app.multiselect(key="pos_r").set_value(["Sample Rider 1"]).run()
+        app.selectbox(key="sb_category").set_value("lightweight").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.radio(key="view_nav_race").value, "viz_position")
+        self.assertEqual(app.selectbox(key="sb_gp").value, "val")
+        self.assertEqual(app.selectbox(key="sb_sess").value, "Race")
+        self.assertEqual(len(app.multiselect(key="pos_r").value), 3)
+        lap_queries = [call.args[0] for call in self.read_sql.call_args_list
+                       if "l.lap_number, l.lap_time" in call.args[0]]
+        self.assertIn(category_sql("lightweight"), lap_queries[-1])
+        self.assertIn("COALESCE(c.rider_number, r.number)", lap_queries[-1])
+        self.assertIn("dbo.vw_effective_classifications", lap_queries[-1])
+
+    def test_lower_class_official_current_standings_override_incomplete_race_totals(self):
+        def official_query(sql, conn=None, params=None):
+            if "FROM championship_standings" in sql and "SELECT cs.position" in sql:
+                if category_sql("intermediate", "cs.category") in sql:
+                    return pd.DataFrame({
+                        "position": [1, 2], "rider": ["Sample Rider 2", "Sample Rider 1"],
+                        "points": [200.5, 190], "constructor": ["Sample Bike"] * 2,
+                        "is_final": [False] * 2, "source_url": [None] * 2,
+                    })
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = official_query
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("intermediate").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.dataframe[0].value["Points"].tolist(), [200.5, 190])
+        self.assertIn("Official current standings (not final)", [h.value for h in app.subheader])
+        self.assertEqual(app.metric[0].value, "200.5")
+        app.button[0].click().run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.dataframe[0].value["Rider"].tolist(), ["Sample Rider 2", "Sample Rider 1"])
+
+    def test_standings_only_historical_category_and_missing_final_do_not_infer_points(self):
+        def historical_query(sql, conn=None, params=None):
+            if "SELECT DISTINCT season_year" in sql:
+                return pd.DataFrame({"season_year": [1969]})
+            if "SELECT event_id, short_name" in sql:
+                return pd.DataFrame()
+            if "SELECT cs.position" in sql:
+                if category_sql("lightweight", "cs.category") in sql:
+                    return pd.DataFrame({
+                        "position": [1, 2], "rider": ["A", "B"], "points": [90, 70.5],
+                        "constructor": ["Yamaha"] * 2, "is_final": [True] * 2,
+                        "source_url": [None] * 2,
+                    })
+                return pd.DataFrame()
+            if "SUM(cl.points)" in sql:
+                raise AssertionError("Do not reconstruct historical finals")
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = historical_query
+        app = self.start_app()
+        self.assertTrue(app.info)
+        app.selectbox(key="sb_category").set_value("lightweight").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.dataframe[0].value["Points"].tolist(), [90, 70.5])
+        self.assertIn("1969 125cc World Championship", [h.value for h in app.subheader])
+        self.assertFalse(app.get("plotly_chart"))
+        app.selectbox(key="sb_category").set_value("350cc").run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.dataframe)
+        self.assertTrue(app.info)
+
+    def test_lower_class_coverage_and_classification_without_laps(self):
+        def no_laps(sql, conn=None, params=None):
+            data = sample_query(sql, conn, params)
+            if "l.lap_number, l.lap_time" in sql or "AS With_Sectors" in sql:
+                return data.iloc[:0]
+            if "AS n_events" in sql:
+                data["n_laps"] = 0
+            if "AS Sectors FROM events" in sql:
+                data[["Laps", "Sectors"]] = 0
+            if "SELECT c.position" in sql:
+                data["source_kind"] = "external"
+                data["points"] = None
+                data["num"] = None
+            return data
+        self.read_sql.side_effect = no_laps
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("80cc").run()
+        app.radio(key="home_view").set_value("home_coverage").run()
+        self.assertFalse(app.exception)
+        app.selectbox(key="nav_group").set_value("nav_race").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(len(app.dataframe[0].value), 3)
+        self.assertTrue(any("external-derived" in caption.value for caption in app.caption))
+        app.radio(key="view_nav_race").set_value("viz_laptimes").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.info)
+
+    def test_historical_bump_view_never_derives_standings(self):
+        def historical_query(sql, conn=None, params=None):
+            if "SELECT DISTINCT season_year" in sql:
+                return pd.DataFrame({"season_year": [1969]})
+            if "SELECT cs.position" in sql:
+                return pd.DataFrame()
+            if "SUM(cl.points)" in sql or "SUM(c.points) AS pts" in sql:
+                raise AssertionError("Historical title/progression cannot be inferred")
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = historical_query
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("50cc").run()
+        app.selectbox(key="nav_group").set_value("nav_history").run()
+        app.radio(key="view_nav_history").set_value("viz_crossyear")
+        # Skip the animation (the first chart) to inspect historical championship dispatch.
+        with patch("streamlit.selectbox", side_effect=[
+            get_translator("en")("cross_bump_chart"), 1969
+        ]):
+            app.run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("unavailable" in info.value for info in app.info))
+        self.assertFalse(app.get("plotly_chart"))
 
     def test_championship_does_not_depend_on_lap_data(self):
         def no_laps(sql, conn=None, params=None):
@@ -439,6 +580,7 @@ class PremierScopeTests(unittest.TestCase):
             ("modern", 25, "INSTND"), ("historic", 20, "OUTSTND"),
             ("moto2", 100, "OUTSTND"), ("moto3", 100, "OUTSTND"),
         ])
+        self.db.execute("CREATE TABLE dbo.vw_effective_classifications AS SELECT * FROM classifications")
         tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
         nodes = [
             node for node in tree.body
@@ -452,7 +594,7 @@ class PremierScopeTests(unittest.TestCase):
             self.queries.append(sql)
             # SQLite accepts the same relational query without SQL Server's Unicode literal prefix.
             return pd.read_sql_query(sql.replace("N'", "'"), self.db, params=params)
-        self.helpers = {"q": execute}
+        self.helpers = {"q": execute, "category_sql": category_sql, "st": st}
         exec(compile(ast.Module(body=nodes, type_ignores=[]), str(DASHBOARD), "exec"), self.helpers)
 
     def test_supported_aliases_and_historical_sessions_share_the_same_scope(self):
@@ -469,6 +611,81 @@ class PremierScopeTests(unittest.TestCase):
             "SELECT session_id FROM sessions WHERE session_id = ?", ["historic"]
         )
         self.assertEqual(historic["session_id"].tolist(), ["historic"])
+
+    def test_each_family_binds_nested_queries_and_parameters(self):
+        for family, labels in CATEGORY_FAMILIES.items():
+            with self.subTest(family=family):
+                for label in labels:
+                    self.db.execute("INSERT INTO dbo.sessions VALUES (?, ?)", (label, f" {label}™ "))
+                result = self.helpers["premier_q"](
+                    "SELECT session_id FROM sessions WHERE session_id IN "
+                    "(SELECT session_id FROM sessions WHERE session_id=?)",
+                    [labels[0]], family=family,
+                )
+                self.assertEqual(result["session_id"].tolist(), [labels[0]])
+                self.assertIn(category_sql(family), self.queries[-1])
+        with self.assertRaises(ValueError):
+            self.helpers["premier_q"]("SELECT * FROM sessions", family="unrecognized")
+
+    def test_explicit_family_ignores_another_selected_family(self):
+        with patch.object(st, "session_state", {"selected_category": "lightweight"}):
+            result = self.helpers["premier_q"](
+                "SELECT session_id FROM sessions WHERE session_id=?", ["moto2"], family="intermediate"
+            )
+        self.assertEqual(result["session_id"].tolist(), ["moto2"])
+
+    def test_effective_results_override_raw_points_without_cross_class_leakage(self):
+        self.db.execute(
+            "UPDATE dbo.vw_effective_classifications SET points=24.5 WHERE session_id='modern'"
+        )
+        result = self.helpers["premier_q"](
+            "SELECT SUM(points) AS points FROM classifications", family="premier"
+        )
+        self.assertEqual(result.iloc[0]["points"], 44.5)
+        self.assertEqual(
+            self.db.execute("SELECT points FROM classifications WHERE session_id='modern'").fetchone()[0],
+            25,
+        )
+
+    def test_historical_loader_returns_no_reconstructed_points(self):
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        loader = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "load_championship")
+        loader.decorator_list = []
+        queries = []
+        namespace = {"pd": pd, "premier_q": lambda *args, **kwargs: queries.append((args, kwargs))}
+        exec(compile(ast.Module(body=[loader], type_ignores=[]), str(DASHBOARD), "exec"), namespace)
+        for family in CATEGORY_FAMILIES:
+            self.assertTrue(namespace["load_championship"](1969, family).empty)
+        self.assertEqual(queries, [])
+        namespace["load_championship"](2026, "intermediate")
+        self.assertEqual(queries[-1][1], {"family": "intermediate"})
+        self.assertEqual(queries[-1][0][1], [2026])
+
+    def test_scope_reset_removes_only_dependent_selections(self):
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        names = {"reset_category_selection", "reset_analysis_selection"}
+        nodes = [node for node in tree.body
+                 if isinstance(node, ast.FunctionDef) and node.name in names
+                 or isinstance(node, ast.Assign) and any(
+                     isinstance(target, ast.Name) and target.id == "DEPENDENT_WIDGETS"
+                     for target in node.targets)]
+        namespace = {}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(DASHBOARD), "exec"), namespace)
+        state = {"_category_scope": "premier", "sel_year": 2026, "sel_event_id": "old",
+                 "sel_session_label": "Race", "sb_gp": "old", "pos_r": ["Old rider"],
+                 "language": "🇮🇹 Italiano", "selected_nav_group": "nav_race"}
+        namespace["reset_category_selection"](state, "lightweight")
+        self.assertEqual(state, {
+            "_category_scope": "lightweight", "language": "🇮🇹 Italiano",
+            "selected_nav_group": "nav_race",
+        })
+        state["sel_year"] = 1969
+        namespace["reset_category_selection"](state, "lightweight")
+        self.assertEqual(state["sel_year"], 1969)
+        state["pos_r"] = ["Old rider"]
+        namespace["reset_analysis_selection"](state, ("lightweight", 1969, "new-session"))
+        self.assertNotIn("pos_r", state)
 
 
 if __name__ == "__main__":
