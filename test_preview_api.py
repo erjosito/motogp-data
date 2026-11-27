@@ -1,6 +1,9 @@
 import unittest
 import sqlite3
 import re
+import os
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pyodbc
@@ -107,6 +110,23 @@ class ChampionshipTests(unittest.TestCase):
 class PreviewApiTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(preview_api.app)
+
+    def test_rider_enrichment_reads_a_separate_catalog_without_sql(self):
+        from rider_profiles import write_json
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "profiles.json"
+            profile = {"rider_id": preview_api.MARC_ID, "biography": {"height_cm": 169}}
+            write_json(path, {"format_version": 1, "profiles": [profile]})
+            with patch.dict(os.environ, {"MOTOGP_RIDER_CATALOG": str(path)}), \
+                    patch("preview_api.query") as query:
+                response = self.client.get(f"/api/riders/{preview_api.MARC_ID}/enrichment")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {"status": "available", "profile": profile})
+                self.assertEqual(
+                    self.client.get("/api/riders/uncollected/enrichment").json()["status"], "not_collected"
+                )
+                query.assert_not_called()
 
     def test_invalid_season_and_unknown_session_report_errors(self):
         self.assertEqual(self.client.get("/api/championship?season=invalid").status_code, 422)

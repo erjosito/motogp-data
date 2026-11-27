@@ -5,6 +5,7 @@
 __pycache__/
 *.pyc
 historical_cache/
+rider_profiles.local.json
 
 # Local data preservation exports: upstream redistribution is not cleared.
 exports/*.tar.xz

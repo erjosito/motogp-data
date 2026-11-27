@@ -6,9 +6,10 @@
   "decision": "Create a local preservation and analysis export, but do not commit, upload or publish the combined data archive without establishing upstream permission. No blanket CC BY or CC0 grant is made.",
   "sources": [
     {
-      "name": "Official MotoGP results API and timing documents",
+      "name": "Official MotoGP results API, rider profiles and timing documents",
       "urls": [
         "https://api.motogp.pulselive.com/motogp/v1/results/",
+        "https://api.pulselive.motogp.com/motogp/v1/riders",
         "https://resources.motogp.com/files/results/",
         "https://www.motogp.com/en/legal-notice"
       ],
@@ -39,6 +40,7 @@
     "Local export capability is not a legal opinion or a grant of any rights absent from upstream sources.",
     "Source-specific rights remain separate; this notice does not revoke a valid upstream CC0 dedication.",
     "This decision does not change the license status of existing repository code or documentation.",
-    "Raw PDFs, images, access tokens, connection credentials and database permissions are not included."
+    "Raw PDFs, images, access tokens, connection credentials and database permissions are not included.",
+    "The optional rider profile catalog is separate from the SQL export. Official image URLs are unapproved references, not a permission grant. Individually reviewed reusable photographs in media_catalog.json retain their separate author dedications or Creative Commons licenses and do not clear official artwork."
   ]
 }

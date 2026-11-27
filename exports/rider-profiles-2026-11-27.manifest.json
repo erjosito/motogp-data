@@ -1,0 +1,45 @@
+{
+  "format_version": 1,
+  "created_at": "2026-11-27T20:46:55.892970+00:00",
+  "requested_season": 2026,
+  "additional_profile_ids": [
+    "d6f009a8-5a57-49b1-8c68-a9c78349d500"
+  ],
+  "directory_source": {
+    "source_url": "https://api.pulselive.motogp.com/motogp/v1/riders?seasonYear=2026",
+    "retrieved_at": "2026-11-27T20:42:21.671435+00:00",
+    "source_sha256": "fe2dc2ea34505b4cbc596bd8a2e7ef6c1cb5624e2db80f7067ff45256158a772"
+  },
+  "scope": "Requested-season directory plus explicitly requested retired profiles; not all historical riders.",
+  "coverage": {
+    "profiles": 105,
+    "matched_results_riders": 104,
+    "identity_conflicts": 0,
+    "birth_dates": 105,
+    "birthplaces": 105,
+    "heights": 91,
+    "career_steps": 846,
+    "media_references": {
+      "face": 555,
+      "rider_cutout": 532,
+      "bike": 354,
+      "number": 318,
+      "rider_with_bike": 0
+    },
+    "requested_season_media": {
+      "face": 0,
+      "rider_cutout": 107,
+      "bike": 3,
+      "number": 4,
+      "rider_with_bike": 0
+    },
+    "approved_official_media": 0
+  },
+  "media_policy": "References only; unknown rights are unapproved; no image bytes or stale-season fallback.",
+  "catalog": {
+    "name": "rider_profiles.local.json",
+    "bytes": 2077782,
+    "sha256": "c401d1f525f4b2d904d754960cb6fd60c4bce68820c4646153d7ad4ed97e0c7c"
+  },
+  "redistribution_clearance": "not-established"
+}

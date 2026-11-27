@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements-preview.txt .
 RUN pip install --no-cache-dir -r requirements-preview.txt
-COPY preview_api.py sql_connection.py category_scope.py ./
+COPY preview_api.py sql_connection.py category_scope.py rider_profiles.py ./
 COPY --from=web /web/dist ./preview-web/dist
 EXPOSE 8501
 HEALTHCHECK CMD curl --fail http://localhost:8501/api/health || exit 1

@@ -725,6 +725,20 @@ only. This includes 8,578 championship standings and 37 standings-only import
 records. The [original manifest](exports/motogp-data-2026-11-27.manifest.json)
 remains available for the earlier 13-table snapshot.
 
+### Rider biographies and infographic assets
+
+`python rider_profiles.py --season 2026` produces a separate local catalog of
+official birth date/place, reported height and season/team-scoped media
+references, joined only through explicit official profile/results UUID links.
+It preserves missing data and holds conflicting identities rather than matching
+names or reusing an old team's imagery for a current season.
+
+See [rider profiles and media](docs/rider-profiles.md) for reproduction, the
+additive enrichment API, field semantics, image design requirements and rights
+limitations. Official photographs/number graphics are not automatically approved
+for display. The reviewed references in `media_catalog.json` retain their own
+source-specific permissions; no blanket license is asserted.
+
 ## API Reference
 
 The script uses these endpoints (all free, no auth required):

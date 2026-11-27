@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
 from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, official_points_inconsistent
+from rider_profiles import read_enrichment
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -424,6 +425,11 @@ def rider_profile(rider_id: str):
     if not profile["seasons"]:
         raise HTTPException(404, "No Grand Prix career evidence is available for this rider.")
     return profile
+
+
+@api.get("/api/riders/{rider_id}/enrichment")
+def rider_enrichment(rider_id: str):
+    return read_enrichment(rider_id)
 
 
 @api.get("/api/events")

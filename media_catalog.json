@@ -1,0 +1,172 @@
+{
+    "format_version": 1,
+    "reviewed_on": "2026-11-27",
+    "scope": "Small visually inspected editorial image reference set, not a complete or consistently framed portrait collection.",
+    "rights_notice": "Each image has its own author dedication or Creative Commons license. No blanket license is asserted for official MotoGP artwork, trademarks, personality rights or endorsement.",
+    "assets": [
+        {
+            "id": "marc-marquez-mugello-2025-with-bike",
+            "rider_id": "f55b433d-38b8-4d1d-bb3a-a709c82a0260",
+            "profile_id": "23e50438-a657-4fb0-a190-3262b5472f29",
+            "role": "rider_with_bike",
+            "season": 2025,
+            "category": "MotoGP",
+            "team_name": "Ducati Lenovo Team",
+            "team_id": "892fff2f-7402-4fbd-99fb-5fd567d8a80c",
+            "context": "2025 Italian motorcycle Grand Prix, Mugello; helmeted rider on motorcycle, not an unobscured face portrait.",
+            "source_page": "https://commons.wikimedia.org/wiki/File:Marc_M%C3%A1rquez_at_the_pit_lane_during_the_2025_Italian_motorcycle_Grand_Prix_(front_view).jpg",
+            "original_url": "https://upload.wikimedia.org/wikipedia/commons/2/20/Marc_M%C3%A1rquez_at_the_pit_lane_during_the_2025_Italian_motorcycle_Grand_Prix_%28front_view%29.jpg",
+            "original_publisher_url": "https://www.flickr.com/photos/estrellagalicia00/54613247455/",
+            "source_date": "2025-06-25 14:41",
+            "capture_date": null,
+            "date_note": "Source metadata date is after the event; do not treat it as a verified race-day capture timestamp.",
+            "technical": {
+                "width_px": 2048,
+                "height_px": 1366,
+                "has_transparency": false,
+                "format": "JPEG",
+                "bytes": 1209119,
+                "sha256": "49b1807c868e0bb11f7b297c83865484ae7816abf959f708bdb78684ac356e92",
+                "inspection": "downloaded_dimensions_and_visual_subject_verified"
+            },
+            "design": {
+                "suitable_for": [
+                    "period_correct_story",
+                    "rider_with_bike"
+                ],
+                "not_suitable_for": [
+                    "face_avatar",
+                    "transparent_cutout",
+                    "current_season_livery"
+                ],
+                "crop_note": "Bike and rider lie left of center; retain the complete subject. A generic center crop would miss the intended framing."
+            },
+            "rights": {
+                "approval": "approved_editorial",
+                "license": "LicenseRef-PD-author",
+                "license_evidence": "Author's public-domain dedication with worldwide fallback permission for any purpose, as recorded on the source file page.",
+                "creator": "TeamEG00",
+                "credit": "TeamEG00 / Wikimedia Commons (author public-domain dedication)",
+                "attribution_required": false,
+                "credit_recommended": true,
+                "cropping_permitted": true,
+                "background_removal_copyright_permitted": true,
+                "commons_license_review": "FlickreviewR 2, 2025-07-26",
+                "other_rights_note": "No endorsement implied. Personality, trademark and misleading-context restrictions remain separate from image copyright."
+            }
+        },
+        {
+            "id": "marc-marquez-jerez-2026-portrait",
+            "rider_id": "f55b433d-38b8-4d1d-bb3a-a709c82a0260",
+            "profile_id": "23e50438-a657-4fb0-a190-3262b5472f29",
+            "role": "face",
+            "season": 2026,
+            "category": "MotoGP",
+            "team_name": "Ducati Lenovo Team",
+            "team_id": "892fff2f-7402-4fbd-99fb-5fd567d8a80c",
+            "context": "Marc Marquez at the 2026 Spanish Grand Prix; face unobscured, cap and Ducati team shirt, interview setting.",
+            "source_page": "https://commons.wikimedia.org/wiki/File:Marc_Marquez_at_the_2026_Spanish_Grand_Prix.jpg",
+            "original_url": "https://upload.wikimedia.org/wikipedia/commons/3/32/Marc_Marquez_at_the_2026_Spanish_Grand_Prix.jpg",
+            "original_publisher_url": "https://commons.wikimedia.org/wiki/File:Marc_Marquez_at_the_2026_Spanish_Grand_Prix.jpg",
+            "source_date": "2026-04-28 00:09:48",
+            "capture_date": null,
+            "date_note": "Source metadata supplies this timestamp; event/season context is verified but the camera clock is not independently verified.",
+            "technical": {
+                "width_px": 3848,
+                "height_px": 5776,
+                "encoded_width_px": 5776,
+                "encoded_height_px": 3848,
+                "exif_orientation": 8,
+                "has_transparency": false,
+                "format": "JPEG",
+                "bytes": 9753600,
+                "sha256": "7f128450a964651a96595618e37a54545dd870ef370192b46b5e7041b49cc71f",
+                "inspection": "downloaded_dimensions_and_visual_subject_verified",
+                "orientation_note": "Apply EXIF orientation before cropping; width/height above describe the upright displayed original."
+            },
+            "design": {
+                "suitable_for": [
+                    "face_avatar",
+                    "rider_hero",
+                    "period_correct_story"
+                ],
+                "not_suitable_for": [
+                    "transparent_cutout",
+                    "historical_team_livery"
+                ],
+                "crop_note": "Use head/shoulders from the upright portrait, retaining cap and face. Original includes an interview microphone and busy background; avoid them in an avatar crop."
+            },
+            "rights": {
+                "approval": "approved_editorial",
+                "license": "CC-BY-SA-4.0",
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "creator": "Denkmit",
+                "credit": "Denkmit / Wikimedia Commons, CC BY-SA 4.0",
+                "attribution_required": true,
+                "cropping_permitted": true,
+                "background_removal_copyright_permitted": true,
+                "derivative_requirements": "Credit creator and source, link CC BY-SA 4.0, identify changes, and distribute adapted image contributions under the same or a compatible license. Do not imply endorsement.",
+                "other_rights_note": "No endorsement implied. Personality, trademark and misleading-context restrictions remain separate from image copyright."
+            }
+        },
+        {
+            "id": "alex-marquez-assen-2025-with-bike",
+            "rider_id": "e7e4c72e-952e-4f64-8e8a-a47ff590fade",
+            "profile_id": "41195f0f-9817-4a4d-913e-c1fbbb351d9b",
+            "role": "rider_with_bike",
+            "season": 2025,
+            "category": "MotoGP",
+            "team_name": "Gresini Racing",
+            "team_id": "11729e67-d2cb-41ad-b3a8-4a0ac5768a5f",
+            "context": "2025 Dutch TT, Assen; helmeted rider arriving on the grid with motorcycle and surrounding personnel.",
+            "source_page": "https://commons.wikimedia.org/wiki/File:%C3%81lex_M%C3%A1rquez_arriving_at_the_grid_before_the_start_of_2025_Dutch_TT.jpg",
+            "original_url": "https://upload.wikimedia.org/wikipedia/commons/f/f1/%C3%81lex_M%C3%A1rquez_arriving_at_the_grid_before_the_start_of_2025_Dutch_TT.jpg",
+            "original_publisher_url": "https://www.flickr.com/photos/estrellagalicia00/54624677391/",
+            "source_date": "2025-06-30 22:38",
+            "capture_date": null,
+            "date_note": "Source metadata date is after the event; event context is verified but the exact capture date is not.",
+            "technical": {
+                "width_px": 2048,
+                "height_px": 1366,
+                "has_transparency": false,
+                "format": "JPEG",
+                "bytes": 961117,
+                "sha256": "25f8126c6ad54c0fe29b04a71c06c7e34153f8af1ec3eeab140b86136646d643",
+                "inspection": "downloaded_dimensions_and_visual_subject_verified"
+            },
+            "design": {
+                "suitable_for": [
+                    "period_correct_story",
+                    "rider_with_bike"
+                ],
+                "not_suitable_for": [
+                    "face_avatar",
+                    "transparent_cutout",
+                    "isolated_bike",
+                    "current_season_livery"
+                ],
+                "crop_note": "Rider is right of center; retain helmet, hands and visible bike. Background is busy, not a clean podium portrait."
+            },
+            "rights": {
+                "approval": "approved_editorial",
+                "license": "LicenseRef-PD-author",
+                "license_evidence": "Author's public-domain dedication with worldwide fallback permission for any purpose, as recorded on the source file page.",
+                "creator": "TeamEG00",
+                "credit": "TeamEG00 / Wikimedia Commons (author public-domain dedication)",
+                "attribution_required": false,
+                "credit_recommended": true,
+                "cropping_permitted": true,
+                "background_removal_copyright_permitted": true,
+                "commons_license_review": "FlickreviewR 2, 2025-07-23",
+                "other_rights_note": "No endorsement implied. Surrounding people and visible marks require appropriate editorial context."
+            }
+        }
+    ],
+    "gaps": [
+        "Consistently framed, rights-cleared unobscured face portraits for a full podium or comparison set.",
+        "Rights-cleared isolated rider/bike cutouts with verified alpha transparency.",
+        "Rights-cleared personal number artwork; numeric race numbers are not a license to reproduce graphic marks.",
+        "Complete rider-with-bike imagery for every historical team and season.",
+        "Rights-cleared venue header photos and documented historical circuit layouts."
+    ]
+}
