@@ -16,7 +16,7 @@ import streamlit as st
 from azure.core.exceptions import ClientAuthenticationError
 
 from sql_connection import connect_to_sql
-from category_scope import CATEGORY_FAMILIES, category_sql
+from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category
 
 warnings.filterwarnings("ignore", message=".*pandas only supports SQLAlchemy.*")
 
@@ -104,6 +104,14 @@ def q(sql, params=None):
 PREMIER_CATEGORY = category_sql()
 
 
+def scope_predicate(families, column="category"):
+    if isinstance(families, str):
+        families = (families,)
+    if not families:
+        raise ValueError("Select at least one category")
+    return " OR ".join(f"({category_sql(family, column)})" for family in families)
+
+
 def premier_q(sql, params=None, family=None):
     """Bind all session/result references, including subqueries, to one lineage.
 
@@ -113,7 +121,7 @@ def premier_q(sql, params=None, family=None):
     if family is None:
         family = st.session_state.get("selected_category", "premier")
     return q(
-        f"WITH sessions AS (SELECT * FROM dbo.sessions WHERE {category_sql(family)}),\n"
+        f"WITH sessions AS (SELECT * FROM dbo.sessions WHERE {scope_predicate(family)}),\n"
         "classifications AS (SELECT c.* FROM dbo.vw_effective_classifications c "
         "WHERE EXISTS (SELECT 1 FROM sessions s WHERE s.session_id=c.session_id))\n"
         f"{sql}",
@@ -152,6 +160,42 @@ def season_category(family, year):
 
 def remember_category():
     st.session_state["selected_category"] = st.session_state["sb_category"]
+
+
+VIEW_FILTER_KEYS = (
+    *DEPENDENT_WIDGETS, "selected_category", "sel_year", "sel_event_id",
+    "sel_session_label", "sb_category", "sb_year", "sb_gp", "sb_sess",
+    "_category_scope", "_event_scope", "_session_scope", "_analysis_scope",
+    "scope_categories", "selected_scope_categories", "profile_rider", "profile_categories",
+    "profile_rival", "_profile_rider", "circuit_selection",
+)
+RACE_VIEWS = (
+    "viz_classification", "viz_rhythm", "viz_laptimes", "viz_position",
+    "viz_distribution", "viz_sectors", "viz_tyredeg", "viz_speed",
+)
+
+
+def activate_view_scope(state, view):
+    """Keep task filters outside widget cleanup when navigation hides them."""
+    previous = state.get("_filter_view")
+    if previous == view:
+        return
+    saved = dict(state.get("_view_filters", {}))
+    if previous is not None:
+        saved[previous] = {key: state[key] for key in VIEW_FILTER_KEYS if key in state}
+    if view not in saved and previous in RACE_VIEWS and view in RACE_VIEWS:
+        shared = ("selected_category", "sel_year", "sel_event_id", "sel_session_label",
+                  "_event_scope", "_session_scope")
+        saved[view] = {key: state[key] for key in shared if key in state}
+    for key in VIEW_FILTER_KEYS:
+        state.pop(key, None)
+    state.update(saved.get(view, {}))
+    state["_view_filters"] = saved
+    state["_filter_view"] = view
+
+
+def category_label(family):
+    return " / ".join(CATEGORY_FAMILIES[family])
 
 
 # ---------------------------------------------------------------------------
@@ -250,16 +294,6 @@ lang = LANG_OPTIONS[lang_sel]
 t = get_translator(lang)
 st.sidebar.caption(t("appearance_help"))
 
-st.session_state["sb_category"] = st.session_state.get("selected_category", "premier")
-selected_category = st.sidebar.selectbox(
-    t("category"), list(CATEGORY_FAMILIES),
-    format_func=lambda family: " / ".join(CATEGORY_FAMILIES[family]), key="sb_category",
-    on_change=remember_category,
-)
-st.session_state["selected_category"] = selected_category
-reset_category_selection(st.session_state, selected_category)
-st.sidebar.caption(t("category_scope", category=" / ".join(CATEGORY_FAMILIES[selected_category])))
-
 st.title(t("app_title"))
 st.caption(t("app_tagline"))
 
@@ -302,16 +336,29 @@ else:
 viz = get_translator("en")(view_key)
 st.sidebar.divider()
 
+home_view = None
+if view_key == "viz_home":
+    st.session_state["home_view"] = st.session_state.get("selected_home_view", "home_championship")
+    home_view = st.radio(
+        t("home_view"), ["home_championship", "home_coverage"], format_func=t,
+        horizontal=True, label_visibility="collapsed", key="home_view",
+        on_change=remember_selection, args=("home_view", "selected_home_view"),
+    )
+activate_view_scope(st.session_state, home_view or view_key)
+
 
 def open_championship(year):
     """Set navigation and filter state before the next Streamlit rerun."""
     st.session_state["selected_nav_group"] = "nav_season"
     st.session_state["selected_view_nav_season"] = "viz_championship"
-    st.session_state["sel_year"] = year
-    st.session_state.pop("sb_year", None)
+    saved = dict(st.session_state.get("_view_filters", {}))
+    saved["viz_championship"] = {
+        "sel_year": year, "selected_category": st.session_state.get("selected_category", "premier"),
+    }
+    st.session_state["_view_filters"] = saved
 
 # ---------------------------------------------------------------------------
-# Sidebar — global filters
+# Sidebar — task filters
 # ---------------------------------------------------------------------------
 
 excluded_categories = q(
@@ -322,20 +369,49 @@ if not excluded_categories.empty:
     st.sidebar.warning(t("excluded_categories", categories=", ".join(
         excluded_categories["category"].fillna("?").astype(str)
     )))
+needs_session = viz not in ["🏠 Home", "👤 Pilot Profile", "📈 Cross-Year", "🌍 Championship", "🔧 Reliability", "🏢 Teams & Constructors", "🧙 Tyre Whisperers", "🏁 Grid Advantage", "🏟 Circuits", "🏅 Pilot Rankings"]
+selected_category = st.session_state.get("selected_category", "premier")
+comparison_categories = None
+if not needs_session and view_key != "viz_profile":
+    if home_view == "home_coverage" or view_key in ("viz_circuits", "viz_crossyear"):
+        st.session_state["scope_categories"] = st.session_state.get(
+            "selected_scope_categories", ["premier"]
+        )
+        comparison_categories = st.sidebar.multiselect(
+            t("categories"), list(CATEGORY_FAMILIES), format_func=category_label,
+            key="scope_categories", on_change=remember_selection,
+            args=("scope_categories", "selected_scope_categories"),
+        )
+        if not comparison_categories:
+            st.info(t("select_category")); st.stop()
+        category_options = comparison_categories
+    else:
+        category_options = list(CATEGORY_FAMILIES)
+    st.session_state["sb_category"] = (
+        selected_category if selected_category in category_options else category_options[0]
+    )
+    selected_category = st.sidebar.selectbox(
+        t("category_detail") if comparison_categories else t("category"),
+        category_options, format_func=category_label, key="sb_category",
+        on_change=remember_category,
+    )
+    st.session_state["selected_category"] = selected_category
+    reset_category_selection(st.session_state, selected_category)
+    st.sidebar.caption(t("category_scope", category=category_label(selected_category)))
+
+selector_families = tuple(CATEGORY_FAMILIES) if needs_session or view_key == "viz_profile" else selected_category
 years_df = premier_q(
     "SELECT DISTINCT season_year FROM ("
     "SELECT season_year FROM events WHERE EXISTS "
     "(SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) "
     "UNION SELECT cs.season_year FROM championship_standings cs "
-    f"WHERE {category_sql(selected_category, 'cs.category')}"
-    ") available_years ORDER BY season_year DESC"
+    f"WHERE {scope_predicate(selector_families, 'cs.category')}"
+    ") available_years ORDER BY season_year DESC", family=selector_families,
 )
 if years_df.empty:
     st.warning(t("no_data_load"))
     st.stop()
 year_list = years_df["season_year"].tolist()
-
-needs_session = viz not in ["🏠 Home", "👤 Pilot Profile", "📈 Cross-Year", "🌍 Championship", "🔧 Reliability", "🏢 Teams & Constructors", "🧙 Tyre Whisperers", "🏁 Grid Advantage", "🏟 Circuits", "🏅 Pilot Rankings"]
 
 # Vizs that support "All" aggregation across events/sessions
 supports_all = viz == "⚡ Speed Trap"
@@ -345,7 +421,7 @@ if viz in ["🎯 Pilot Rhythm", "⏱ Sector Heatmap"]:
 # Vizs that only show Race/Sprint in session filter
 race_only_session = viz in ["📍 Position Battle", "🛞 Tyre Degradation"]
 
-no_year_filter = viz in ["🏠 Home", "🏟 Circuits", "🏅 Pilot Rankings", "🔧 Reliability", "📈 Cross-Year"]
+no_year_filter = viz in ["🏟 Circuits", "🏅 Pilot Rankings", "🔧 Reliability", "📈 Cross-Year", "👤 Pilot Profile"] or home_view == "home_coverage"
 
 # Initialize session state for persistent filters
 if "sel_year" not in st.session_state:
@@ -371,7 +447,7 @@ else:
     selected_year = year_list[0]
     all_years = False
 
-event_scope = (selected_category, selected_year, all_years)
+event_scope = (selected_year, all_years) if needs_session else (selected_category, selected_year, all_years)
 if st.session_state.get("_event_scope") != event_scope:
     for key in ("sb_gp", "sb_sess", "sel_event_id", "sel_session_label"):
         st.session_state.pop(key, None)
@@ -384,13 +460,14 @@ if all_years:
         "SELECT event_id, short_name, event_name, sponsored_name, circuit_name, "
         "circuit_place, country_name, date_end, season_year "
         "FROM events WHERE EXISTS (SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) "
-        "ORDER BY date_end")
+        "ORDER BY date_end", family=selector_families)
 else:
     events_df = premier_q(
         "SELECT event_id, short_name, event_name, sponsored_name, circuit_name, "
         "circuit_place, country_name, date_end, season_year "
         "FROM events WHERE season_year = ? AND EXISTS "
-        "(SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) ORDER BY date_end", [selected_year])
+        "(SELECT 1 FROM sessions s WHERE s.event_id = events.event_id) ORDER BY date_end",
+        [selected_year], family=selector_families)
 
 sel_session = None
 event = None
@@ -428,8 +505,33 @@ if needs_session:
         event = events_df.iloc[event_ids.index(event_id)]
         st.session_state.sel_event_id = event.event_id
 
+    category_sources = premier_q(
+        "SELECT DISTINCT category FROM sessions WHERE "
+        + ("event_id = ?" if event is not None else "event_id IN "
+           "(SELECT event_id FROM events WHERE season_year = ?)" if not all_years else "1=1")
+        + (" AND session_type IN ('RAC', 'SPR')" if race_only_session else ""),
+        [event.event_id] if event is not None else [selected_year] if not all_years else None,
+        family=tuple(CATEGORY_FAMILIES),
+    )
+    recorded = {normalize_category(value) for value in category_sources["category"]}
+    category_options = [
+        family for family, labels in CATEGORY_FAMILIES.items()
+        if any(normalize_category(label) in recorded for label in labels)
+    ]
+    if not category_options:
+        st.warning(t("no_sessions")); st.stop()
+    st.session_state["sb_category"] = (
+        selected_category if selected_category in category_options else category_options[0]
+    )
+    selected_category = st.sidebar.selectbox(
+        t("category"), category_options, format_func=category_label, key="sb_category",
+        on_change=remember_category,
+    )
+    st.session_state["selected_category"] = selected_category
+    st.sidebar.caption(t("category_scope", category=category_label(selected_category)))
+
     if not all_events and event is not None:
-        parent_scope = (event_scope, event.event_id)
+        parent_scope = (event_scope, event.event_id, selected_category)
         if st.session_state.get("_session_scope") != parent_scope:
             st.session_state.pop("sb_sess", None)
             st.session_state["sel_session_label"] = None
@@ -700,20 +802,37 @@ else:
 
 has_context = "gp" in laps_df.columns if not laps_df.empty else False
 
+if comparison_categories and len(comparison_categories) > 1:
+    comparisons = []
+    for family in comparison_categories:
+        counts = premier_q("""
+            SELECT e.season_year AS Year, COUNT(DISTINCT s.session_id) AS Sessions,
+                COUNT(DISTINCT CASE WHEN s.session_type = 'RAC' THEN s.session_id END) AS Races
+            FROM sessions s JOIN events e ON e.event_id = s.event_id
+            GROUP BY e.season_year ORDER BY e.season_year
+        """, family=family)
+        counts["Category"] = category_label(family)
+        comparisons.append(counts)
+    counts = pd.concat(comparisons, ignore_index=True)
+    st.subheader(t("category_comparison"))
+    st.caption(t("category_comparison_help", category=category_label(selected_category)))
+    if not counts.empty:
+        counts["Year"] = counts["Year"].astype(str)
+        st.plotly_chart(
+            px.bar(counts, x="Year", y="Races", color="Category", barmode="group",
+                   labels={"Races": t("imported_race_sessions"), "Category": t("category")}),
+            width="stretch",
+        )
+        st.dataframe(counts.rename(columns={
+            "Year": t("year"), "Category": t("category"),
+            "Sessions": t("home_sessions_count"), "Races": t("imported_race_sessions"),
+        }), hide_index=True, width="stretch")
+
 
 # =====================================================================
 # 🏠 HOME — Championship overview and database coverage
 # =====================================================================
 if viz == "🏠 Home":
-    st.session_state["home_view"] = (
-        "home_coverage" if st.session_state.get("selected_home_view") == "home_coverage"
-        else "home_championship"
-    )
-    home_view = st.radio(
-        t("home_view"), ["home_championship", "home_coverage"], format_func=t,
-        horizontal=True, label_visibility="collapsed", key="home_view",
-        on_change=remember_selection, args=("home_view", "selected_home_view"),
-    )
     if home_view == "home_championship":
         st.subheader(t("home_championship_title", year=selected_year,
                        category=season_category(selected_category, selected_year)))
@@ -2435,31 +2554,19 @@ elif viz == "🏅 Pilot Rankings":
 # =====================================================================
 elif viz == "👤 Pilot Profile":
     st.header(t("pilot_profile_header"))
+    st.caption(t("profile_scope_help"))
     riders_all = premier_q(
         "SELECT DISTINCT full_name FROM riders r WHERE EXISTS "
         "(SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id "
-        "WHERE c.rider_id = r.rider_id) ORDER BY full_name"
+        "WHERE c.rider_id = r.rider_id) ORDER BY full_name", family=tuple(CATEGORY_FAMILIES),
     )
     if riders_all.empty:
         st.info(t("no_riders")); st.stop()
-    pilot = st.sidebar.selectbox(t("rider"), riders_all["full_name"].tolist())
-
-    # Season filter with "All"
-    pilot_years = premier_q("SELECT DISTINCT e.season_year FROM classifications c "
-                    "JOIN sessions s ON c.session_id = s.session_id "
-                    "JOIN events e ON s.event_id = e.event_id "
-                    "JOIN riders r ON c.rider_id = r.rider_id "
-                    "WHERE r.full_name = ? ORDER BY e.season_year DESC", [pilot])
-    if pilot_years.empty:
-        st.info(t("no_data_for_pilot", pilot=pilot)); st.stop()
-    py_list = pilot_years["season_year"].tolist()
-    if st.session_state.get("pp_yr") not in ["All"] + py_list:
-        st.session_state.pop("pp_yr", None)
-    yr_sel = st.sidebar.selectbox(t("season"), ["All"] + py_list, key="pp_yr")
-    filter_year = None if yr_sel == "All" else yr_sel
+    pilot = st.sidebar.selectbox(t("rider"), riders_all["full_name"].tolist(), key="profile_rider")
 
     career = premier_q("""
         SELECT e.season_year, e.short_name, e.date_end, s.session_type, s.session_label,
+            s.session_id, s.category,
             c.position, c.points, c.best_lap_time, c.top_speed, c.status,
             COALESCE(ta.canonical_name, t.team_name) AS team_name, t.constructor, e.circuit_name
         FROM classifications c
@@ -2468,12 +2575,32 @@ elif viz == "👤 Pilot Profile":
         JOIN riders r ON c.rider_id = r.rider_id
         LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
         LEFT JOIN team_aliases ta ON t.team_name = ta.team_name
-        WHERE r.full_name = ? ORDER BY e.date_end, s.session_date""", [pilot])
+        WHERE r.full_name = ? ORDER BY e.date_end, s.session_date""", [pilot],
+        family=tuple(CATEGORY_FAMILIES))
 
     if career.empty:
         st.info(t("no_data_for_pilot", pilot=pilot)); st.stop()
 
-    if filter_year:
+    category_names = {
+        normalize_category(label): label for labels in CATEGORY_FAMILIES.values() for label in labels
+    }
+    career["category"] = career["category"].map(lambda value: category_names[normalize_category(value)])
+    category_options = sorted(career["category"].unique())
+    if st.session_state.get("_profile_rider") != pilot:
+        st.session_state.pop("profile_categories", None)
+        st.session_state.pop("pp_yr", None)
+        st.session_state["_profile_rider"] = pilot
+    st.session_state["profile_categories"] = st.session_state.get("profile_categories", category_options)
+    profile_categories = st.sidebar.multiselect(t("categories"), category_options, key="profile_categories")
+    if not profile_categories:
+        st.info(t("select_category")); st.stop()
+    career = career[career["category"].isin(profile_categories)]
+    py_list = sorted(career["season_year"].unique(), reverse=True)
+    if st.session_state.get("pp_yr") not in ["All"] + py_list:
+        st.session_state.pop("pp_yr", None)
+    yr_sel = st.sidebar.selectbox(t("season"), ["All"] + py_list, key="pp_yr")
+    filter_year = None if yr_sel == "All" else yr_sel
+    if filter_year is not None:
         career = career[career["season_year"] == filter_year]
 
     races = career[career["session_type"] == "RAC"]
@@ -2489,7 +2616,8 @@ elif viz == "👤 Pilot Profile":
     wins = len(races[races["position"] == 1])
     sprint_wins = len(sprints[sprints["position"] == 1])
     podiums = len(races[races["position"].isin([1, 2, 3])])
-    total_pts = race_sprint["points"].sum(min_count=1)
+    multiple_classes = career["category"].nunique() > 1
+    total_pts = race_sprint["points"].sum(min_count=1) if not multiple_classes else np.nan
     dnfs = len(races[races["status"].isin(["OUTSTND", "NOTFINISHFIRST"])])
     dns = len(races[races["status"] == "NOTSTARTED"])
     finished = len(races[races["status"] == "INSTND"])
@@ -2510,8 +2638,22 @@ elif viz == "👤 Pilot Profile":
     row1[1].metric(t("race_starts"), n_races)
     row1[2].metric(t("race_wins_label"), wins)
     row1[3].metric(t("podiums"), podiums)
-    row1[4].metric(t("ranking_total_points"), f"{total_pts:.0f}")
-    row1[5].metric(t("points_pct"), f"{pts_pct}%")
+    row1[4].metric(t("categories"), career["category"].nunique())
+    row1[5].metric(t("points_pct"), "—" if multiple_classes else f"{pts_pct}%")
+    if multiple_classes:
+        st.caption(t("profile_class_points"))
+    class_stats = races.groupby("category").agg(
+        Races=("session_id", "nunique"),
+        Wins=("position", lambda values: values.eq(1).sum()),
+        Podiums=("position", lambda values: values.isin([1, 2, 3]).sum()),
+    ).reset_index()
+    class_stats["Points"] = class_stats["category"].map(
+        race_sprint.groupby("category")["points"].sum(min_count=1)
+    )
+    st.dataframe(class_stats.rename(columns={
+        "category": t("category"), "Races": t("race_starts"), "Wins": t("race_wins_label"),
+        "Podiums": t("podiums"), "Points": t("points"),
+    }), hide_index=True, width="stretch")
 
     row2 = st.columns(6)
     row2[0].metric(t("sprint_starts"), n_sprints)
@@ -2532,9 +2674,9 @@ elif viz == "👤 Pilot Profile":
     st.subheader(t("race_finishing_positions"))
     if not races.empty:
         rp = races.copy().sort_values("date_end")
-        rp["year"] = rp["season_year"].astype(str)
+        rp["year"] = rp["season_year"].astype(str) + " · " + rp["category"]
         # Use event index within each year for proper X ordering
-        rp["gp_label"] = rp["short_name"] + " '" + rp["year"].str[-2:]
+        rp["gp_label"] = rp["short_name"] + " " + rp["year"]
         label_order = rp["gp_label"].tolist()
         fig = go.Figure()
         for yr in sorted(rp["year"].unique()):
@@ -2557,28 +2699,23 @@ elif viz == "👤 Pilot Profile":
 
     # --- Points per season ---
     st.subheader(t("points_per_season"))
-    pts_yr = race_sprint.groupby("season_year").agg(
-        Points=("points", "sum"),
-        Races=("season_year", lambda x: len(career[(career["season_year"].isin(x)) & (career["session_type"] == "RAC")].drop_duplicates("short_name"))),
-    ).reset_index()
-    # Simpler approach
-    pts_yr = race_sprint.groupby("season_year")["points"].sum(min_count=1).reset_index()
-    pts_yr.columns = ["Year", "Points"]
+    pts_yr = race_sprint.groupby(["season_year", "category"])["points"].sum(min_count=1).reset_index()
+    pts_yr.columns = ["Year", "Category", "Points"]
     pts_yr["Year"] = pts_yr["Year"].astype(str)
     if not pts_yr.empty:
         fig = px.bar(pts_yr, x="Year", y="Points", title=t("season_points_title", pilot=pilot),
-                     text="Points", color="Points", color_continuous_scale="Greens")
-        fig.update_layout(height=350, coloraxis_showscale=False)
+                     text="Points", color="Category", barmode="group",
+                     labels={"Category": t("category")})
+        fig.update_layout(height=350)
         fig.update_traces(textposition="outside")
         st.plotly_chart(fig, width="stretch")
 
     # --- Season-by-season detailed stats table ---
     st.subheader(t("season_statistics"))
     season_stats = []
-    for yr in seasons:
-        yr_races = races[races["season_year"] == yr]
-        yr_sprints = sprints[sprints["season_year"] == yr]
-        yr_all = race_sprint[race_sprint["season_year"] == yr]
+    for (yr, category), yr_all in race_sprint.groupby(["season_year", "category"]):
+        yr_races = yr_all[yr_all["session_type"] == "RAC"]
+        yr_sprints = yr_all[yr_all["session_type"] == "SPR"]
         yr_finished = yr_races[yr_races["status"] == "INSTND"]
         yr_wins = len(yr_races[yr_races["position"] == 1])
         yr_podiums = len(yr_races[yr_races["position"].isin([1, 2, 3])])
@@ -2591,6 +2728,7 @@ elif viz == "👤 Pilot Profile":
         team = yr_all["team_name"].dropna().unique()
         row = {
             "Year": int(yr),
+            t("category"): category,
             "Team": team[0] if len(team) > 0 else "",
             "Races": len(yr_races),
             "Wins": yr_wins,
@@ -2619,7 +2757,7 @@ elif viz == "👤 Pilot Profile":
     bl["sec"] = bl["best_lap_time"].apply(lap_to_sec)
     bl = bl.dropna(subset=["sec"]).sort_values("date_end")
     if not bl.empty:
-        bl["year"] = bl["season_year"].astype(str)
+        bl["year"] = bl["season_year"].astype(str) + " · " + bl["category"]
         bl["label"] = bl["short_name"] + " " + bl["year"]
         fig = px.scatter(bl, x="label", y="sec", color="year",
                          title=t("race_best_laps_title", pilot=pilot), labels={"label": "", "sec": t("seconds_label")},
@@ -2633,7 +2771,7 @@ elif viz == "👤 Pilot Profile":
     ts = races[races["top_speed"].notna()].copy().sort_values("date_end")
     if not ts.empty:
         ts["label"] = ts["short_name"] + " " + ts["season_year"].astype(str)
-        fig = px.line(ts, x="label", y="top_speed", markers=True,
+        fig = px.line(ts, x="label", y="top_speed", color="category", markers=True,
                       title=t("race_top_speeds_title", pilot=pilot), labels={"label": "", "top_speed": t("kmh")},
                       category_orders={"label": ts["label"].tolist()})
         fig.update_layout(height=350, xaxis_tickangle=-60)
@@ -2646,21 +2784,22 @@ elif viz == "👤 Pilot Profile":
     others = premier_q(
         "SELECT DISTINCT full_name FROM riders r WHERE full_name != ? AND EXISTS "
         "(SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id "
-        "WHERE c.rider_id = r.rider_id) ORDER BY full_name", [pilot]
+        "WHERE c.rider_id = r.rider_id) ORDER BY full_name", [pilot], family=tuple(CATEGORY_FAMILIES),
     )
     if not others.empty:
-        rival = st.selectbox(t("compare_with"), others["full_name"].tolist())
+        rival = st.selectbox(t("compare_with"), others["full_name"].tolist(), key="profile_rival")
         rival_races = premier_q("""
-            SELECT e.season_year, e.short_name, e.date_end, c.position
+            SELECT s.session_id, e.season_year, e.short_name, e.date_end, c.position
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
             JOIN riders r ON c.rider_id = r.rider_id
-            WHERE r.full_name = ? AND s.session_type = 'RAC' ORDER BY e.date_end""", [rival])
-        p1 = races[["season_year", "short_name", "date_end", "position"]].rename(columns={"position": "pos1"})
-        p2 = rival_races[["season_year", "short_name", "date_end", "position"]].rename(columns={"position": "pos2"})
-        mg = p1.merge(p2, on=["season_year", "short_name", "date_end"]).sort_values("date_end")
+            WHERE r.full_name = ? AND s.session_type = 'RAC' ORDER BY e.date_end""", [rival],
+            family=tuple(CATEGORY_FAMILIES))
+        p1 = races[["session_id", "season_year", "short_name", "date_end", "category", "position"]].rename(columns={"position": "pos1"})
+        p2 = rival_races[["session_id", "position"]].rename(columns={"position": "pos2"})
+        mg = p1.merge(p2, on="session_id", validate="one_to_one").sort_values("date_end")
         if not mg.empty:
-            mg["label"] = mg["short_name"] + " " + mg["season_year"].astype(str)
+            mg["label"] = mg["short_name"] + " " + mg["season_year"].astype(str) + " · " + mg["category"]
             label_order = mg["label"].tolist()
             mg["winner"] = mg.apply(lambda r: pilot if r.pos1 < r.pos2 else rival if r.pos2 < r.pos1 else "Tie", axis=1)
             wc = mg["winner"].value_counts()
