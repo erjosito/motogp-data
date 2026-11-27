@@ -10,7 +10,6 @@ import warnings
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.io as pio
 import pyodbc
 import pandas as pd
 import streamlit as st
@@ -170,17 +169,19 @@ st.markdown("""
     }
     h1 { letter-spacing: -0.045em; }
     h2, h3 { letter-spacing: -0.025em; }
-    [data-testid="stSidebar"] { border-right: 1px solid #e3e7ef; }
+    [data-testid="stSidebar"] {
+        border-right: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    }
     [data-testid="stMetric"] {
-        background: #ffffff;
-        border: 1px solid #e3e7ef;
+        background: color-mix(in srgb, currentColor 5%, transparent);
+        border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
         border-radius: 12px;
         padding: 1rem;
     }
     [data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
     [data-testid="stPlotlyChart"] {
-        background: #ffffff;
-        border: 1px solid #e3e7ef;
+        background: transparent;
+        border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
         border-radius: 12px;
         overflow: hidden;
     }
@@ -191,20 +192,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-pio.templates["motogp"] = go.layout.Template(layout=go.Layout(
-    font=dict(family="Arial, sans-serif", size=13, color="#172033"),
-    paper_bgcolor="#ffffff",
-    plot_bgcolor="#ffffff",
-    colorway=["#c8102e", "#2563eb", "#0f766e", "#9333ea", "#d97706",
-              "#0284c7", "#be185d", "#475569", "#65a30d", "#7c3aed"],
-    xaxis=dict(gridcolor="#edf0f5", zeroline=False, automargin=True),
-    yaxis=dict(gridcolor="#edf0f5", zeroline=False, automargin=True),
-    hoverlabel=dict(bgcolor="#ffffff", font_size=13),
-    margin=dict(l=24, r=24, t=64, b=48),
-))
-pio.templates.default = "plotly_white+motogp"
-px.defaults.template = "plotly_white+motogp"
 
 # ---------------------------------------------------------------------------
 # Language selector + translation
@@ -218,6 +205,7 @@ lang_sel = st.sidebar.selectbox(
 )
 lang = LANG_OPTIONS[lang_sel]
 t = get_translator(lang)
+st.sidebar.caption(t("appearance_help"))
 
 st.title(t("app_title"))
 st.caption(t("app_tagline"))
@@ -2710,8 +2698,9 @@ elif viz == "📈 Cross-Year":
             frame_duration=800,
             orientation="horizontal",
         )
-        fig.update_layout(height=600, font=dict(color="#1a1a1a"),
-                          yaxis=dict(showticklabels=True, tickfont=dict(size=12, color="#1a1a1a")),
+        fig.update_layout(height=600, template="streamlit",
+                          paper_bgcolor=None, plot_bgcolor=None,
+                          yaxis=dict(showticklabels=True, tickfont=dict(size=12)),
                           xaxis=dict(tickformat="d"))
 
         # Fix text labels: show name + value, dark color, integer format
@@ -2735,7 +2724,7 @@ elif viz == "📈 Cross-Year":
         fig.add_trace(go.Scatter(
             x=[max_val * 0.85], y=[0.5],
             mode="text", text=["Start"],
-            textfont=dict(size=36, color="rgba(0,0,0,0.15)"),
+            textfont=dict(size=36), opacity=0.35,
             textposition="middle center",
             showlegend=False, xaxis="x", yaxis="y",
         ))
@@ -2748,7 +2737,7 @@ elif viz == "📈 Cross-Year":
             time_trace = go.Scatter(
                 x=[max_val * 0.85], y=[0.5],
                 mode="text", text=[gp_display],
-                textfont=dict(size=36, color="rgba(0,0,0,0.15)"),
+                textfont=dict(size=36), opacity=0.35,
                 textposition="middle center",
                 showlegend=False,
             )
@@ -2760,9 +2749,9 @@ elif viz == "📈 Cross-Year":
         # Style play/pause buttons for visibility
         if fig.layout.updatemenus:
             for menu in fig.layout.updatemenus:
-                menu.bgcolor = "#e0e0e0"
-                menu.font = dict(color="#1a1a1a", size=13)
-                menu.bordercolor = "#999999"
+                menu.bgcolor = None
+                menu.font = dict(size=13)
+                menu.bordercolor = None
                 menu.borderwidth = 1
         st.plotly_chart(fig, width="stretch")
 

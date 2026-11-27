@@ -3,7 +3,7 @@ openpyxl
 pdfplumber
 pyodbc
 azure-identity
-streamlit
+streamlit>=1.51,<2
 plotly
 pandas
 statsmodels
