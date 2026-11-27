@@ -23,7 +23,7 @@ function championship(standings: Standing[], extra: Partial<Championship> = {}):
 }
 
 describe('evidence-led season chart pairs', () => {
-  it('keeps supplied 9/28/46 scores paired with official ranks and warns without deriving margins', () => {
+  it('keeps supplied 9/28/46 scores paired with official ranks without warnings or derived margins', () => {
     const standings = [standing('Agostini', 9, 1, { gap: null }), standing('Carruthers', 28, 2, { gap: null }),
       standing('Pasolini', 46, 3, { gap: null })]
     const data = championship(standings, {
@@ -39,10 +39,10 @@ describe('evidence-led season chart pairs', () => {
     expect(result.charts[0].series[0].x).toEqual([9, 28, 46])
     expect(result.charts[0].series[0].y).toEqual(['P1 Agostini', 'P2 Carruthers', 'P3 Pasolini'])
     expect(result.charts[1].series.map((series) => [series.x, series.y])).toEqual([[[9], [1]], [[28], [2]], [[46], [3]]])
-    expect(result.charts.every((chart) => chart.note.includes('Period scoring or source discrepancies'))).toBe(true)
+    expect(result.charts.every((chart) => !chart.note.includes('verification') && !chart.xTitle?.includes('verification'))).toBe(true)
     expect(result.charts.every((chart) => !chart.id.includes('gap') && chart.id !== 'margins')).toBe(true)
     expect(seasonCharts({ ...data, points_warning: null }).charts.every((chart) =>
-      chart.note.includes('source verification'))).toBe(true)
+      !chart.note.includes('verification'))).toBe(true)
     expect(data).toEqual(before)
   })
 

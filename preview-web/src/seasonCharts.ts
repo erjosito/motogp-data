@@ -56,17 +56,13 @@ function margins(data: Championship): SeasonChart {
 
 function suppliedScores(data: Championship): [SeasonChart, SeasonChart] {
   const official = data.standings_source === 'official'
-  const flagged = official && (data.official_points_inconsistent || Boolean(data.points_warning))
   const riders = data.standings.slice(0, 10)
-  const note = `${data.points_warning ?? (flagged
-    ? 'Supplied point totals require source verification. Period scoring or source discrepancies may explain this.'
-    : 'Points gaps are unavailable.')} `
-    + 'Source ranks and supplied scores are unchanged. No gaps, title margins or point shares are inferred.'
+  const note = 'Source ranks and supplied scores are shown unchanged.'
   const bars = pointsBars(data)
   return [{
     ...bars, id: 'supplied-scores', title: 'Supplied scores, in source order',
     description: 'The leading ten by source rank, not sorted or corrected by supplied score.',
-    note, xTitle: flagged ? 'Supplied points · source verification required' : 'Supplied points',
+    note, xTitle: 'Supplied points',
     series: bars.series.map((series) => ({
       ...series, name: 'Supplied points',
       hovertemplate: '%{text}<br>%{x:,.3~f} supplied points<extra></extra>',

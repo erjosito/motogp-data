@@ -51,7 +51,7 @@ describe('category selector and navigation', () => {
       story: {
         kind: 'standings',
         headline: 'Giacomo Agostini: officially ranked first.',
-        accent: 'Supplied points need verification.',
+        accent: 'Official standings, in source order.',
         summary: 'Official source ranks and supplied scores are preserved unchanged.',
         metric_label: 'OFFICIAL RANK', metric: 1, metric_note: 'Official champion rank',
         context_url: null,
@@ -61,13 +61,16 @@ describe('category selector and navigation', () => {
       .mockReturnValueOnce({ key: 'seasons', data: [1970], loading: false, error: null, retry: () => {} })
       .mockReturnValueOnce({ key: 'championship', data, loading: false, error: null, retry: () => {} })
     const markup = render('?category=350cc&season=1970')
-    expect(markup).toContain('role="alert"')
-    expect(markup).toContain('Period scoring or source discrepancies')
+    expect(markup).not.toContain('role="alert"')
+    expect(markup).not.toContain('Period scoring or source discrepancies')
+    expect(markup).not.toContain('need verification')
+    expect(markup).not.toContain('Verification required')
+    expect(markup).not.toContain('source verification required')
     expect(markup).toContain('OFFICIAL CHAMPION')
     expect(markup).toContain('Giacomo Agostini')
-    expect(markup).toContain('Supplied pts*')
+    expect(markup).toContain('<th>Pts</th>')
     for (const points of [9, 28, 46]) expect(markup).toContain(`class="strong numeric">${points}</td>`)
-    expect(markup).toContain('Dashes in the Gap column mean unavailable, not zero')
+    expect(markup.match(/class="muted numeric">—<\/td>/g)).toHaveLength(3)
     expect(markup).not.toContain('LEAD OVER SECOND')
     expect(markup).not.toContain('0 pts')
     expect(markup).not.toContain('−-19')

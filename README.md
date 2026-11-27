@@ -48,9 +48,9 @@ zero-point leaders. Newer seasons are explicitly described as imported results;
 the app does not certify their completeness or any unrecorded points adjustments.
 
 The database does not currently preserve PDF lap/sector cancellation annotations
-or new-versus-used tyre flags. The UI explicitly warns that raw timing comparisons
-may include cancelled times; it does not claim official valid-lap rankings or
-infer tyre age. These limitations require a separate importer/schema enhancement.
+or new-versus-used tyre flags. Raw timing comparisons may include cancelled
+times; they do not certify official valid-lap rankings or infer tyre age.
+These limitations require a separate importer/schema enhancement.
 
 ### Run the preview locally
 
@@ -475,12 +475,19 @@ The pilots, for example, provide Agostini's official 36 points in 1966 and
 84 in 1975, but only part of each season's race classifications.
 
 Source fidelity does not guarantee that every supplied point total is reliable.
-Both apps warn when official point totals increase down the official ranking.
+Data-quality warnings appear only in Classic **Home > Data coverage**, under
+**Data Quality & Coverage**, not on analytical pages in either app.
+This section lists unsupported source categories and category-scoped official
+final score anomalies, including the affected seasons, raw ranks/scores and sources.
+Analytical views have no diagnostic banners or verification-required labels.
 Historical counted/gross scoring or source discrepancies may explain a mismatch;
 the original ranks and raw scores are preserved for verification, while derived
 gaps, title margins and point-progression claims are withheld. For example, the
 1970 350cc API supplies 9/28/46 points for its first three ranked riders. These
 values are not silently corrected or replaced with reconstructed race totals.
+Paddock retains its safe source-score/rank chart pair; inconsistency flags remain
+in the API for diagnostics. Missing-data prompts, operational errors, source
+attribution and ordinary chart methodology remain visible.
 
 Source snapshots are cached in ignored `historical_cache\`. Cached reruns verify
 the stored rows without duplicating them; `--refresh` refetches official data.
