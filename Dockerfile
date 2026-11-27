@@ -20,6 +20,9 @@ COPY sql_connection.py .
 COPY category_scope.py .
 COPY archive_analytics.py .
 COPY circuit_catalog.py circuit_catalog.json ./
+COPY rider_profiles.py rider_profiles.reviewed.json rider_media.py media_catalog.json ./
+COPY assets/riders/marc-marquez-2026-portrait-320.webp \
+     assets/riders/marc-marquez-2026-portrait-640.webp assets/riders/LICENSE.txt assets/riders/
 
 EXPOSE 8501
 

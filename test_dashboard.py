@@ -49,6 +49,9 @@ def sample_query(sql, conn=None, params=None):
         return pd.DataFrame(columns=["season_year", "max_speed", "avg_speed"])
     if "COUNT(DISTINCT CASE WHEN s.session_type" in sql:
         return pd.DataFrame({"Year": [2025, 2026], "Sessions": [1, 2], "Races": [1, 2]})
+    if "SELECT r.rider_id, r.full_name FROM riders r WHERE EXISTS" in sql:
+        return pd.DataFrame({"rider_id": ["sample-rider", "sample-rider-2"],
+                             "full_name": ["Sample Rider 1", "Sample Rider 2"]})
     if "SELECT DISTINCT full_name" in sql:
         return pd.DataFrame({"full_name": ["Sample Rider 1", "Sample Rider 2"]})
     if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
@@ -254,10 +257,78 @@ class DashboardTests(unittest.TestCase):
                             if "Year" in table.value and "Pts %" in table.value)
         self.assertTrue(season_table["Pts %"].isna().all())
 
+    def test_reviewed_rider_identity_uses_ids_and_season_class_gated_portrait(self):
+        marc = "f55b433d-38b8-4d1d-bb3a-a709c82a0260"
+
+        def identity_query(sql, conn=None, params=None):
+            if "SELECT r.rider_id, r.full_name FROM riders r WHERE EXISTS" in sql:
+                return pd.DataFrame({"rider_id": [marc, "unpictured"],
+                                     "full_name": ["Marc Marquez", "Marc Marquez"]})
+            rows = sample_query(sql, conn, params)
+            if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+                self.assertIn("WHERE c.rider_id = ?", sql)
+                self.assertNotIn("WHERE r.full_name = ?", sql)
+                rows["rider_id"] = params[0]
+            return rows
+
+        self.read_sql.side_effect = identity_query
+        app = self.start_app()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.selectbox(key="profile_rider").value, marc)
+        self.assertFalse(app.get("image"))
+        app.selectbox(key="pp_yr").set_value(2026).run()
+        for label in ["🇬🇧 English", "🇪🇸 Español", "🇮🇹 Italiano"]:
+            app.selectbox(key="language").select(label).run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.warning)
+            self.assertEqual(len(app.get("image")), 1)
+            captions = " ".join(caption.value for caption in app.caption)
+            self.assertIn("Denkmit", captions)
+            self.assertIn("https://creativecommons.org/licenses/by-sa/4.0/", captions)
+            self.assertIn("Ducati Lenovo Team", captions)
+            self.assertIn("1993-02-17", " ".join(markdown.value for markdown in app.markdown))
+        app.selectbox(key="pp_yr").set_value(2025).run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.get("image"))
+        app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
+        app.selectbox(key="pp_yr").set_value(2026).run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.get("image"))
+        app.selectbox(key="profile_rider").set_value("unpictured").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.selectbox(key="pp_yr").value, "All")
+        self.assertFalse(app.get("image"))
+        self.assertNotIn("1993-02-17", " ".join(markdown.value for markdown in app.markdown))
+
+    def test_legacy_named_rider_preference_preserves_unique_identity_filters(self):
+        app = self.start_app()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        app.selectbox(key="nav_group").set_value("nav_overview").run()
+        saved = app.session_state["_view_filters"]
+        saved["viz_profile"].update({
+            "profile_rider": "Sample Rider 1", "_profile_rider": "Sample Rider 1",
+            "profile_categories": ["Moto3"], "pp_yr": 2025,
+        })
+        app.session_state["_view_filters"] = saved
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.selectbox(key="profile_rider").value, "sample-rider")
+        self.assertEqual(app.multiselect(key="profile_categories").value, ["Moto3"])
+        self.assertEqual(app.selectbox(key="pp_yr").value, 2025)
+
+    def test_invalid_rider_catalog_reports_configuration_error_not_a_fallback(self):
+        app = self.start_app()
+        with patch("rider_profiles.read_enrichment", side_effect=ValueError("Invalid reviewed catalog")):
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertIn("Invalid reviewed catalog", " ".join(error.value for error in app.error))
+        self.assertFalse(app.get("image"))
+
     def test_career_timeline_uses_official_ranks_and_limits_race_detail_to_one_year(self):
         def career_query(sql, conn=None, params=None):
             if "SELECT cs.season_year, cs.category, cs.rider_id" in sql:
-                self.assertEqual(params, ["Sample Rider 1"])
+                self.assertEqual(params, ["sample-rider"])
                 self.assertIn("cs.is_final=1", sql)
                 return pd.DataFrame([
                     dict(season_year=year, category=category, rider_id="sample-rider", rider="Sample Rider 1",
