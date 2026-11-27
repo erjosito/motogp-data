@@ -3,7 +3,12 @@
 import numpy as np
 import pandas as pd
 
-from category_scope import normalize_category
+from category_scope import CATEGORY_FAMILIES, canonical_category, normalize_category
+
+
+CATEGORY_ORDER = [
+    label for labels in CATEGORY_FAMILIES.values() for label in reversed(labels)
+]
 
 
 def complete_points(values):
@@ -30,6 +35,57 @@ def points_efficiency(points, maximum):
         points * 100, maximum, out=np.full(points.shape, np.nan),
         where=np.isfinite(maximum) & (maximum > 0) & (points >= 0) & (points <= maximum),
     ), 1)
+
+
+def career_seasons(races, finals):
+    keys = ["season_year", "category", "rider_id"]
+    races = races.copy()
+    races["category"] = races["category"].map(canonical_category)
+    recorded = races.groupby(keys).agg(
+        races=("session_id", "nunique"), wins=("position", lambda values: values.eq(1).sum()),
+        podiums=("position", lambda values: values.isin([1, 2, 3]).sum()),
+    ).reset_index()
+    official = finals[finals["is_final"].eq(True)].copy()
+    official["category"] = official["category"].map(canonical_category)
+    result = recorded.merge(
+        official[[*keys, "position", "source_url"]], on=keys, how="outer", validate="one_to_one"
+    )
+    for column in ["races", "wins", "podiums"]:
+        result[column] = pd.to_numeric(result[column]).fillna(0).astype(int)
+    return result.sort_values(["season_year", "category"])
+
+
+def constructor_eras(rows, top_n, unknown, others):
+    rows = rows.copy()
+    rows["category"] = rows["category"].map(canonical_category)
+    rows["constructor"] = rows["constructor"].replace(r"^\s*$", np.nan, regex=True).fillna(unknown)
+    rows["decade"] = rows["season_year"] // 10 * 10
+    kept = []
+    for _, group in rows.groupby("category"):
+        leaders = group.groupby("constructor")["wins"].sum().nlargest(top_n).index
+        group = group.copy()
+        group["constructor"] = group["constructor"].where(
+            group["constructor"].isin(leaders) | group["constructor"].eq(unknown), others
+        )
+        kept.append(group)
+    if not kept:
+        return pd.DataFrame(columns=["category", "decade", "constructor", "wins", "share"])
+    result = pd.concat(kept).groupby(["category", "decade", "constructor"])["wins"].sum().reset_index()
+    result["share"] = result["wins"] / result.groupby(["category", "decade"])["wins"].transform("sum") * 100
+    return result
+
+
+def archive_availability(rows, metric):
+    rows = rows.copy()
+    rows["category"] = rows["category"].map(canonical_category)
+    counts = rows.pivot_table(index="category", columns="season_year", values=metric,
+                              aggfunc="sum", fill_value=0)
+    if counts.empty:
+        return counts
+    return counts.reindex(
+        index=[category for category in CATEGORY_ORDER if category in counts.index],
+        columns=range(int(counts.columns.min()), int(counts.columns.max()) + 1), fill_value=0,
+    )
 
 
 def qualifying_format(category, year):

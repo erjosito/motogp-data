@@ -17,10 +17,11 @@ from azure.core.exceptions import ClientAuthenticationError
 
 from sql_connection import connect_to_sql
 from category_scope import (
-    CATEGORY_FAMILIES, category_sql, normalize_category, official_points_inconsistent,
+    CATEGORY_FAMILIES, canonical_category, category_sql, normalize_category, official_points_inconsistent,
 )
 from circuit_catalog import circuit_details, circuit_key, projected_outline
 from archive_analytics import (
+    CATEGORY_ORDER, archive_availability, career_seasons, constructor_eras,
     complete_points, nominal_maximum, points_efficiency, qualifying_proxy,
 )
 
@@ -175,6 +176,8 @@ VIEW_FILTER_KEYS = (
     "_category_scope", "_event_scope", "_session_scope", "_analysis_scope",
     "scope_categories", "selected_scope_categories", "profile_rider", "profile_categories",
     "profile_rival", "_profile_rider", "circuit_selection",
+    "profile_detail_year", "champion_era", "champion_year_rows", "constructor_era_top",
+    "archive_availability_metric",
 )
 RACE_VIEWS = (
     "viz_classification", "viz_rhythm", "viz_laptimes", "viz_position",
@@ -709,6 +712,53 @@ def load_official_standings(year, family="premier"):
     return standings
 
 
+@st.cache_data(ttl=300)
+def load_archive_finals(families, rider=None):
+    rows = q(f"""
+        SELECT cs.season_year, cs.category, cs.rider_id, r.full_name AS rider,
+            cs.position, cs.points, cs.constructor_name AS constructor, cs.is_final, cs.source_url
+        FROM championship_standings cs JOIN riders r ON r.rider_id=cs.rider_id
+        WHERE cs.is_final=1 AND ({scope_predicate(families, 'cs.category')})
+            {"AND r.full_name=?" if rider is not None else ""}
+        ORDER BY cs.season_year, cs.category, cs.position
+    """, [rider] if rider is not None else None)
+    if not rows.empty:
+        rows = rows[rows["is_final"].eq(True)].copy()
+        rows["category"] = rows["category"].map(canonical_category)
+    return rows
+
+
+@st.cache_data(ttl=300)
+def load_archive_availability(families):
+    session_scope = scope_predicate(families, "s.category")
+    return q(f"""
+        SELECT cs.season_year, cs.category, COUNT(*) AS standings,
+            0 AS classifications, 0 AS laps, 0 AS sectors
+        FROM championship_standings cs
+        WHERE {scope_predicate(families, 'cs.category')}
+        GROUP BY cs.season_year, cs.category
+        UNION ALL
+        SELECT e.season_year, s.category, 0, COUNT(*), 0, 0
+        FROM dbo.vw_effective_classifications c JOIN sessions s ON s.session_id=c.session_id
+        JOIN events e ON e.event_id=s.event_id
+        WHERE s.session_type='RAC' AND s.status='FINISHED' AND ({session_scope})
+        GROUP BY e.season_year, s.category
+        UNION ALL
+        SELECT e.season_year, s.category, 0, 0, COUNT(*),
+            COUNT(CASE WHEN l.t1 IS NOT NULL AND l.t2 IS NOT NULL
+                AND l.t3 IS NOT NULL AND l.t4 IS NOT NULL THEN 1 END)
+        FROM laps l JOIN sessions s ON s.session_id=l.session_id
+        JOIN events e ON e.event_id=s.event_id
+        WHERE s.status='FINISHED' AND ({session_scope})
+        GROUP BY e.season_year, s.category
+        UNION ALL
+        SELECT e.season_year, s.category, 0, 0, 0, 0
+        FROM sessions s JOIN events e ON e.event_id=s.event_id
+        WHERE s.status='FINISHED' AND ({session_scope})
+        GROUP BY e.season_year, s.category
+    """)
+
+
 def final_points_need_verification(standings):
     if standings.empty:
         return False
@@ -1119,6 +1169,31 @@ if viz == "🏠 Home":
     st.caption(t("data_quality_caption"))
     st.caption(t("classification_sources"))
     st.caption(t("timing_validity_diagnostic"))
+    st.subheader(t("archive_availability_title"))
+    st.caption(t("archive_availability_method"))
+    availability = load_archive_availability(tuple(comparison_categories or [selected_category]))
+    if availability.empty:
+        st.info(t("no_data"))
+    else:
+        availability_metric = st.radio(
+            t("metric"), ["standings", "classifications", "laps", "sectors"],
+            format_func=lambda value: t("archive_metric_" + value),
+            horizontal=True, key="archive_availability_metric",
+        )
+        matrix = archive_availability(availability, availability_metric)
+        fig = go.Figure(go.Heatmap(
+            x=matrix.columns.tolist(), y=matrix.index.tolist(),
+            z=matrix.gt(0).astype(int).values, customdata=matrix.values,
+            zmin=0, zmax=1,
+            colorscale=[[0, "#e5e7eb"], [0.499, "#e5e7eb"], [0.5, "#16816a"], [1, "#16816a"]],
+            colorbar=dict(tickvals=[0, 1], ticktext=[t("archive_no_rows"), t("archive_rows_stored")]),
+            hovertemplate="%{y} · %{x}<br>%{customdata:,.0f}<extra></extra>",
+        ))
+        fig.update_layout(
+            title=t("archive_metric_" + availability_metric), height=max(300, len(matrix) * 45),
+            xaxis=dict(title=t("year"), tickformat="d"), yaxis=dict(title=t("category")),
+        )
+        st.plotly_chart(fig, width="stretch")
 
     excluded_categories = q(
         "SELECT DISTINCT category FROM sessions WHERE category IS NULL OR NOT ("
@@ -2664,7 +2739,10 @@ elif viz == "👤 Pilot Profile":
     riders_all = premier_q(
         "SELECT DISTINCT full_name FROM riders r WHERE EXISTS "
         "(SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id "
-        "WHERE c.rider_id = r.rider_id) ORDER BY full_name", family=tuple(CATEGORY_FAMILIES),
+        "WHERE c.rider_id = r.rider_id) OR EXISTS "
+        "(SELECT 1 FROM championship_standings cs WHERE cs.rider_id=r.rider_id "
+        f"AND cs.is_final=1 AND ({scope_predicate(tuple(CATEGORY_FAMILIES), 'cs.category')})) "
+        "ORDER BY full_name", family=tuple(CATEGORY_FAMILIES),
     )
     if riders_all.empty:
         st.info(t("no_riders")); st.stop()
@@ -2672,7 +2750,7 @@ elif viz == "👤 Pilot Profile":
 
     career = premier_q("""
         SELECT e.season_year, e.short_name, e.date_end, s.session_type, s.session_label,
-            s.session_id, s.category,
+            s.session_id, s.category, c.rider_id,
             c.position, c.points, c.best_lap_time, c.top_speed, c.status,
             COALESCE(ta.canonical_name, t.team_name) AS team_name,
             COALESCE(c.constructor_name, t.constructor) AS constructor, e.circuit_name
@@ -2684,15 +2762,13 @@ elif viz == "👤 Pilot Profile":
         LEFT JOIN team_aliases ta ON t.team_name = ta.team_name
         WHERE r.full_name = ? ORDER BY e.date_end, s.session_date""", [pilot],
         family=tuple(CATEGORY_FAMILIES))
+    career_finals = load_archive_finals(tuple(CATEGORY_FAMILIES), pilot)
 
-    if career.empty:
+    if career.empty and career_finals.empty:
         st.info(t("no_data_for_pilot", pilot=pilot)); st.stop()
 
-    category_names = {
-        normalize_category(label): label for labels in CATEGORY_FAMILIES.values() for label in labels
-    }
-    career["category"] = career["category"].map(lambda value: category_names[normalize_category(value)])
-    category_options = sorted(career["category"].unique())
+    career["category"] = career["category"].map(canonical_category)
+    category_options = sorted(set(career["category"]) | set(career_finals["category"]))
     if st.session_state.get("_profile_rider") != pilot:
         st.session_state.pop("profile_categories", None)
         st.session_state.pop("pp_yr", None)
@@ -2702,18 +2778,20 @@ elif viz == "👤 Pilot Profile":
     if not profile_categories:
         st.info(t("select_category")); st.stop()
     career = career[career["category"].isin(profile_categories)]
-    py_list = sorted(career["season_year"].unique(), reverse=True)
+    career_finals = career_finals[career_finals["category"].isin(profile_categories)]
+    py_list = sorted(set(career["season_year"]) | set(career_finals["season_year"]), reverse=True)
     if st.session_state.get("pp_yr") not in ["All"] + py_list:
         st.session_state.pop("pp_yr", None)
     yr_sel = st.sidebar.selectbox(t("season"), ["All"] + py_list, key="pp_yr")
     filter_year = None if yr_sel == "All" else yr_sel
     if filter_year is not None:
         career = career[career["season_year"] == filter_year]
+        career_finals = career_finals[career_finals["season_year"] == filter_year]
 
     races = career[career["session_type"] == "RAC"]
     sprints = career[career["session_type"] == "SPR"]
     race_sprint = career[career["session_type"].isin(["RAC", "SPR"])]
-    seasons = sorted(career["season_year"].unique())
+    seasons = sorted(set(career["season_year"]) | set(career_finals["season_year"]))
 
     # --- Key stats ---
     st.subheader(f"📋 {pilot}")
@@ -2723,7 +2801,7 @@ elif viz == "👤 Pilot Profile":
     wins = len(races[races["position"] == 1])
     sprint_wins = len(sprints[sprints["position"] == 1])
     podiums = len(races[races["position"].isin([1, 2, 3])])
-    multiple_classes = career["category"].nunique() > 1
+    multiple_classes = len(profile_categories) > 1
     total_pts = complete_points(race_sprint["points"]) if not multiple_classes else np.nan
     dnfs = len(races[races["status"].isin(["OUTSTND", "NOTFINISHFIRST"])])
     dns = len(races[races["status"] == "NOTSTARTED"])
@@ -2742,7 +2820,7 @@ elif viz == "👤 Pilot Profile":
     row1[1].metric(t("race_starts"), n_races)
     row1[2].metric(t("race_wins_label"), wins)
     row1[3].metric(t("podiums"), podiums)
-    row1[4].metric(t("categories"), career["category"].nunique())
+    row1[4].metric(t("categories"), len(profile_categories))
     row1[5].metric(t("points_pct"), "—" if pd.isna(pts_pct) else f"{pts_pct}%")
     st.caption(t("recorded_efficiency_method"))
     if multiple_classes:
@@ -2775,32 +2853,84 @@ elif viz == "👤 Pilot Profile":
 
     st.divider()
 
+    st.subheader(t("career_timeline_title"))
+    st.caption(t("career_timeline_method"))
+    timeline = career_seasons(races, career_finals)
+    if not timeline.empty:
+        rank_text = timeline["position"].map(lambda value: f"P{int(value)}" if pd.notna(value) else "—")
+        fig = go.Figure(go.Scatter(
+            x=timeline["season_year"], y=timeline["category"], mode="markers+text",
+            marker=dict(size=10, color="#3785bf"), text=rank_text, textposition="top center",
+            textfont=dict(size=10),
+            name=t("career_recorded_season"),
+            customdata=np.column_stack([timeline["races"], timeline["wins"], timeline["podiums"], rank_text]),
+            hovertemplate=(
+                "%{y} · %{x}<br>" + t("race_starts") + ": %{customdata[0]}<br>"
+                + t("wins") + ": %{customdata[1]}<br>" + t("podiums") + ": %{customdata[2]}<br>"
+                + t("career_official_rank") + ": %{customdata[3]}<extra></extra>"
+            ),
+        ))
+        titles = timeline[timeline["position"].eq(1)]
+        if not titles.empty:
+            fig.add_trace(go.Scatter(
+                x=titles["season_year"], y=titles["category"], mode="markers",
+                marker=dict(size=14, symbol="star", color="#bf8e19", line=dict(color="#72520b", width=1)),
+                name=t("career_official_title"), hovertemplate="%{y} · %{x}<extra>" + t("career_official_title") + "</extra>",
+            ))
+        fig.update_layout(
+            height=max(300, timeline["category"].nunique() * 85),
+            xaxis=dict(title=t("year"), tickformat="d", nticks=8),
+            yaxis=dict(
+                title=t("category"), categoryorder="array",
+                categoryarray=[category for category in CATEGORY_ORDER if category in timeline["category"].unique()],
+            ),
+            margin=dict(t=65), legend=dict(orientation="h", y=1.05, yanchor="bottom"),
+        )
+        st.plotly_chart(fig, width="stretch")
+        if not career_finals.empty:
+            with st.expander(t("career_official_rank")):
+                st.dataframe(career_finals[["season_year", "category", "position", "source_url"]].rename(columns={
+                    "season_year": t("year"), "category": t("category"), "position": t("career_official_rank"),
+                    "source_url": t("standings_source"),
+                }), hide_index=True, width="stretch", column_config={
+                    t("standings_source"): st.column_config.LinkColumn(t("standings_source")),
+                })
+
     # --- Race positions scatter (by season overlay) ---
     st.subheader(t("race_finishing_positions"))
     if not races.empty:
-        rp = races.copy().sort_values("date_end")
-        rp["year"] = rp["season_year"].astype(str) + " · " + rp["category"]
-        # Use event index within each year for proper X ordering
-        rp["gp_label"] = rp["short_name"] + " " + rp["year"]
-        label_order = rp["gp_label"].tolist()
-        fig = go.Figure()
-        for yr in sorted(rp["year"].unique()):
-            yr_data = rp[rp["year"] == yr]
-            fig.add_trace(go.Scatter(
-                x=yr_data["gp_label"], y=yr_data["position"],
-                mode="lines+markers", name=yr,
-                marker=dict(size=10),
-                hovertemplate="%{x}<br>P%{y}<extra></extra>",
-            ))
-        max_pos = rp["position"].dropna().max()
-        fig.update_layout(
-            title=t("race_results_title", pilot=pilot),
-            height=400, hovermode="x unified",
-            yaxis=dict(autorange=False, dtick=1, title=t("position"),
-                       range=[max_pos + 0.5, 0.5], tick0=1),
-            xaxis=dict(title="", tickangle=-60, categoryorder="array", categoryarray=label_order),
-        )
-        st.plotly_chart(fig, width="stretch")
+        if filter_year is None:
+            detail_years = sorted(races["season_year"].unique(), reverse=True)
+            if st.session_state.get("profile_detail_year") not in detail_years:
+                st.session_state.pop("profile_detail_year", None)
+            detail_year = st.selectbox(t("career_detail_season"), detail_years, key="profile_detail_year")
+        else:
+            detail_year = filter_year
+        rp = races[races["season_year"].eq(detail_year)].copy().sort_values("date_end")
+        if rp["position"].notna().any():
+            rp["year"] = rp["season_year"].astype(str) + " · " + rp["category"]
+            rp["gp_label"] = rp["short_name"] + " " + rp["year"]
+            label_order = rp["gp_label"].tolist()
+            fig = go.Figure()
+            for yr in sorted(rp["year"].unique()):
+                yr_data = rp[rp["year"] == yr]
+                fig.add_trace(go.Scatter(
+                    x=yr_data["gp_label"], y=yr_data["position"],
+                    mode="lines+markers", name=yr,
+                    marker=dict(size=10),
+                    hovertemplate="%{x}<br>P%{y}<extra></extra>",
+                ))
+            max_pos = rp["position"].dropna().max()
+            fig.update_layout(
+                title=t("race_results_title", pilot=pilot),
+                height=400, hovermode="x unified",
+                yaxis=dict(autorange=False, dtick=1, title=t("position"),
+                           range=[max_pos + 0.5, 0.5], tick0=1),
+                xaxis=dict(title="", tickangle=-60, categoryorder="array", categoryarray=label_order),
+            )
+            st.plotly_chart(fig, width="stretch")
+        else:
+            st.info(t("no_classified_finishes"))
 
     # --- Points per season ---
     st.subheader(t("points_per_season"))
@@ -2947,10 +3077,116 @@ elif viz == "📈 Cross-Year":
         t("cross_season_dominance"),
         t("cross_nationality_trends"),
         t("cross_circuit_pace"),
+        t("cross_champions_matrix"),
+        t("cross_constructor_eras"),
     ])
 
+    if cross == t("cross_champions_matrix"):
+        st.subheader(t("cross_champions_matrix"))
+        st.caption(t("champions_matrix_method"))
+        champions = load_archive_finals(tuple(comparison_categories or [selected_category]))
+        champions = champions[champions["position"].eq(1)].copy()
+        if champions.empty:
+            st.info(t("no_data")); st.stop()
+        first, last = int(champions["season_year"].min()), int(champions["season_year"].max())
+        if first < last:
+            saved_era = st.session_state.get("champion_era")
+            if saved_era is not None and not first <= saved_era[0] <= saved_era[1] <= last:
+                st.session_state.pop("champion_era", None)
+            first, last = st.slider(t("seasons"), first, last, (max(first, last - 14), last), key="champion_era")
+        champions = champions[champions["season_year"].between(first, last)]
+        if champions.empty:
+            st.info(t("no_data")); st.stop()
+        winners = champions.groupby(["category", "season_year"]).agg(
+            rider=("rider", lambda names: " & ".join(sorted(set(names)))),
+            identity=("rider_id", lambda identities: "|".join(sorted(set(identities)))),
+        ).reset_index()
+        names = winners.pivot(index="category", columns="season_year", values="rider").reindex(
+            index=[category for category in CATEGORY_ORDER if category in winners["category"].unique()],
+            columns=range(first, last + 1),
+        )
+        identities = winners.pivot(index="category", columns="season_year", values="identity").reindex_like(names)
+        years_as_rows = st.toggle(t("champion_year_rows"), key="champion_year_rows")
+        if years_as_rows:
+            names, identities = names.T, identities.T
+        codes = {identity: index for index, identity in enumerate(sorted(set(winners["identity"])))}
+        palette = px.colors.qualitative.Alphabet
+        scale = [
+            [position / max(1, len(codes) - 1), palette[position % len(palette)]]
+            for position in range(max(2, len(codes)))
+        ]
+        fig = go.Figure(go.Heatmap(
+            x=names.columns.tolist(), y=names.index.tolist(),
+            z=identities.map(lambda value: codes[value] if pd.notna(value) else np.nan).values,
+            text=names.map(
+                lambda value: " & ".join(name.split(" ")[-1][:10] for name in value.split(" & "))
+                if pd.notna(value) else ""
+            ).values,
+            customdata=names.fillna("").values, texttemplate="%{text}", textfont=dict(size=10),
+            colorscale=scale, zmin=0, zmax=max(1, len(codes) - 1), showscale=False, hoverongaps=False,
+            hovertemplate="%{y} · %{x}<br>%{customdata}<extra></extra>", xgap=2, ygap=2,
+        ))
+        fig.update_layout(
+            height=max(300, len(names) * (28 if years_as_rows else 70) + (100 if years_as_rows else 0)),
+            xaxis=dict(title=t("category") if years_as_rows else t("year"), type="category"),
+            yaxis=dict(
+                title=t("year") if years_as_rows else t("category"), type="category", autorange="reversed",
+            ),
+        )
+        st.plotly_chart(fig, width="stretch")
+        with st.expander(t("official_final_standings")):
+            st.dataframe(champions[["season_year", "category", "rider", "source_url"]].rename(columns={
+                "season_year": t("year"), "category": t("category"), "rider": t("rider"),
+                "source_url": t("standings_source"),
+            }), hide_index=True, width="stretch", column_config={
+                t("standings_source"): st.column_config.LinkColumn(t("standings_source")),
+            })
+
+    elif cross == t("cross_constructor_eras"):
+        st.subheader(t("cross_constructor_eras"))
+        st.caption(t("constructor_eras_method"))
+        victories = premier_q("""
+            SELECT e.season_year, s.category, COALESCE(c.constructor_name, t.constructor) AS constructor,
+                COUNT(*) AS wins
+            FROM classifications c JOIN sessions s ON s.session_id=c.session_id
+            JOIN events e ON e.event_id=s.event_id
+            LEFT JOIN teams t ON t.team_id=c.team_id AND t.season_year=e.season_year
+            WHERE s.session_type='RAC' AND s.status='FINISHED' AND c.position=1
+            GROUP BY e.season_year, s.category, COALESCE(c.constructor_name, t.constructor)
+        """, family=tuple(comparison_categories or [selected_category]))
+        if victories.empty:
+            st.info(t("no_data")); st.stop()
+        top_n = st.slider(t("constructor_eras_top"), 3, 15, 8, key="constructor_era_top")
+        eras = constructor_eras(victories, top_n, t("constructor_unknown"), t("constructor_other"))
+        eras["decade"] = eras["decade"].astype(str)
+        fig = px.bar(
+            eras, x="decade", y="share", color="constructor", facet_row="category",
+            custom_data=["wins"], category_orders={
+                "category": [category for category in CATEGORY_ORDER if category in eras["category"].unique()],
+                "decade": sorted(eras["decade"].unique()),
+            },
+            labels={"decade": t("decade"), "share": t("constructor_win_share"),
+                    "constructor": t("constructor"), "category": t("category")},
+            height=max(350, eras["category"].nunique() * 230 + 100),
+        )
+        fig.update_traces(
+            hovertemplate="%{x}<br>%{fullData.name}<br>%{customdata[0]} · %{y:.1f}%<extra></extra>"
+        )
+        fig.update_yaxes(range=[0, 100], title_text="", ticksuffix="%", tickvals=[0, 50, 100])
+        fig.update_xaxes(type="category")
+        fig.for_each_annotation(lambda annotation: annotation.update(text=annotation.text.split("=")[-1]))
+        fig.update_layout(
+            legend=dict(orientation="h", y=1.02, yanchor="bottom", title_text=""),
+            margin=dict(l=60, r=45, t=90, b=60),
+        )
+        st.plotly_chart(fig, width="stretch")
+        st.dataframe(eras.rename(columns={
+            "category": t("category"), "decade": t("decade"), "constructor": t("constructor"),
+            "wins": t("wins"), "share": t("constructor_win_share"),
+        }), width="stretch", hide_index=True)
+
     # --- Animated Bar Chart Race ---
-    if cross == t("cross_bar_chart_race"):
+    elif cross == t("cross_bar_chart_race"):
         st.subheader(t("bar_chart_race_title"))
         st.caption(t("bar_chart_race_caption"))
 

@@ -4,6 +4,7 @@ import json
 import math
 import sqlite3
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -54,7 +55,7 @@ def sample_query(sql, conn=None, params=None):
         return pd.DataFrame([
             dict(season_year=year, short_name="QAT", date_end=f"{year}-11-08",
                  session_type="RAC", session_label="Race", session_id=f"{year}-{category}",
-                 category=category, position=position, points=points, best_lap_time=None,
+                 category=category, rider_id="sample-rider", position=position, points=points, best_lap_time=None,
                  top_speed=None, status="INSTND", team_name="Sample Team",
                  constructor="Sample Bike", circuit_name="Sample Circuit")
             for year, category, position, points in [
@@ -68,6 +69,16 @@ def sample_query(sql, conn=None, params=None):
             "date_end": ["2025-11-08", "2026-11-08", "2026-11-08"],
             "position": [2, 1, 4],
         })
+    if "COUNT(*) AS standings" in sql:
+        return pd.DataFrame([
+            dict(season_year=2025, category="Moto3", standings=3, classifications=3, laps=0, sectors=0),
+            dict(season_year=2026, category="MotoGP", standings=0, classifications=6, laps=9, sectors=8),
+        ])
+    if "SELECT cs.season_year, cs.category, cs.rider_id" in sql:
+        return pd.DataFrame(columns=[
+            "season_year", "category", "rider_id", "rider", "position", "points",
+            "constructor", "is_final", "source_url",
+        ])
     if "FROM championship_standings" in sql:
         return pd.DataFrame(columns=["position", "rider", "points", "constructor", "is_final", "source_url"])
     if "SUM(cl.points) AS race_pts" in sql:
@@ -231,12 +242,212 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertEqual(app.metric[5].value, "—")
         self.assertTrue(pd.isna(app.dataframe[0].value["Points"].iloc[0]))
-        season_points = json.loads(app.get("plotly_chart")[1].proto.spec)
+        season_points = next(
+            figure for figure in (json.loads(chart.proto.spec) for chart in app.get("plotly_chart"))
+            if figure["layout"].get("title", {}).get("text") == get_translator("en")(
+                "season_points_title", pilot="Sample Rider 1"
+            )
+        )
         self.assertEqual(season_points["data"][0]["x"], ["1972"])
         self.assertNotIn("NaN", json.dumps(season_points))
         season_table = next(table.value for table in app.dataframe
                             if "Year" in table.value and "Pts %" in table.value)
         self.assertTrue(season_table["Pts %"].isna().all())
+
+    def test_career_timeline_uses_official_ranks_and_limits_race_detail_to_one_year(self):
+        def career_query(sql, conn=None, params=None):
+            if "SELECT cs.season_year, cs.category, cs.rider_id" in sql:
+                self.assertEqual(params, ["Sample Rider 1"])
+                self.assertIn("cs.is_final=1", sql)
+                return pd.DataFrame([
+                    dict(season_year=year, category=category, rider_id="sample-rider", rider="Sample Rider 1",
+                         position=rank, points=None, constructor=None, is_final=final,
+                         source_url="https://example.test/official")
+                    for year, category, rank, final in [
+                        (2025, "Moto3", 1, True), (2026, "Moto2", 3, True),
+                        (2026, "MotoGP", 1, False), (2024, "125cc", 2, True),
+                    ]
+                ])
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = career_query
+        app = self.start_app()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        for label, language in [("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")]:
+            app.selectbox(key="language").select(label).run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.warning)
+            translator = get_translator(language)
+            figures = [json.loads(chart.proto.spec) for chart in app.get("plotly_chart")]
+            timeline = next(fig for fig in figures if fig["data"][0].get("name") == translator("career_recorded_season"))
+            self.assertEqual(set(timeline["data"][0]["y"]), {"125cc", "Moto3", "Moto2", "MotoGP"})
+            titles = next(trace for trace in timeline["data"] if trace.get("name") == translator("career_official_title"))
+            self.assertEqual(titles["y"], ["Moto3"])
+            results = next(fig for fig in figures
+                           if fig["layout"].get("title", {}).get("text") == translator(
+                               "race_results_title", pilot="Sample Rider 1"))
+            self.assertEqual(len(results["data"]), 2)
+            self.assertTrue(all("2026" in trace["name"] for trace in results["data"]))
+        app.selectbox(key="pp_yr").set_value(2024).run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.metric[1].value, "0")
+        self.assertEqual(len(app.get("plotly_chart")), 1)
+
+    def test_race_detail_without_classified_finishes_keeps_timeline_not_a_nan_chart(self):
+        def retired_query(sql, conn=None, params=None):
+            rows = sample_query(sql, conn, params)
+            if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+                rows["position"] = np.nan
+                rows["status"] = "OUTSTND"
+            return rows
+
+        self.read_sql.side_effect = retired_query
+        app = self.start_app()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertIn(get_translator("en")("no_classified_finishes"), [info.value for info in app.info])
+        figures = [json.loads(chart.proto.spec) for chart in app.get("plotly_chart")]
+        self.assertTrue(any(fig["data"][0].get("name") == "Recorded season" for fig in figures))
+        self.assertFalse(any(fig["layout"].get("title", {}).get("text") == get_translator("en")(
+            "race_results_title", pilot="Sample Rider 1"
+        ) for fig in figures))
+
+    def test_champions_matrix_keeps_gaps_joint_winners_and_final_only_sources(self):
+        def champion_query(sql, conn=None, params=None):
+            if "SELECT cs.season_year, cs.category, cs.rider_id" in sql:
+                self.assertIn(category_sql("premier", "cs.category"), sql)
+                self.assertIn("cs.is_final=1", sql)
+                return pd.DataFrame([
+                    dict(season_year=year, category="500cc", rider_id=rider, rider=rider,
+                         position=rank, points=None, constructor=None, is_final=final,
+                         source_url="https://example.test/" + rider)
+                    for year, rider, rank, final in [
+                        (1970, "Alpha", 1, True), (1970, "Beta", 1, True),
+                        (1970, "Runner-up", 2, True), (1972, "Gamma", 1, True),
+                        (1973, "Provisional", 1, False),
+                    ]
+                ])
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = champion_query
+        app = self.start_app()
+        app.session_state["selected_view_nav_history"] = "viz_crossyear"
+        app.selectbox(key="nav_group").set_value("nav_history")
+        for label, language in [("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")]:
+            translator = get_translator(language)
+            app.selectbox(key="language").select(label)
+            with patch("streamlit.selectbox", return_value=translator("cross_champions_matrix")):
+                app.run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.warning)
+            figure = json.loads(app.get("plotly_chart")[0].proto.spec)
+            self.assertEqual(figure["data"][0]["x"], [1970, 1971, 1972])
+            self.assertEqual(figure["data"][0]["customdata"], [["Alpha & Beta", "", "Gamma"]])
+            self.assertEqual(figure["data"][0]["text"][0][0], "Alpha & Beta")
+            self.assertEqual(len(app.dataframe[0].value), 3)
+        app.toggle(key="champion_year_rows").set_value(True)
+        with patch("streamlit.selectbox", return_value=get_translator("it")("cross_champions_matrix")):
+            app.run()
+        self.assertFalse(app.exception)
+        figure = json.loads(app.get("plotly_chart")[0].proto.spec)
+        self.assertEqual(figure["data"][0]["x"], ["500cc"])
+        self.assertEqual(figure["data"][0]["y"], [1970, 1971, 1972])
+        self.assertEqual(figure["data"][0]["customdata"], [["Alpha & Beta"], [""], ["Gamma"]])
+
+    def test_constructor_eras_show_unknown_victories_and_separate_actual_classes(self):
+        def constructor_query(sql, conn=None, params=None):
+            if "COUNT(*) AS wins" in sql and "GROUP BY e.season_year, s.category" in sql:
+                self.assertIn("COALESCE(c.constructor_name, t.constructor)", sql)
+                return pd.DataFrame([
+                    dict(season_year=1970, category=category, constructor=constructor, wins=wins)
+                    for category, constructor, wins in [
+                        ("500cc", "MV Agusta", 3), ("500cc", None, 1), ("350cc", "Yamaha", 2),
+                    ] if category != "350cc" or category_sql("350cc") in sql
+                ])
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = constructor_query
+        app = self.start_app()
+        app.session_state["selected_view_nav_history"] = "viz_crossyear"
+        app.selectbox(key="nav_group").set_value("nav_history")
+        with patch("streamlit.selectbox", return_value=get_translator("en")("cross_constructor_eras")):
+            app.run()
+        app.multiselect(key="scope_categories").set_value(["premier", "350cc"])
+        for label, language in [("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")]:
+            translator = get_translator(language)
+            app.selectbox(key="language").select(label)
+            with patch("streamlit.selectbox", return_value=translator("cross_constructor_eras")):
+                app.run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.warning)
+            table = next(table.value for table in app.dataframe
+                         if translator("constructor_win_share") in table.value)
+            self.assertEqual(set(table[translator("category")]), {"500cc", "350cc"})
+            self.assertEqual(table[translator("wins")].sum(), 6)
+            unknown = table[table[translator("constructor")].eq(translator("constructor_unknown"))]
+            self.assertEqual(unknown[translator("constructor_win_share")].tolist(), [25])
+            np.testing.assert_allclose(table.groupby(translator("category"))[
+                translator("constructor_win_share")].sum(), 100)
+            figure = next(
+                figure for figure in (json.loads(chart.proto.spec) for chart in app.get("plotly_chart"))
+                if any(trace.get("name") == translator("constructor_unknown") for trace in figure["data"])
+            )
+            self.assertEqual(figure["layout"]["xaxis"]["type"], "category")
+            self.assertEqual({annotation["text"] for annotation in figure["layout"]["annotations"]},
+                             {"500cc", "350cc"})
+
+    def test_availability_heatmap_is_quality_only_and_localized(self):
+        app = self.start_app()
+        self.assertNotIn("Archive availability by year and class", [heading.value for heading in app.subheader])
+        app.radio(key="home_view").set_value("home_coverage").run()
+        app.radio(key="archive_availability_metric").set_value("sectors").run()
+        for label, language in [("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")]:
+            app.selectbox(key="language").select(label).run()
+            self.assertFalse(app.exception)
+            translator = get_translator(language)
+            self.assertIn(translator("archive_availability_title"), [heading.value for heading in app.subheader])
+            figure = next(json.loads(chart.proto.spec) for chart in app.get("plotly_chart")
+                          if json.loads(chart.proto.spec)["layout"].get("title", {}).get("text")
+                          == translator("archive_metric_sectors"))
+            self.assertEqual(figure["data"][0]["x"], [2025, 2026])
+            self.assertEqual(figure["data"][0]["y"], ["MotoGP", "Moto3"])
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertNotIn(get_translator("it")("archive_availability_title"), [h.value for h in app.subheader])
+        self.assertFalse(app.warning)
+
+    def test_archive_availability_query_counts_sources_without_join_fanout(self):
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        loader = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "load_archive_availability")
+        loader.decorator_list = []
+        with closing(sqlite3.connect(":memory:")) as connection:
+            connection.executescript("""
+                ATTACH DATABASE ':memory:' AS dbo;
+                CREATE TABLE events(event_id TEXT, season_year INT);
+                CREATE TABLE sessions(session_id TEXT, event_id TEXT, category TEXT, session_type TEXT, status TEXT);
+                CREATE TABLE championship_standings(season_year INT, category TEXT);
+                CREATE TABLE dbo.vw_effective_classifications(session_id TEXT);
+                CREATE TABLE laps(session_id TEXT, t1 TEXT, t2 TEXT, t3 TEXT, t4 TEXT);
+                INSERT INTO events VALUES ('a',1970),('b',1972),('c',1973);
+                INSERT INTO sessions VALUES ('race','a','500cc','RAC','FINISHED'),
+                    ('empty','b','500cc','RAC','FINISHED'),('pending','c','500cc','RAC','PENDING');
+                INSERT INTO championship_standings VALUES (1970,'500cc'),(1970,'500cc'),(1970,'500cc'),(1975,'350cc');
+                INSERT INTO dbo.vw_effective_classifications VALUES ('race'),('race'),('pending');
+                INSERT INTO laps VALUES ('race','1','2','3','4'),('race','1','2','3','4'),
+                    ('race','1','2','3',NULL),('pending','1','2','3','4');
+            """)
+            namespace = {
+                "scope_predicate": lambda families, column="category": " OR ".join(
+                    "(" + category_sql(family, column) + ")" for family in families),
+                "q": lambda sql: pd.io.sql.read_sql(sql.replace("N'", "'"), connection),
+            }
+            exec(compile(ast.Module(body=[loader], type_ignores=[]), str(DASHBOARD), "exec"), namespace)
+            rows = namespace["load_archive_availability"](("premier",))
+        counts = rows.groupby("season_year")[["standings", "classifications", "laps", "sectors"]].sum()
+        self.assertEqual(counts.loc[1970].tolist(), [3, 2, 3, 2])
+        self.assertEqual(counts.loc[1972].tolist(), [0, 0, 0, 0])
+        self.assertEqual(counts.index.tolist(), [1970, 1972])
 
     def test_constructor_only_history_and_recorded_winner_pace_render(self):
         def historical(sql, conn=None, params=None):
@@ -677,7 +888,7 @@ class DashboardTests(unittest.TestCase):
 
     def test_official_score_warnings_are_confined_to_category_scoped_data_quality(self):
         def quality_query(sql, conn=None, params=None):
-            if "SELECT cs.season_year, cs.category" in sql and category_sql("350cc", "cs.category") in sql:
+            if "SELECT cs.season_year, cs.category, cs.position" in sql and category_sql("350cc", "cs.category") in sql:
                 return pd.DataFrame([
                     dict(season_year=year, category="350cc", position=rank, points=points,
                          is_final=True, rider=f"Rider {rank}", source_url=None)
