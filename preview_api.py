@@ -148,6 +148,7 @@ def season_story(data: dict) -> dict:
     season, standings = data["season"], data["standings"]
     if not standings:
         return {
+            "kind": "coverage",
             "headline": f"{season}: the story is still incomplete.",
             "accent": "The missing points matter.",
             "summary": (
@@ -168,6 +169,7 @@ def season_story(data: dict) -> dict:
     final = data.get("is_final", official)
     if official and data.get("official_points_inconsistent"):
         return {
+            "kind": "standings",
             "headline": f"{name}: officially ranked first.",
             "accent": "Supplied points need verification.",
             "summary": data["points_warning"] + " Official source ranks and supplied scores are preserved unchanged. "
@@ -185,6 +187,7 @@ def season_story(data: dict) -> dict:
     else:
         summary += "."
     story = {
+        "kind": "standings",
         "headline": f"{season}: {name}'s season.",
         "accent": "The points tell the story.",
         "summary": summary,
@@ -197,11 +200,11 @@ def season_story(data: dict) -> dict:
     if official and final and not marc_dominance:
         story["summary"] += " Period scoring rules and official ranks are preserved; no race-by-race progression is inferred."
         if second and gap == 0:
-            story.update(headline="Equal points.", accent="One official champion.",
+            story.update(kind="tie-break", headline="Equal points.", accent="One official champion.",
                          metric_label="POINTS BETWEEN THE TOP TWO", metric=0,
                          metric_note="The official classification, not a recalculated tie-break, decides the order")
         elif second and gap <= 10:
-            story.update(headline=f"{name}: a narrow crown.", accent=f"{gap:g} points made the difference.",
+            story.update(kind="close-finish", headline=f"{name}: a narrow crown.", accent=f"{gap:g} points made the difference.",
                          metric_label="OFFICIAL WINNING MARGIN", metric=gap,
                          metric_note=f"Points ahead of {second['rider']}")
         else:
@@ -216,6 +219,7 @@ def season_story(data: dict) -> dict:
     if data.get("category", "premier") == "premier" and season == 2026 and comeback and comeback["verified_102"]:
         low = next(point for point in comeback["history"] if point["margin"] == -102)
         story.update(
+            kind="comeback",
             headline="102 points behind.", accent="A title fight rewritten.",
             summary=f"After {low['label']}, Marc Marquez was 102 points behind the strongest rival. "
                     f"His latest margin is {comeback['current_margin']:+g} points. The timeline includes every imported Sprint and Grand Prix.",
@@ -226,6 +230,7 @@ def season_story(data: dict) -> dict:
             story["summary"] += " The curve uses imported race points; the table preserves official standings to date, not a final championship."
     elif marc_dominance:
         story.update(
+            kind="dominance",
             headline="Back to the summit.", accent="Back to dominance.",
             summary=f"Marc Marquez tops the imported season with {leader['wins']} GP wins, "
                     f"{leader['points']:g} points and a {gap:g}-point advantage. "
@@ -238,6 +243,7 @@ def season_story(data: dict) -> dict:
             story["summary"] += " Points and rank use the official standings; the win count uses imported GP classifications."
     elif second and second["wins"] > leader["wins"] and leader["wins"] <= data["gp_results"] / 4:
         story.update(
+            kind="consistency",
             headline="Winning the title fight.", accent="Not just the races.",
             summary=f"{name} leads by {gap:g} points with {leader['wins']} GP wins. "
                     f"{second['rider']} won {second['wins']} GPs: winning more races did not mean scoring more points.",
@@ -251,27 +257,27 @@ def season_story(data: dict) -> dict:
             margins.append(points - rival)
         deficit = max(0, -min(margins, default=0))
         if len(margins) > 1 and margins[-2] < 0 <= margins[-1]:
-            story.update(headline="The latest race changed the lead." if season == 2026 else "The last race changed everything.",
+            story.update(kind="late-surge", headline="The latest race changed the lead." if season == 2026 else "The last race changed everything.",
                          accent=f"{name} took the top spot.",
                          summary=summary + " The leading rider in the imported points changed in the latest recorded scoring session.",
                          metric_label="LATEST RECORDED MARGIN" if season == 2026 else "FINAL RECORDED MARGIN", metric=gap,
                          metric_note="Points ahead after the last imported session")
         elif deficit >= 25:
-            story.update(headline=f"{name}: the long way back.", accent=f"From {deficit:g} behind to the top.",
+            story.update(kind="comeback", headline=f"{name}: the long way back.", accent=f"From {deficit:g} behind to the top.",
                          summary=summary + f" Earlier in the imported timeline, the deficit reached {deficit:g} points.",
                          metric_label="POINTS RECOVERED", metric=deficit + gap,
                          metric_note="From the lowest margin to the latest imported result")
         elif data["gp_results"] and leader["wins"] >= data["gp_results"] / 2:
-            story.update(headline=f"{name} takes control.", accent="Victory became the pattern.",
+            story.update(kind="dominance", headline=f"{name} takes control.", accent="Victory became the pattern.",
                          summary=summary + f" {leader['wins']} wins in {data['gp_results']} imported GP races underpin the advantage.",
                          metric_label="GRAND PRIX WINS", metric=leader["wins"],
                          metric_note=f"Across {data['gp_results']} imported GP races")
         elif second and gap <= 10:
-            story.update(headline=f"{name}: every point mattered.", accent=f"Only {gap:g} points between them.",
+            story.update(kind="close-finish", headline=f"{name}: every point mattered.", accent=f"Only {gap:g} points between them.",
                          metric_label="POINTS BETWEEN THE TOP TWO", metric=gap,
                          metric_note="From imported scoring classifications")
         elif data["gp_results"] and leader["podiums"] >= data["gp_results"] / 2:
-            story.update(headline=f"{name}: always in the picture.", accent="Consistency wrote the story.",
+            story.update(kind="consistency", headline=f"{name}: always in the picture.", accent="Consistency wrote the story.",
                          summary=summary + f" {leader['podiums']} podiums are recorded across {data['gp_results']} GP races.",
                          metric_label="GRAND PRIX PODIUMS", metric=leader["podiums"],
                          metric_note=f"Across {data['gp_results']} imported GP races")
@@ -363,6 +369,8 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
         data["points_warning"] = points_warning
         data["is_final"] = bool(official_rows) and all(row.get("is_final", season < 1990) for row in official_rows)
         data["story"] = season_story(data)
+        if not data["standings"]:
+            data["coverage"] = championship_coverage(season, category)
         return data
     rows = query(f"""
         SELECT s.session_id, s.session_type, s.session_label, s.session_date,
@@ -401,7 +409,29 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
         if inconsistent:
             data["comeback"] = None
     data["story"] = season_story(data)
+    if not data["standings"]:
+        data["coverage"] = championship_coverage(season, category)
     return data
+
+
+def championship_coverage(season: int, category: str) -> dict:
+    scope = selected_class(category)
+    return query(f"""
+        WITH scoped_sessions AS (
+            SELECT s.session_id FROM sessions s
+            JOIN events e ON e.event_id = s.event_id
+            WHERE e.season_year = ? AND {scope} AND s.status = 'FINISHED'
+        )
+        SELECT
+            (SELECT COUNT(*) FROM scoped_sessions) AS sessions,
+            (SELECT COUNT(*) FROM scoped_sessions s WHERE EXISTS (
+                SELECT 1 FROM dbo.vw_effective_classifications c WHERE c.session_id = s.session_id
+            )) AS classified_sessions,
+            (SELECT COUNT(*) FROM dbo.vw_effective_classifications c
+             JOIN scoped_sessions s ON s.session_id = c.session_id) AS classification_rows,
+            (SELECT COUNT(*) FROM laps l
+             JOIN scoped_sessions s ON s.session_id = l.session_id) AS lap_rows
+    """, (season,))[0]
 
 
 @api.get("/api/sessions/{session_id}/analysis")

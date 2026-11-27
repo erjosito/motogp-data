@@ -89,6 +89,31 @@ class HistoricalImportTests(unittest.TestCase):
         standing_rows = next(call.args[1] for call in calls if call.args[0] == historical.STANDINGS_SQL)
         self.assertEqual(standing_rows[0][4], Decimal("210.5"))
 
+    def test_archive_reuses_existing_event_without_overwriting_shared_metadata(self):
+        connection = MagicMock()
+
+        def query(sql, *args):
+            result = MagicMock()
+            result.fetchone.return_value = None
+            result.fetchall.return_value = [("ned", 1966)] if "SELECT event_id,season_year" in sql else []
+            return result
+
+        connection.execute.side_effect = query
+        with patch.object(historical, "verify_season"), patch.object(loader, "upsert_event") as event, \
+                patch.object(loader, "upsert_session") as session, contextlib.redirect_stdout(io.StringIO()):
+            historical.persist_season(connection, snapshot())
+        event.assert_not_called()
+        self.assertEqual(session.call_args.args[2], "ned")
+
+    def test_archive_rejects_event_identity_reused_in_a_different_season(self):
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = None
+        connection.execute.return_value.fetchall.return_value = [("ned", 1965)]
+        with patch.object(loader, "upsert_event") as event, \
+                self.assertRaisesRegex(ValueError, "another season"):
+            historical.persist_season(connection, snapshot())
+        event.assert_not_called()
+
     def test_rejects_empty_or_duplicate_official_rankings(self):
         for mutation in ["empty", "duplicate", "zero_champion"]:
             with self.subTest(mutation=mutation):

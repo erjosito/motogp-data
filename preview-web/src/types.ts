@@ -1,3 +1,5 @@
+import type { Category } from './selection'
+
 export interface GrandPrix {
   event_id: string
   short_name: string
@@ -82,6 +84,7 @@ export interface Standing extends Rider {
 
 export interface Championship {
   season: number
+  category: Category
   standings: Standing[]
   rounds: Round[]
   gp_results: number
@@ -92,7 +95,14 @@ export interface Championship {
   external_sources_used: boolean
   official_points_inconsistent: boolean
   points_warning: string | null
+  coverage?: {
+    sessions: number
+    classified_sessions: number
+    classification_rows: number
+    lap_rows: number
+  }
   story: {
+    kind: 'standings' | 'coverage' | 'comeback' | 'dominance' | 'consistency' | 'late-surge' | 'close-finish' | 'tie-break'
     headline: string
     accent: string
     summary: string

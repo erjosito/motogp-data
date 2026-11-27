@@ -10,7 +10,7 @@ Downloads comprehensive MotoGP weekend data — **all sessions, lap-by-lap times
 
 The React/TypeScript + FastAPI preview runs alongside the classic Streamlit app,
 using the same read-only, managed-identity Azure SQL connection. Its four views
-cover the premier-class championship, session results, rider lap comparisons,
+cover category-scoped championships, session results, rider lap comparisons,
 and sector analysis. Every season has an evidence-backed story: dominance,
 consistency, narrow margins or a turnaround, with the actual supporting metric.
 The 2026 championship highlights Marc Marquez's recovery from the verified
@@ -18,6 +18,17 @@ The 2026 championship highlights Marc Marquez's recovery from the verified
 story combines the recorded dominance with a clearly attributed MotoGP article
 for the injury-recovery context; injury history is not inferred from race data.
 Stories are generated deterministically from stored results, with no AI API calls.
+
+Every available season/category overview includes two evidence-backed charts.
+Layouts adapt to the story rather than using a separate bespoke template for
+each season: comeback curves and floating-bar recovery bridges, decisive-session
+bars, wins-versus-points scatter plots and stacked podiums, victory doughnuts,
+or close-finish rank comparisons and gap lollipops. Snapshot-only seasons use
+official-score bars and classified-point shares without inventing a timeline.
+Missing standings instead show actual stored-record and session coverage counts.
+Win shares use recorded wins as their denominator; point shares describe the
+classified standings table, not all points awarded in races. All profiles retain
+the underlying standings, source caveats and responsive light/dark styling.
 
 The preview supports dark/light themes and shareable season/event/session URLs.
 It is English-only; Classic retains the full analysis suite and EN/ES/IT support.
@@ -344,10 +355,52 @@ not replaced with final finishing positions, and Q2 is not treated as a grid.
 
 Category selection uses the shared allowlist in `category_scope.py`: premier
 (MotoGP/500cc), intermediate (Moto2/250cc), lightweight (Moto3/125cc), and separate
-350cc, 50cc and 80cc championships. Premier remains the default. Source labels are
+350cc, 50cc and 80cc championships. Source labels are
 preserved; predicates ignore the trademark suffix, surrounding spaces and case.
 These were independent world championships, not a universal feeder ladder.
 Points and standings must never be summed across categories.
+
+Classic filters belong to the active task and are remembered independently:
+race analysis selects season, GP, available category, then session; championship
+views require a season and a single category, defaulting to premier class.
+**Riders > Pilot Profile** starts with every imported category and season for
+the selected rider, regardless of the category used on another page. Narrow the
+career using its category multiselect and **Season > All** or a particular year.
+Points and season statistics remain separated by actual class, including riders
+who contested several classes during the same year. Head-to-head comparisons
+match the same session, not unrelated classes at the same GP.
+Coverage, circuit history and cross-year views allow several category families
+for a labeled comparison of imported race/session coverage. The detailed
+analytics underneath are for the selected **Detailed analysis category**;
+they never silently pool championships or point totals. Empty selections show
+an explicit prompt. Navigation and language changes retain each task's filters.
+
+**History > Circuits** matches physical circuit names and verified aliases,
+not reused GP short codes. Track facts do not change with the racing class;
+the winner, timing and points analyses below remain class-scoped. The bundled
+`circuit_catalog.json` contains sourced modern-layout length and corner counts
+for Jerez, Le Mans (Bugatti), Assen, Mugello, Phillip Island and Valencia,
+verified on 2026-11-27 against the active track entries in the
+[official MotoGP event API](https://api.pulselive.motogp.com/motogp/v1/events?seasonYear=2026).
+Official circuit/track IDs preserve the factual snapshot's provenance.
+Modern diagrams and distances must not be interpreted as the layout used
+in every historical season.
+
+Attendance means an explicitly reported MotoGP record, with year, weekend or
+race-day scope and source. The initial verified record is Le Mans:
+[311,797 over the 2025 GP weekend](https://www.motorsport.com/motogp/news/french-gp-breaks-moto-gp-attendance-record-in-2025/10721868/).
+Capacity, ordinary attendance and unverified or disputed historical estimates
+are not substituted. Missing facts, records and reusable geometry are shown
+explicitly; this is a curated snapshot, not a live all-time ranking.
+
+Diagrams are original Plotly renderings of mapped raceway coordinates, with
+local longitude/latitude projection and equal axis scales. Geometry is
+[OpenStreetMap contributors' data](https://www.openstreetmap.org/copyright),
+not copied MotoGP artwork. The bundled circuit database is available under
+[ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/); each outline records
+its OSM source identifiers and retrieval date. Attribution and source links
+appear beneath the diagram. No runtime map API or external artwork request
+is required.
 
 Pilot Rhythm and Sector Heatmap compare absolute times within one selected
 session, not across unrelated circuits or conditions. Pace cleaning excludes
@@ -408,6 +461,8 @@ The importer preserves:
   no official final ranking is invented.
 - A JSON source snapshot, SHA-256 fingerprint and verified row counts in
   `historical_imports`. Original existing rider profiles are not overwritten.
+- Existing shared weekend metadata is reused unchanged when adding another
+  class. Reusing an event ID for a different season stops the transaction.
 
 **Coverage is not completeness.** The API sometimes labels a historical race
 `FINISHED` but returns an empty classification. Those sessions remain empty:

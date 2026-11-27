@@ -8,6 +8,66 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "circuit_distance": {"en": "Track length", "es": "Longitud del circuito", "it": "Lunghezza del circuito"},
+    "circuit_turns": {"en": "Corners", "es": "Curvas", "it": "Curve"},
+    "circuit_record_attendance": {"en": "Record MotoGP attendance", "es": "Récord de asistencia de MotoGP", "it": "Record di affluenza MotoGP"},
+    "circuit_not_available": {"en": "Unavailable", "es": "No disponible", "it": "Non disponibile"},
+    "circuit_diagram": {"en": "Circuit layout", "es": "Trazado del circuito", "it": "Tracciato del circuito"},
+    "circuit_facts_source": {"en": "Circuit facts source", "es": "Fuente de los datos del circuito", "it": "Fonte dei dati del circuito"},
+    "circuit_attendance_source": {"en": "Attendance record source", "es": "Fuente del récord de asistencia", "it": "Fonte del record di affluenza"},
+    "circuit_outline_source": {"en": "Diagram geometry and attribution", "es": "Geometría y atribución del diagrama", "it": "Geometria e attribuzione del diagramma"},
+    "attendance_weekend": {"en": "GP weekend", "es": "fin de semana del GP", "it": "weekend del GP"},
+    "attendance_race_day": {"en": "race day", "es": "día de la carrera", "it": "giorno della gara"},
+    "circuit_layout_help": {
+        "en": "Facts and diagrams describe the sourced modern layout, independently of the racing class. Historical layouts may differ; the diagram is not evidence of the configuration used in every season below.",
+        "es": "Los datos y diagramas describen el trazado moderno documentado, independientemente de la categoría. Los trazados históricos pueden diferir; el diagrama no demuestra la configuración utilizada en cada temporada.",
+        "it": "Dati e diagrammi descrivono il tracciato moderno documentato, indipendentemente dalla categoria. I tracciati storici possono essere diversi; il diagramma non dimostra la configurazione usata in ogni stagione.",
+    },
+    "circuit_facts_verified": {
+        "en": "Fact snapshot verified {date}; source links are provided for later updates.",
+        "es": "Datos verificados el {date}; los enlaces permiten consultar actualizaciones posteriores.",
+        "it": "Dati verificati il {date}; i collegamenti permettono di consultare aggiornamenti successivi.",
+    },
+    "circuit_attendance_scope": {
+        "en": "{year} · {scope}. Record as reported by the linked source, not a live all-time ranking.",
+        "es": "{year} · {scope}. Récord según la fuente enlazada, no una clasificación histórica actualizada en directo.",
+        "it": "{year} · {scope}. Record secondo la fonte collegata, non una classifica storica aggiornata in tempo reale.",
+    },
+    "circuit_facts_unavailable": {
+        "en": "Verified circuit facts are not yet available for this circuit.",
+        "es": "Todavía no hay datos verificados para este circuito.",
+        "it": "Non sono ancora disponibili dati verificati per questo circuito.",
+    },
+    "circuit_diagram_unavailable": {
+        "en": "A verified, reusable diagram is not yet available for this circuit.",
+        "es": "Todavía no hay un diagrama verificado y reutilizable para este circuito.",
+        "it": "Non è ancora disponibile un diagramma verificato e riutilizzabile per questo circuito.",
+    },
+    "circuit_attendance_unavailable": {
+        "en": "No explicitly reported MotoGP attendance record has been verified; ordinary attendance is not substituted.",
+        "es": "No se ha verificado un récord explícito de asistencia de MotoGP; no se sustituye por una asistencia ordinaria.",
+        "it": "Non è stato verificato un record esplicito di affluenza MotoGP; non viene sostituito con un'affluenza ordinaria.",
+    },
+    "categories": {"en": "Categories", "es": "Categorías", "it": "Categorie"},
+    "category_detail": {"en": "Detailed analysis category", "es": "Categoría del análisis detallado", "it": "Categoria dell'analisi dettagliata"},
+    "select_category": {"en": "Select at least one category.", "es": "Selecciona al menos una categoría.", "it": "Seleziona almeno una categoria."},
+    "category_comparison": {"en": "Imported coverage by category", "es": "Cobertura importada por categoría", "it": "Copertura importata per categoria"},
+    "imported_race_sessions": {"en": "Imported race sessions", "es": "Sesiones de carrera importadas", "it": "Sessioni di gara importate"},
+    "category_comparison_help": {
+        "en": "Selected categories are shown separately, without combining championships or points. The detailed charts below show {category}; use the sidebar to switch the detailed analysis.",
+        "es": "Las categorías seleccionadas se muestran por separado, sin combinar campeonatos ni puntos. Los gráficos detallados muestran {category}; cambia el análisis detallado en la barra lateral.",
+        "it": "Le categorie selezionate sono mostrate separatamente, senza unire campionati o punti. I grafici dettagliati mostrano {category}; cambia l'analisi dettagliata nella barra laterale.",
+    },
+    "profile_scope_help": {
+        "en": "Career view starts with all imported categories and seasons, independently of other pages. Narrow the rider's categories or season in the sidebar.",
+        "es": "La vista de trayectoria comienza con todas las categorías y temporadas importadas, independientemente de otras páginas. Filtra las categorías o la temporada del piloto en la barra lateral.",
+        "it": "La vista carriera inizia con tutte le categorie e stagioni importate, indipendentemente dalle altre pagine. Filtra le categorie o la stagione del pilota nella barra laterale.",
+    },
+    "profile_class_points": {
+        "en": "Career counts span the selected classes. Points are shown separately by class and season; there is no combined championship or cross-class points-efficiency score. Counts reflect imported records, not a guaranteed complete career.",
+        "es": "Los recuentos de trayectoria abarcan las clases seleccionadas. Los puntos se muestran por clase y temporada; no hay un campeonato combinado ni una eficiencia de puntos entre clases. Los recuentos reflejan registros importados, no una trayectoria necesariamente completa.",
+        "it": "I conteggi della carriera includono le classi selezionate. I punti sono mostrati per classe e stagione; non esiste un campionato combinato né un'efficienza dei punti tra classi. I conteggi riflettono record importati, non una carriera necessariamente completa.",
+    },
     "appearance_help": {
         "en": "Light / dark mode: open the ⋮ menu at the top right and choose Light or Dark. Your browser keeps the selection when you change language or navigate.",
         "es": "Modo claro / oscuro: abre el menú ⋮ de arriba a la derecha y elige Light (claro) o Dark (oscuro). Tu navegador conserva la selección al cambiar de idioma o navegar.",

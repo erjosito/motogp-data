@@ -1,5 +1,6 @@
 import ast
 import json
+import math
 import sqlite3
 import unittest
 from pathlib import Path
@@ -11,6 +12,7 @@ import streamlit as st
 from streamlit.testing.v1 import AppTest
 from translations import get_translator
 from category_scope import CATEGORY_FAMILIES, category_sql
+from circuit_catalog import circuit_details, circuit_key, normalized_name, projected_outline
 
 
 DASHBOARD = Path(__file__).with_name("dashboard.py")
@@ -19,10 +21,52 @@ DASHBOARD = Path(__file__).with_name("dashboard.py")
 def sample_query(sql, conn=None, params=None):
     """Supply explicit test data; never open a database connection."""
     sql = " ".join(sql.split())
+    if "SELECT DISTINCT category FROM sessions WHERE event_id" in sql or "SELECT DISTINCT category FROM sessions WHERE 1=1" in sql:
+        return pd.DataFrame({"category": [labels[0] for labels in CATEGORY_FAMILIES.values()]})
     if "SELECT DISTINCT category" in sql:
         return pd.DataFrame(columns=["category"])
     if "SELECT DISTINCT season_year" in sql:
         return pd.DataFrame({"season_year": [2026, 2025]})
+    if "SELECT event_id, circuit_name, circuit_place, country_name" in sql:
+        return pd.DataFrame([
+            dict(event_id="jerez", circuit_name="Circuito de Jerez - Ángel Nieto", circuit_place="Jerez", country_name="Spain"),
+            dict(event_id="montjuic", circuit_name="Montjuïc", circuit_place="Barcelona", country_name="Spain"),
+        ])
+    if "SELECT e.circuit_name, e.short_name" in sql:
+        return pd.DataFrame([
+            dict(circuit_name="Circuito de Jerez - Ángel Nieto" if params == ["jerez"] else "Montjuïc",
+                 short_name="SPA", circuit_place="Sample City",
+                 country_name="Spain", season_year=year, rider=f"Sample Rider {position}",
+                 constructor="Sample Bike", team_name="Sample Team",
+                 position=position, points=26 - position, best_lap_time=None, top_speed=None)
+            for year in [2025, 2026] for position in [1, 2, 3]
+        ])
+    if "MIN(l.lap_time) AS best_lap" in sql:
+        return pd.DataFrame(columns=["season_year", "rider", "best_lap"])
+    if "MAX(l.speed_kmh) AS max_speed, AVG" in sql:
+        return pd.DataFrame(columns=["season_year", "max_speed", "avg_speed"])
+    if "COUNT(DISTINCT CASE WHEN s.session_type" in sql:
+        return pd.DataFrame({"Year": [2025, 2026], "Sessions": [1, 2], "Races": [1, 2]})
+    if "SELECT DISTINCT full_name" in sql:
+        return pd.DataFrame({"full_name": ["Sample Rider 1", "Sample Rider 2"]})
+    if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+        return pd.DataFrame([
+            dict(season_year=year, short_name="QAT", date_end=f"{year}-11-08",
+                 session_type="RAC", session_label="Race", session_id=f"{year}-{category}",
+                 category=category, position=position, points=points, best_lap_time=None,
+                 top_speed=None, status="INSTND", team_name="Sample Team",
+                 constructor="Sample Bike", circuit_name="Sample Circuit")
+            for year, category, position, points in [
+                (2025, "Moto3", 1, 25), (2026, "Moto2", 2, 20), (2026, "MotoGP", 3, 16)
+            ]
+        ])
+    if "SELECT s.session_id, e.season_year" in sql:
+        return pd.DataFrame({
+            "session_id": ["2025-Moto3", "2026-Moto2", "2026-MotoGP"],
+            "season_year": [2025, 2026, 2026], "short_name": ["QAT"] * 3,
+            "date_end": ["2025-11-08", "2026-11-08", "2026-11-08"],
+            "position": [2, 1, 4],
+        })
     if "FROM championship_standings" in sql:
         return pd.DataFrame(columns=["position", "rider", "points", "constructor", "is_final", "source_url"])
     if "SUM(cl.points) AS race_pts" in sql:
@@ -147,6 +191,156 @@ class DashboardTests(unittest.TestCase):
         app.radio(key="home_view").set_value("home_championship").run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.button), 1)
+
+    def test_rider_career_defaults_to_all_classes_and_does_not_merge_points(self):
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("350cc").run()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertFalse(any(widget.key == "sb_category" for widget in app.selectbox))
+        self.assertEqual(app.selectbox(key="pp_yr").value, "All")
+        self.assertEqual(set(app.multiselect(key="profile_categories").value), {"MotoGP", "Moto2", "Moto3"})
+        summary = app.dataframe[0].value.set_index("Category")
+        self.assertEqual(summary["Points"].to_dict(), {"Moto2": 20, "Moto3": 25, "MotoGP": 16})
+        season_table = next(table.value for table in app.dataframe
+                            if "Year" in table.value and "Category" in table.value)
+        self.assertEqual(len(season_table[season_table["Year"] == 2026]), 2)
+        self.assertEqual(app.metric[5].value, "—")
+        self.assertEqual(app.metric[2].value, "1")
+        career_sql = next(call.args[0] for call in self.read_sql.call_args_list
+                          if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in call.args[0])
+        for family in CATEGORY_FAMILIES:
+            self.assertIn(category_sql(family), career_sql)
+        app.multiselect(key="profile_categories").set_value(["Moto3"]).run()
+        self.assertEqual(app.dataframe[0].value["Category"].tolist(), ["Moto3"])
+
+    def test_views_restore_their_own_filters_without_inheriting_category(self):
+        app = self.start_race_analysis()
+        app.selectbox(key="sb_category").set_value("lightweight").run()
+        app.selectbox(key="sb_gp").set_value("qat").run()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
+        app.selectbox(key="nav_group").set_value("nav_season").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "premier")
+        app.selectbox(key="sb_category").set_value("intermediate").run()
+        app.selectbox(key="nav_group").set_value("nav_race").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "lightweight")
+        self.assertEqual(app.selectbox(key="sb_gp").value, "qat")
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertEqual(app.multiselect(key="profile_categories").value, ["Moto2"])
+        app.selectbox(key="language").select("🇮🇹 Italiano").run()
+        self.assertEqual(app.multiselect(key="profile_categories").value, ["Moto2"])
+
+    def test_race_category_choices_are_bound_to_the_selected_event(self):
+        def available_categories(sql, conn=None, params=None):
+            if "SELECT DISTINCT category FROM sessions WHERE event_id" in sql:
+                return pd.DataFrame({"category": ["Moto2"] if params == ["qat"] else ["MotoGP", "Moto3"]})
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = available_categories
+        app = self.start_race_analysis()
+        self.assertEqual(app.selectbox(key="sb_category").options, ["MotoGP / 500cc", "Moto3 / 125cc"])
+        app.selectbox(key="sb_gp").set_value("qat").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "intermediate")
+        self.assertEqual(app.selectbox(key="sb_gp").value, "qat")
+        self.assertEqual(app.selectbox(key="sb_category").options, ["Moto2 / 250cc"])
+
+    def test_coverage_can_compare_classes_without_pooling_the_detailed_views(self):
+        app = self.start_app()
+        app.radio(key="home_view").set_value("home_coverage").run()
+        app.multiselect(key="scope_categories").set_value(["premier", "intermediate"]).run()
+        self.assertFalse(app.exception)
+        comparison = app.dataframe[0].value
+        self.assertEqual(set(comparison["Category"]), {"MotoGP / 500cc", "Moto2 / 250cc"})
+        app.selectbox(key="sb_category").set_value("intermediate").run()
+        self.assertEqual(app.multiselect(key="scope_categories").value, ["premier", "intermediate"])
+        app.radio(key="home_view").set_value("home_championship").run()
+        self.assertEqual(app.selectbox(key="sb_category").value, "premier")
+
+    def test_circuit_details_match_names_not_reused_grand_prix_codes(self):
+        record = {"id": "jerez", "name": "Circuito de Jerez - Ángel Nieto"}
+        with patch("circuit_catalog.catalog", return_value={
+            normalized_name(record["name"]): record,
+            normalized_name("Circuito de Jerez"): record,
+        }):
+            self.assertEqual(circuit_details("CIRCUITO DE JEREZ – ANGEL NIETO"), record)
+            self.assertEqual(circuit_key("Circuito de Jerez", "Jerez"), "jerez")
+            self.assertIsNone(circuit_details("SPA"))
+            self.assertNotEqual(circuit_key("Montjuïc", "Barcelona"), "jerez")
+            self.assertNotEqual(circuit_key("Sample Circuit", "City A"),
+                                circuit_key("Sample Circuit", "City B"))
+
+    def test_circuit_diagram_preserves_proportions_and_rejects_invalid_geometry(self):
+        x, y = projected_outline([[0, 60], [1, 60], [1, 60], [0, 60]])
+        self.assertAlmostEqual(x[1], 0.5)
+        self.assertEqual(y, [0, 0, 0, 0])
+        for outline in [[], [[0, 0]], [[0, 0], [1, 0], [0, 1]],
+                        [[0, 0], [181, 0], [0, 1], [0, 0]],
+                        [[0, 0], [float("nan"), 0], [0, 1], [0, 0]]]:
+            with self.assertRaises(ValueError):
+                projected_outline(outline)
+
+    def test_bundled_outlines_are_closed_and_match_the_modern_track_length(self):
+        records = json.loads(DASHBOARD.with_name("circuit_catalog.json").read_text(encoding="utf-8"))["circuits"]
+        for record in records:
+            with self.subTest(circuit=record["id"]):
+                outline = record["outline"]
+                projected_outline(outline)
+                self.assertTrue(record["outline_way_ids"])
+                metres = 0
+                for (lon1, lat1), (lon2, lat2) in zip(outline, outline[1:]):
+                    a = math.sin(math.radians(lat2 - lat1) / 2) ** 2
+                    a += (math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
+                          * math.sin(math.radians(lon2 - lon1) / 2) ** 2)
+                    metres += 2 * 6371008.8 * math.asin(math.sqrt(min(1, a)))
+                self.assertLess(abs(metres / (record["length_km"] * 1000) - 1), 0.03)
+
+    def test_circuit_page_shows_sourced_facts_and_independent_fallbacks(self):
+        record = dict(
+            id="jerez", name="Circuito de Jerez - Ángel Nieto", aliases=[],
+            length_km=4.423, turns=13, facts_source="https://example.com/facts",
+            outline=[[0, 0], [1, 0], [0, 1], [0, 0]],
+            outline_source="https://example.com/geometry", outline_license="ODbL",
+            outline_license_url="https://opendatacommons.org/licenses/odbl/1-0/",
+            attendance_record=dict(count=100000, year=2025, scope="weekend",
+                                   source="https://example.com/attendance"),
+        )
+        with patch("circuit_catalog.catalog", return_value={normalized_name(record["name"]): record}):
+            app = self.start_app()
+            app.selectbox(key="nav_group").set_value("nav_history").run()
+            self.assertFalse(app.exception)
+            self.assertEqual(app.selectbox(key="circuit_selection").value, "jerez")
+            self.assertEqual([metric.value for metric in app.metric[:3]], ["4.423 km", "13", "100,000"])
+            diagram = json.loads(app.get("plotly_chart")[0].proto.spec)
+            self.assertEqual(diagram["layout"]["title"]["text"], "Circuit layout")
+            self.assertEqual(diagram["layout"]["yaxis"]["scaleanchor"], "x")
+            self.assertEqual(diagram["data"][0]["line"]["width"], 6)
+            self.assertIn("2025 · GP weekend", " ".join(caption.value for caption in app.caption))
+            for label, language in [("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")]:
+                app.selectbox(key="language").select(label).run()
+                self.assertFalse(app.exception)
+                self.assertIn(get_translator(language)("circuit_layout_help"),
+                              [caption.value for caption in app.caption])
+            app.multiselect(key="scope_categories").set_value(["50cc"]).run()
+            self.assertEqual(app.metric[0].value, "4.423 km")
+            self.assertEqual(len(app.selectbox(key="circuit_selection").options), 2)
+            circuit_sql = [call for call in self.read_sql.call_args_list
+                           if "e.event_id IN" in call.args[0]]
+            self.assertTrue(circuit_sql)
+            for call in circuit_sql:
+                self.assertNotIn("e.short_name = ?", call.args[0])
+                self.assertEqual(call.kwargs["params"], ["jerez"])
+            unknown = circuit_key("Montjuïc", "Barcelona")
+            app.selectbox(key="circuit_selection").set_value(unknown).run()
+            self.assertFalse(app.exception)
+            self.assertIn(get_translator("it")("circuit_facts_unavailable"), [item.value for item in app.info])
+            self.assertIn(get_translator("it")("circuit_diagram_unavailable"), [item.value for item in app.info])
+            app.selectbox(key="circuit_selection").set_value("jerez").run()
+            record.pop("attendance_record")
+            record.pop("outline")
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertEqual(app.metric[2].value, get_translator("it")("circuit_not_available"))
+            self.assertIn(get_translator("it")("circuit_diagram_unavailable"), [item.value for item in app.info])
 
     def test_coverage_explanations_follow_their_charts_in_each_language(self):
         app = self.start_app()
@@ -282,6 +476,7 @@ class DashboardTests(unittest.TestCase):
                 self.assertFalse(app.metric)
                 self.assertFalse(app.get("plotly_chart"))
         app.selectbox(key="nav_group").set_value("nav_season").run()
+        app.selectbox(key="sb_category").set_value("350cc").run()
         self.assertFalse(app.exception)
         self.assertTrue(app.warning)
         self.assertFalse(app.get("plotly_chart"))
@@ -313,6 +508,7 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.metric)
         self.assertFalse(app.get("plotly_chart"))
         app.selectbox(key="nav_group").set_value("nav_season").run()
+        app.selectbox(key="sb_category").set_value("350cc").run()
         self.assertFalse(app.exception)
         self.assertFalse(app.get("plotly_chart"))
         app.session_state["selected_view_nav_history"] = "viz_crossyear"
@@ -324,6 +520,10 @@ class DashboardTests(unittest.TestCase):
             ("cross_season_dominance", [translator("cross_season_dominance")]),
         ]:
             with self.subTest(chart=chart):
+                if chart == "cross_bump_chart":
+                    with patch("streamlit.selectbox", side_effect=selections):
+                        app.run()
+                    app.multiselect(key="scope_categories").set_value(["350cc"])
                 with patch("streamlit.selectbox", side_effect=selections):
                     app.run()
                 self.assertFalse(app.exception)
@@ -473,7 +673,7 @@ class DashboardTests(unittest.TestCase):
         app.selectbox(key="sb_category").set_value("lightweight").run()
         self.assertFalse(app.exception)
         self.assertEqual(app.radio(key="view_nav_race").value, "viz_position")
-        self.assertEqual(app.selectbox(key="sb_gp").value, "val")
+        self.assertEqual(app.selectbox(key="sb_gp").value, "por")
         self.assertEqual(app.selectbox(key="sb_sess").value, "Race")
         self.assertEqual(len(app.multiselect(key="pos_r").value), 3)
         lap_queries = [call.args[0] for call in self.read_sql.call_args_list
@@ -551,8 +751,10 @@ class DashboardTests(unittest.TestCase):
         app = self.start_app()
         app.selectbox(key="sb_category").set_value("80cc").run()
         app.radio(key="home_view").set_value("home_coverage").run()
+        app.multiselect(key="scope_categories").set_value(["80cc"]).run()
         self.assertFalse(app.exception)
         app.selectbox(key="nav_group").set_value("nav_race").run()
+        app.selectbox(key="sb_category").set_value("80cc").run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.dataframe[0].value), 3)
         self.assertTrue(any("external-derived" in caption.value for caption in app.caption))
@@ -697,7 +899,7 @@ class PremierScopeTests(unittest.TestCase):
         tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
         nodes = [
             node for node in tree.body
-            if (isinstance(node, ast.FunctionDef) and node.name == "premier_q")
+            if (isinstance(node, ast.FunctionDef) and node.name in ("premier_q", "scope_predicate"))
             or (isinstance(node, ast.Assign) and any(
                 isinstance(target, ast.Name) and target.id == "PREMIER_CATEGORY" for target in node.targets
             ))

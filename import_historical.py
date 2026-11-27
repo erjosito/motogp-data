@@ -299,10 +299,16 @@ def persist_season(conn, data):
         }
         for team, constructor in teams.values():
             loader.upsert_team(cursor, team, constructor, year)
+        existing_events = dict(conn.execute("SELECT event_id,season_year FROM events").fetchall())
         for event in data["events"]:
-            loader.upsert_event(cursor, event["event"], year)
+            event_id = event["event"]["id"]
+            if event_id in existing_events:
+                if existing_events[event_id] != year:
+                    raise ValueError(f"Existing event belongs to another season: {event_id}")
+            else:
+                loader.upsert_event(cursor, event["event"], year)
             for item in event["sessions"]:
-                loader.upsert_session(cursor, item["session"], event["event"]["id"], category)
+                loader.upsert_session(cursor, item["session"], event_id, category)
         cursor.fast_executemany = True
         if entries:
             cursor.executemany(

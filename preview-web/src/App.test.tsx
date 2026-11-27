@@ -38,7 +38,7 @@ describe('category selector and navigation', () => {
 
   it('preserves 9/28/46 supplied scores and official champion rank without displaying a points margin', () => {
     const data: Championship = {
-      season: 1970, standings_source: 'official', is_final: true,
+      season: 1970, category: '350cc', standings_source: 'official', is_final: true,
       official_points_inconsistent: true,
       points_warning: 'Supplied official point totals require source verification. Period scoring or source discrepancies may explain this.',
       external_sources_used: false, rounds: [], gp_results: 0, weekends: 0,
@@ -49,6 +49,7 @@ describe('category selector and navigation', () => {
         team: null, constructor: 'Bike', series: [],
       })),
       story: {
+        kind: 'standings',
         headline: 'Giacomo Agostini: officially ranked first.',
         accent: 'Supplied points need verification.',
         summary: 'Official source ranks and supplied scores are preserved unchanged.',
@@ -72,5 +73,9 @@ describe('category selector and navigation', () => {
     expect(markup).not.toContain('−-19')
     expect(markup).not.toContain('The comeback curve')
     expect(markup).not.toContain('a narrow crown')
+    expect(markup.match(/data-season-chart=/g)).toHaveLength(2)
+    expect(markup).toContain('data-chart-kind="bar"')
+    expect(markup).toContain('data-chart-kind="scatter"')
+    expect(markup).not.toContain('data-chart-kind="lollipop"')
   })
 })
