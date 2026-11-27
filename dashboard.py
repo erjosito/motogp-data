@@ -306,6 +306,10 @@ lang_sel = st.sidebar.selectbox(
 lang = LANG_OPTIONS[lang_sel]
 t = get_translator(lang)
 st.sidebar.caption(t("appearance_help"))
+st.sidebar.link_button(
+    t("paddock_link"), "https://motogp-data.com/paddock/",
+    icon=":material/open_in_new:", help=t("paddock_link_help"), width="stretch",
+)
 
 st.title(t("app_title"))
 st.caption(t("app_tagline"))
