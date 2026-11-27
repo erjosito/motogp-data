@@ -138,6 +138,19 @@ CREATE TABLE external_sources (
     fetched_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 
+-- Standings-only backfills never create or update race/session/lap archives.
+CREATE TABLE standings_imports (
+    season_year INT NOT NULL,
+    category NVARCHAR(20) NOT NULL,
+    source_hash CHAR(64) NOT NULL,
+    standings_count INT NOT NULL,
+    is_final BIT NOT NULL,
+    source_url NVARCHAR(1024) NOT NULL,
+    source_payload NVARCHAR(MAX) NOT NULL CHECK (ISJSON(source_payload)=1),
+    imported_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    PRIMARY KEY (season_year,category)
+);
+
 CREATE TABLE external_candidates (
     candidate_id CHAR(64) NOT NULL PRIMARY KEY,
     source_id NVARCHAR(80) NOT NULL REFERENCES external_sources(source_id),
