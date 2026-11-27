@@ -51,16 +51,16 @@ def sample_query(sql, conn=None, params=None):
         return pd.DataFrame(columns=["season_year", "max_speed", "avg_speed"])
     if "COUNT(DISTINCT CASE WHEN s.session_type" in sql:
         return pd.DataFrame({"Year": [2025, 2026], "Sessions": [1, 2], "Races": [1, 2]})
-    if "SELECT r.rider_id, r.full_name FROM riders r WHERE EXISTS" in sql:
+    if "SELECT r.rider_id, r.full_name, r.number FROM riders r WHERE EXISTS" in sql:
         return pd.DataFrame({"rider_id": ["sample-rider", "sample-rider-2"],
-                             "full_name": ["Sample Rider 1", "Sample Rider 2"]})
+                             "full_name": ["Sample Rider 1", "Sample Rider 2"], "number": [12, None]})
     if "SELECT DISTINCT full_name" in sql:
         return pd.DataFrame({"full_name": ["Sample Rider 1", "Sample Rider 2"]})
     if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
         return pd.DataFrame([
             dict(season_year=year, short_name="QAT", date_end=f"{year}-11-08",
                  session_type="RAC", session_label="Race", session_id=f"{year}-{category}",
-                 category=category, rider_id="sample-rider", position=position, points=points, best_lap_time=None,
+                 category=category, rider_id="sample-rider", rider_number=12, position=position, points=points, best_lap_time=None,
                  top_speed=None, status="INSTND", team_name="Sample Team",
                  constructor="Sample Bike", circuit_name="Sample Circuit")
             for year, category, position, points in [
@@ -281,9 +281,9 @@ class DashboardTests(unittest.TestCase):
         marc = "f55b433d-38b8-4d1d-bb3a-a709c82a0260"
 
         def identity_query(sql, conn=None, params=None):
-            if "SELECT r.rider_id, r.full_name FROM riders r WHERE EXISTS" in sql:
+            if "SELECT r.rider_id, r.full_name, r.number FROM riders r WHERE EXISTS" in sql:
                 return pd.DataFrame({"rider_id": [marc, "unpictured"],
-                                     "full_name": ["Marc Marquez", "Marc Marquez"]})
+                                     "full_name": ["Marc Marquez", "Marc Marquez"], "number": [93, None]})
             rows = sample_query(sql, conn, params)
             if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
                 self.assertIn("WHERE c.rider_id = ?", sql)
@@ -339,6 +339,72 @@ class DashboardTests(unittest.TestCase):
             self.assertIn("2026 · MotoGP · #12", " ".join(c.value for c in app.caption))
             app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
             self.assertFalse(app.get("image"))
+
+    def test_number_design_is_beside_profile_name_with_explicit_reference_scope(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        assets = [
+            {"season": year, "category": "MotoGP", "number": 12,
+             "source_url": f"https://example.test/number-{year}.png"}
+            for year in (2024, 2026)
+        ]
+
+        def artwork(rider_id, season, categories):
+            return [(asset, image.getvalue()) for asset in assets
+                    if rider_id == "sample-rider" and (season is None or asset["season"] == season)
+                    and asset["category"] in categories]
+
+        with patch("rider_numbers.list_numbers", side_effect=artwork):
+            app = self.start_app()
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+            self.assertFalse(app.exception)
+            facts = app.get("column")[1]
+            self.assertEqual(len(facts.get("image")), 1)
+            self.assertIn("Sample Rider 1", [header.value for header in facts.get("subheader")])
+            self.assertIn("Number design reference: 2026 · MotoGP · #12",
+                          " ".join(c.value for c in facts.get("caption")))
+            self.assertEqual(len(app.get("image")), 3)  # Title plus the existing two-design gallery.
+            app.selectbox(key="pp_yr").set_value(2025).run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.get("image"))
+            app.selectbox(key="pp_yr").set_value(2026).run()
+            self.assertFalse(app.get("column")[1].get("image"))  # Multiple actual classes.
+            app.multiselect(key="profile_categories").set_value(["MotoGP"]).run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            app.selectbox(key="profile_rider").set_value("sample-rider-2").run()
+            self.assertFalse(app.get("image"))
+
+    def test_ambiguous_design_or_unknown_period_number_does_not_decorate_name(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        assets = [{"season": 2026, "category": category, "number": 12,
+                   "source_url": "https://example.test/number.png"} for category in ("Moto2", "MotoGP")]
+
+        def artwork(rider_id, season, categories):
+            return [(asset, image.getvalue()) for asset in assets
+                    if rider_id == "sample-rider" and (season is None or asset["season"] == season)
+                    and asset["category"] in categories]
+
+        def unknown_number_query(sql, conn=None, params=None):
+            rows = sample_query(sql, conn, params)
+            if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+                rows["rider_number"] = None
+            return rows
+
+        self.read_sql.side_effect = unknown_number_query
+        with patch("rider_numbers.list_numbers", side_effect=artwork):
+            app = self.start_app()
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.get("column")[1].get("image"))
+            self.assertEqual(len(app.get("image")), 2)
+            app.multiselect(key="profile_categories").set_value(["MotoGP"]).run()
+            self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            app.selectbox(key="pp_yr").set_value(2026).run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.get("column")[1].get("image"))
+            self.assertEqual(len(app.get("image")), 1)  # The explicitly scoped gallery remains.
 
     def test_legacy_named_rider_preference_preserves_unique_identity_filters(self):
         app = self.start_app()
