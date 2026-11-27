@@ -586,6 +586,52 @@ python -m unittest test_import_historical test_load_to_sql test_dashboard
 
 ## Portable data snapshot
 
+### Standings-only premier backfill
+
+`championship_standings` also includes independent official premier season tables
+for **1990–2026**: 1,064 additional rows across 37 seasons. These were imported
+without changing any original events, sessions, race classifications, laps,
+teams, external facts or earlier standings/profiles. Two previously absent
+official riders were added insert-only. Full-row preservation fingerprints and
+an exact repeat-run comparison verified those invariants.
+
+```powershell
+# Fetch/cache and validate official season/category/calendar/document evidence only.
+python import_standings.py --years 1990-2026
+# Add the provenance table, then persist only independent standings and new riders.
+python import_standings.py --years 1990-2026 --apply --migrate
+# Explicit refresh; historical requests normally reuse the paced HTTP cache.
+python import_standings.py --years 2026 --apply --refresh
+python -m unittest test_import_standings test_export_data
+```
+
+`standings_imports` stores the complete payload, source URL/hash, calendar,
+category identity, supplied PDF/XML links, row count and finality separately from
+`historical_imports` (race archives). Original source labels/ranks/points remain
+unchanged. Empty source tables are recorded as gaps, never reconstructed from
+race totals. Unowned conflicting existing standings or unexpected stored riders
+stop the transaction instead of being silently overwritten/deleted.
+
+The importer verifies the document round against elapsed official calendar
+events. PDF and XML references can disagree: for example, the 2000 API links an
+earlier Valencia PDF and an Australian XML; several modern XML links lag their
+PDF. Both are retained, and the latest verified round (race over sprint) is used
+for as-of evidence, not as permission to alter the API's actual scores. A narrow
+2001 XML `BRA` to API `RIO` event-code mapping is supported: the official XML
+header explicitly names the Cinzano Rio GP.
+
+**2026 is provisional.** The current calendar lists Valencia on November 29,
+after Portugal on November 22. Past, non-current seasons with last-round
+evidence are final; the current season remains conservatively non-final.
+Marc's stored rank-one rows now include nine completed title-winning final
+tables (2010/125cc, 2012/Moto2 and seven MotoGP seasons through 2025) plus
+provisional 2026/MotoGP rank one. His separately confirmed tenth title must not
+be denied or inferred merely by counting final tables. Follow-up work is tracked
+for independent confirmed-title evidence and for remaining source gaps,
+anomalous scores and lower-class timing coverage.
+
+### Compressed snapshots
+
 `python export_data.py --output exports\motogp-data-2026-11-27.tar.xz` creates a
 maximum-compression, consistent CSV snapshot of all application tables, including
 source provenance, live schema/keys, a convenient flat results file, quality

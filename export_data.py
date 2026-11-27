@@ -22,6 +22,7 @@ TABLES = {
     "championship_standings", "classifications", "events", "external_candidates",
     "external_classifications", "external_sources", "historical_imports", "laps",
     "riders", "schema_migrations", "sessions", "team_aliases", "teams",
+    "standings_imports",
 }
 FORMAT_VERSION = 1
 TEMPORAL_TYPES = {"date", "datetime", "datetime2", "datetimeoffset", "time", "smalldatetime"}
@@ -94,9 +95,10 @@ def discover_schema(conn):
         SELECT t.object_id,SCHEMA_NAME(t.schema_id) AS schema_name,t.name AS name
         FROM sys.tables t WHERE t.is_ms_shipped=0 ORDER BY t.name
     """))
-    if {(table["schema_name"], table["name"]) for table in tables} != {
-        ("dbo", name) for name in TABLES
-    }:
+    actual_tables = {(table["schema_name"], table["name"]) for table in tables}
+    expected_tables = {("dbo", name) for name in TABLES}
+    # Support snapshots of databases that have not yet applied this additive migration.
+    if actual_tables not in (expected_tables, expected_tables - {("dbo", "standings_imports")}):
         raise ValueError("Application tables changed; review the explicit export allowlist before exporting")
     for table in tables:
         object_id = table.pop("object_id")
@@ -245,7 +247,7 @@ def write_csv(path, cursor, expected_columns=None):
     return {"rows": count, "columns": columns}
 
 
-def quality_report(conn):
+def quality_report(conn, has_standings_imports=False):
     standings = records(conn.execute(
         "SELECT season_year,category,position,points FROM dbo.championship_standings "
         "ORDER BY season_year,category,position",
@@ -258,6 +260,10 @@ def quality_report(conn):
     return {
         "not_a_complete_career_archive": True,
         "official_points_not_silently_corrected": True,
+        "standings_only_imports": records(conn.execute(
+            "SELECT season_year,category,standings_count,is_final FROM dbo.standings_imports "
+            "ORDER BY season_year,category",
+        )) if has_standings_imports else [],
         "non_monotonic_official_points": [
             {"season_year": year, "category": category}
             for (year, category), values in groups.items()
@@ -326,7 +332,9 @@ def build_payload(conn, directory):
     }]
     write_json(directory / "schema.json", schema)
     (directory / "schema.sql").write_text(schema_ddl(schema), encoding="utf-8")
-    write_json(directory / "quality.json", quality_report(conn))
+    write_json(directory / "quality.json", quality_report(
+        conn, any(table["name"] == "standings_imports" for table in schema["tables"]),
+    ))
     conn.rollback()
     for source, target in [
         (ROOT / "docs" / "data-export.md", "README.md"),
