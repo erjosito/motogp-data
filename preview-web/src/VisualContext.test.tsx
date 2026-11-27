@@ -1,0 +1,65 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { CircuitGraphic, RiderIdentity } from './VisualContext'
+import type { CircuitContextData, RiderEnrichment, RiderPortrait } from './VisualContext'
+
+const rider = { rider_id: 'marc', rider: 'Marc Marquez', number: 93 }
+const enrichment: RiderEnrichment = {
+  status: 'available', profile: { rider_id: 'marc',
+    biography: { birth_date: '1993-02-17', birth_city: 'Cervera', birth_country: 'Spain', height_cm: 169 },
+    source: { source_url: 'https://example.com/facts', retrieved_at: '2026-11-27T00:00:00Z' } },
+}
+const media: RiderPortrait = { status: 'available', portrait: {
+  rider_id: 'marc', season: 2026, team_name: 'Ducati Lenovo Team', credit: 'Denkmit / Wikimedia Commons',
+  source_page: 'https://example.com/photo', license: 'CC-BY-SA-4.0', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  changes: 'Oriented, cropped and resized.', images: [{ url: '/api/rider-media/marc/320', width: 320, height: 320 }],
+} }
+afterEach(() => vi.unstubAllGlobals())
+
+describe('rider visual context', () => {
+  it('keeps portrait context, sources and adaptation credit alongside reviewed facts', () => {
+    vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
+    const html = renderToStaticMarkup(<RiderIdentity rider={rider} enrichment={enrichment} media={media} />)
+    expect(html).toContain('/paddock/api/rider-media/marc/320')
+    expect(html).toContain('2026 · Ducati Lenovo Team')
+    expect(html).toContain('Denkmit / Wikimedia Commons')
+    expect(html).toContain('creativecommons.org/licenses/by-sa/4.0/')
+    expect(html).toContain('Oriented, cropped and resized.')
+    expect(html).toContain('Feb 17, 1993')
+    expect(html).toContain('Cervera, Spain')
+    expect(html).toContain('not a historical measurement')
+  })
+
+  it('never applies another rider or season portrait, and missing facts remain absent', () => {
+    const html = renderToStaticMarkup(<RiderIdentity rider={rider} media={media} season={2019} />)
+    expect(html).not.toContain('<img')
+    expect(html).toContain('Marc Marquez, initials')
+    expect(html).not.toContain('Reported height')
+    const other = renderToStaticMarkup(<RiderIdentity rider={{ ...rider, rider_id: 'other', rider: 'Other Rider' }}
+      enrichment={enrichment} media={media} />)
+    expect(other).not.toContain('<img')
+    expect(other).not.toContain('Cervera')
+    expect(other).toContain('Other Rider, initials')
+  })
+})
+
+describe('circuit reference graphic', () => {
+  const data: CircuitContextData = { status: 'available', circuit: {
+    id: 'jerez', name: 'Jerez', length_km: 4.423, turns: 13, reference_season: 2026,
+    facts_source: 'https://example.com/facts', facts_verified: '2026-11-27',
+    outline_source: 'https://www.openstreetmap.org/way/1', outline_license_url: 'https://opendatacommons.org/licenses/odbl/1-0/',
+    outline: [[16, 16], [304, 16], [16, 304], [16, 16]],
+  } }
+  it('labels historical selections as current reference without imaginary sectors', () => {
+    const html = renderToStaticMarkup(<CircuitGraphic data={data} season={1967} />)
+    expect(html).toContain('not a reconstruction of the 1967 track')
+    expect(html).toContain('not a sector map')
+    expect(html).toContain('OpenStreetMap contributors')
+    expect(html).toContain('ODbL 1.0')
+    expect(html).toContain('No sector boundaries, start line or direction inferred.')
+    expect(html).toContain('4.423')
+  })
+  it('does not fabricate a graphic for an uncollected venue', () => {
+    expect(renderToStaticMarkup(<CircuitGraphic data={{ status: 'not_collected', circuit: null }} season={2026} />)).toBe('')
+  })
+})

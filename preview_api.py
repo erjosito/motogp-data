@@ -10,12 +10,14 @@ from pathlib import Path
 import pyodbc
 from azure.core.exceptions import ClientAuthenticationError
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
 from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, official_points_inconsistent
 from rider_profiles import read_enrichment
+from circuit_catalog import circuit_details, projected_outline
+from rider_media import read_portrait
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -399,6 +401,23 @@ def rider_directory():
     """)
 
 
+@api.get("/api/circuit-context")
+def circuit_context(name: str = Query(max_length=200)):
+    record = circuit_details(name)
+    if record is None:
+        return {"status": "not_collected", "circuit": None}
+    x, y = projected_outline(record["outline"])
+    left, top = min(x), max(y)
+    span = max(max(x) - left, top - min(y))
+    return {"status": "available", "circuit": {
+        **{key: record[key] for key in ("id", "name", "length_km", "turns", "facts_source",
+                                      "facts_verified", "outline_source", "outline_license_url")},
+        "reference_season": 2026,
+        "outline": [[round(16 + (px - left) / span * 288, 3),
+                     round(16 + (top - py) / span * 288, 3)] for px, py in zip(x, y)],
+    }}
+
+
 @api.get("/api/riders/{rider_id}")
 def rider_profile(rider_id: str):
     riders = query("SELECT rider_id, full_name AS rider, number FROM riders WHERE rider_id = ?", (rider_id,))
@@ -430,6 +449,35 @@ def rider_profile(rider_id: str):
 @api.get("/api/riders/{rider_id}/enrichment")
 def rider_enrichment(rider_id: str):
     return read_enrichment(rider_id)
+
+
+@api.get("/api/riders/{rider_id}/portrait")
+def rider_portrait(rider_id: str, season: int = Query(ge=1949, le=3000), category: str = "premier"):
+    selected_class(category)
+    asset = read_portrait(rider_id, season, CATEGORY_FAMILIES[category])
+    if asset is None:
+        return {"status": "not_collected", "portrait": None}
+    return {"status": "available", "portrait": {
+        "rider_id": rider_id, "season": asset["season"], "team_name": asset["team_name"],
+        "credit": asset["rights"]["credit"], "source_page": asset["source_page"],
+        "license": asset["rights"]["license"], "license_url": asset["rights"]["license_url"],
+        "changes": asset["display_derivatives"][0]["changes"],
+        "images": [{
+            "url": f"/api/riders/{rider_id}/portrait/{item['width_px']}?season={season}&category={category}",
+            "width": item["width_px"], "height": item["height_px"],
+        } for item in sorted(asset["display_derivatives"], key=lambda row: row["width_px"])],
+    }}
+
+
+@api.get("/api/riders/{rider_id}/portrait/{width}")
+def rider_portrait_image(rider_id: str, width: int, season: int = Query(ge=1949, le=3000), category: str = "premier"):
+    selected_class(category)
+    asset = read_portrait(rider_id, season, CATEGORY_FAMILIES[category])
+    variant = next((item for item in asset["display_derivatives"] if item["width_px"] == width), None) if asset else None
+    if variant is None:
+        raise HTTPException(404, "No approved portrait in this scope.")
+    return FileResponse(Path(__file__).parent / variant["path"], media_type="image/webp",
+                        headers={"Link": f'<{variant["license_url"]}>; rel="license"'})
 
 
 @api.get("/api/events")

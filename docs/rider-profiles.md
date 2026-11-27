@@ -186,6 +186,19 @@ remain CC BY-SA 4.0; this is not a new license for the application, SQL data,
 visible marks or personality rights. Biography enrichment remains independently
 keyed through the reviewed factual catalog, not through names or image presence.
 
+Paddock's career identity card requests an explicit **2026 / premier** portrait
+reference, labels that season and team beside it, and preserves the 4:5 crop.
+It is not a claim about a rider's appearance throughout their career. Unpictured
+riders use initials and a plain numeric race number. Only the reviewed factual
+subset is included, so missing biography fields are omitted rather than guessed.
+
+The preview API exposes `GET /api/riders/{rider_id}/portrait?season=2026&category=premier`
+for display metadata and scoped `/portrait/{width}` URLs for the checked local
+WebP variants. Both endpoints also work under `/paddock`. Wrong-season/class
+metadata returns `not_collected`; unavailable image variants return404. No
+original or unapproved image URL is returned as display media. Creator/source
+and license links stay visible; an adaptation disclosure gives the full changes.
+
 ## Circuit context already present
 
 `circuit_catalog.json` / `circuit_catalog.py` already supply six current-layout
@@ -193,6 +206,12 @@ outlines (Jerez, Le Mans, Assen, Mugello, Phillip Island and Valencia), official
 length/corner facts and source attribution. Geometry is OpenStreetMap-derived
 under ODbL, rendered as original scalable diagrams. Its current-layout facts
 must not be presented as the geometry of every historical race.
+
+Paddock's `GET /api/circuit-context?name=<circuit-name>` uses the existing exact
+normalized aliases, projects the sourced outline with preserved proportions,
+and supplies attribution plus2026 facts. Session pages place this compact context
+before analysis. Historical selections explicitly identify it as a current
+reference, not the selected year's track; unsupported venues omit the graphic.
 
 Record attendance must retain year and race-day/weekend scope; only the sourced
 Le Mans 2025 weekend record is currently supplied. Other attendance is unknown,

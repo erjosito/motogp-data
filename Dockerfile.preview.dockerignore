@@ -5,6 +5,17 @@
 !sql_connection.py
 !category_scope.py
 !rider_profiles.py
+!rider_profiles.reviewed.json
+!circuit_catalog.py
+!circuit_catalog.json
+!rider_media.py
+!media_catalog.json
+!assets/
+assets/**
+!assets/riders/
+!assets/riders/LICENSE.txt
+!assets/riders/marc-marquez-2026-portrait-320.webp
+!assets/riders/marc-marquez-2026-portrait-640.webp
 !preview-web/
 preview-web/**
 !preview-web/package.json
