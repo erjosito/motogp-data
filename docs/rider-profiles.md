@@ -18,7 +18,10 @@ The official public sources are:
 These are undocumented upstream APIs, not a stability or completeness guarantee.
 No open license for the official photography or number artwork was established.
 The [existing data-rights notice](data-rights.json) still applies: public access
-is not permission to redistribute, crop, remove backgrounds or display an image.
+alone is not permission to redistribute, crop, remove backgrounds or display an
+image. The user subsequently stated that they obtained permission to use the
+number artwork supplied in their local bundle; no open license, public Git
+redistribution grant, or specific adaptation terms have been established.
 
 ## Reproduce the local catalog
 
@@ -60,8 +63,8 @@ height. Across 846 career steps there are 555 face-slot, 532 rider-cutout-slot,
 354 bike-slot and 318 number-artwork references. These are **reference counts,
 not distinct photographs or visually verified roles**. In 2026 alone the source
 supplies 107 cutout-slot, three bike-slot and four number references across all
-career steps, but no portrait-slot images. None of the official media has
-established reuse permission. The [manifest](../exports/rider-profiles-2026-11-27.manifest.json)
+career steps, but no portrait-slot images. These reference counts are not a grant to use the other official media. The
+[manifest](../exports/rider-profiles-2026-11-27.manifest.json)
 records the measured scope and catalog hash.
 
 ## Contract (format version 1)
@@ -108,6 +111,42 @@ Every official reference starts with `rights.license: NOASSERTION` and
 terms URL. No current-season media falls back to another year's kit, bike or
 number design. A numeric race number does not grant rights to the rider's
 distinctive artwork or typography.
+
+## User-supplied number artwork
+
+The user supplied original PNGs and stated they obtained permission to use
+the rider artwork. This does not establish an open license or authorize
+publishing the original files in the public Git repository. The files are
+preserved unchanged in a Git-ignored private bundle, separate from the
+unreviewed official profile media references and from portrait rights.
+Source links are shown with each design; any additional conditions of the
+permission still need to be recorded if supplied.
+
+To stage a copy without altering the source, populate the historical result
+cache and run:
+
+```powershell
+python stage_rider_numbers.py "C:\Users\jomore\Downloads\motogp-rider-numbers" "assets\rider-numbers"
+```
+
+The destination must not already exist. The command checks explicit
+profile-to-results UUID links, legacy IDs, source paths, PNGs, lengths and
+SHA-256 hashes. It stores deduplicated originals and a catalog without local
+source paths. An explicitly configured `MOTOGP_RIDER_NUMBERS` points to an
+alternative private bundle directory; missing or corrupt configured content
+is an error. With no default bundle, artwork is simply unavailable. Multiple
+different images for the same rider, season, class and number are withheld.
+MotoE entries are retained but are not displayed because that class is not
+covered by the app. Each displayed item is labeled with its own season and
+class, never substituted as current artwork for a different year.
+
+For this small bundle, private container-image packaging is simpler than
+placing image blobs in SQL. The Docker build contexts include the bundle if
+it has been staged; a Git-only build cannot recreate it. Use private image
+storage and retain the original bundle securely for rebuilds. If the collection
+grows or needs independent updates, private Azure Blob Storage plus metadata
+keyed by rider UUID, season, class and number is a better separate asset store;
+no storage account or SQL schema change is required for this initial approach.
 
 ## App integration without a redesign
 

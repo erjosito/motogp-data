@@ -7,6 +7,7 @@ __pycache__/
 historical_cache/
 rider_profiles.local.json
 champion_biographies.local.json
+assets/rider-numbers/
 
 # Local data preservation exports: upstream redistribution is not cleared.
 exports/*.tar.xz
