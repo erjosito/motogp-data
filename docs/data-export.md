@@ -49,7 +49,7 @@ rule must be removed after use; never replace an existing user's rule.
 
 | Path | Meaning |
 |---|---|
-| `tables/dbo.*.csv` | All 13 current application tables, including raw provenance and migrations |
+| `tables/dbo.*.csv` | All 14 current application tables, including raw provenance and migrations; older pre-backfill databases have 13 |
 | `views/results.csv` | Convenient denormalized results for **all imported session types**, with names, context, stable IDs and effective-source labels |
 | `schema.json` | Live column order, SQL types/precision/scale, nullability, collation/defaults, primary/unique/foreign keys, check constraints and view definitions |
 | `schema.sql` | Live logical SQL Server DDL for an empty database; base tables first, foreign keys and views afterwards |
@@ -78,6 +78,7 @@ in the database are included. Views can be regenerated from their definitions.
 | `laps` | One session/rider/lap; available elapsed time, sectors, speed, pit/run and tyre fields |
 | `championship_standings` | Independent source-provided season/category/rider standings, final flag and original JSON |
 | `historical_imports` | Verified season/class source payload, fingerprint, counts and import timestamp |
+| `standings_imports` | Independent standings-only backfill: official season/category/calendar/document evidence, full payload, fingerprint, finality and row count; does not claim race-archive coverage |
 | `external_sources` | Supplemental source URL, declared license and pinned content hash |
 | `external_candidates` | Every candidate's raw facts, mapping, evidence and accepted/corroborated/held decision |
 | `external_classifications` | Accepted supplemental fields only; not replacements for the official base table |
@@ -176,6 +177,12 @@ championships by summing incomplete race results or combine scores across classe
 Source-supplied ranks and points may disagree with each other; preserve the
 supplied values and consult `quality.json`, rather than computing misleading
 winning margins. An absent standings table is not proof that no title existed.
+A provisional rank-one table is not by itself a confirmed title, and a clinched
+title does not make all season standings final. Career title counts require
+independently evidenced coverage and confirmation. The 2026 standings remain
+provisional while Valencia (2026-11-29) is pending, even though Marc's title
+has been confirmed separately. `quality.json` includes the standings-only
+backfill inventory as well as race-archive source gaps.
 
 Historical placeholder zeroes and all-zero legacy 125cc/250cc race tables with
 a winner are represented as NULL where the importer has established unavailable
