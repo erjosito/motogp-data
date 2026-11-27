@@ -119,7 +119,7 @@ GET /api/riders/{results_rider_id}/enrichment
 
 It returns `{ "status": "available", "profile": { ... } }` for a verified match,
 or `{ "status": "not_collected", "profile": null }`. It reads the reviewed
-`rider_profiles.reviewed.json` subset (currently Marc only, with no career media)
+`rider_profiles.reviewed.json` subset (21 threshold-selected champions, with no career media)
 catalog or the file configured by `MOTOGP_RIDER_CATALOG`. An explicitly configured
 but missing file, malformed data or duplicate rider match is an error, not an
 empty success. There is no upstream request or SQL write during an app request.
@@ -129,6 +129,48 @@ The preview container includes the reader and that minimal reviewed subset,
 intentionally reviewed before mounting. Riders outside the subset return
 `not_collected`; the existing career endpoint still works. The collector keeps
 writing `rider_profiles.local.json`, never overwriting the reviewed runtime file.
+
+### Champion biography scope
+
+The initial expansion uses **at least two premier-class championships OR at least
+five combined lower-class championships**. Premier means 500cc/MotoGP; lower
+classes include 350cc, 250cc/Moto2, 125cc/Moto3, 80cc and 50cc. Titles won in
+different classes in the same year count separately. A total of five titles
+split as one premier plus four lower does not meet either threshold.
+
+There are **21 qualifying sourced biographies**: 17 multi-premier champions,
+plus Carlo Ubbiali, Jim Redman, Angel Nieto and Anton Mang through the lower-class
+criterion. All have a source-reported birth date and city; 20 have a supplied
+birth country and seven a nonzero reported height. Missing measurements stay
+null, and Jim Redman's absent source birth-country field is not filled from his
+racing nationality. Historical source facts remain attributed, not independently
+certified measurements. The original short career text is generated from
+recorded final-title seasons rather than copied from upstream biography prose.
+
+Eligibility is established by the **recorded official final tables** in the
+verified SQL export. These are sufficient positive evidence for the selected
+riders, but their counts are not complete career-title totals: for example,
+missing historical tables undercount Ubbiali and Nieto. Marc qualifies from
+completed seasons alone; the separately clinched 2026 title is not disguised as
+a completed final table. Provisional standings are never counted. This
+selection does not change any SQL data or imply that remaining source gaps
+have been resolved. It does not lower the requested thresholds.
+
+Reproduce the candidate selection and factual subset:
+
+```powershell
+python build_champion_biographies.py --archive exports\motogp-data-2026-11-27-standings.tar.xz
+```
+
+Default output is Git-ignored `champion_biographies.local.json`. The command
+verifies the export, selects qualifying rank-one final records, uses only
+unambiguous official identity links and reuses the timestamped profile cache.
+It refuses an empty selection or an unmatched qualifying rider. After reviewing
+the results, explicitly select `--output rider_profiles.reviewed.json` to publish
+the factual slice. The shared reader/API and both containers already consume
+that file; no separate app-specific biography catalogs are needed. Acquisition
+of these factual records **does not approve any additional image**. Non-Marc
+riders continue to use existing initials unless separate approved media exists.
 
 The SQL export remains a SQL snapshot, not an export of this optional local
 catalog; retain the profile catalog and its source cache separately if needed.
