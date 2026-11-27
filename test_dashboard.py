@@ -158,6 +158,16 @@ class DashboardTests(unittest.TestCase):
                 self.assertIn(
                     translator("data_quality_caption"), [caption.value for caption in app.caption]
                 )
+                explanation = translator("session_types_explainer")
+                self.assertNotEqual(explanation, "session_types_explainer")
+                matching = [
+                    column for column in columns
+                    if any(markdown.value == explanation for markdown in column.markdown)
+                ]
+                self.assertEqual(len(matching), 1)
+                elements = list(matching[0])
+                chart_index = next(i for i, element in enumerate(elements) if element.type == "plotly_chart")
+                self.assertEqual(elements[chart_index + 1].value, explanation)
                 for key in ["races_coverage_explanation", "laps_coverage_explanation"]:
                     explanation = translator(key)
                     matching = [
