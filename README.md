@@ -458,11 +458,23 @@ bulk reuse permissions are not scraped wholesale.
 python import_external.py                         # Audit only; no writes
 python import_external.py --apply --rollback      # Real SQL rollback verification
 python import_external.py --apply                 # Verified, repeat-safe facts
+python import_external.py --categories 500cc,250cc,125cc,350cc,50cc,80cc --apply
 ```
 
-Lower-class expansion is staged. Initial verified coverage includes modern
-Moto2/Moto3 through Portugal and historical 50/125/250/350/80cc pilots/archives;
-the broader uncached expansion encountered an official API rate limit and must
+The expanded six-class external audit stages 16,941 candidates: 5,892 accepted,
+42 corroborated without augmentation and 11,007 held. Unmatched lower-class rows
+can be reconsidered only after their official identities/races are imported and
+the same corroboration checks pass.
+
+Lower-class expansion is staged. The first milestone includes **51 verified
+season/class archives**: 40 in 250cc, six in 125cc, historical 50/350/80cc pilots,
+and 2026 Moto2/Moto3 through Portugal. All advertised 2026 race PDFs were
+field-verified: **9,097 Moto2 laps across 22 race parts** and **8,053 Moto3 laps
+across 21 race parts**. Eight laps have unavailable sector cells; elapsed times
+are preserved but ambiguous collapsed sector values are not guessed.
+Practice/qualifying timing backfill is a separate stage.
+
+The broader uncached expansion encountered an official API rate limit and must
 resume after cooldown. The complete premier archive is preserved. Lower-class
 coverage is not yet a claim of complete careers or all 13 Nieto/15 Agostini titles.
 
