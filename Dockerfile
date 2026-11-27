@@ -17,6 +17,7 @@ COPY dashboard.py .
 COPY translations.py .
 COPY .streamlit/config.toml .streamlit/config.toml
 COPY sql_connection.py .
+COPY category_scope.py .
 
 EXPOSE 8501
 

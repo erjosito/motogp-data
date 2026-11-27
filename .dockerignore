@@ -4,5 +4,6 @@
 !dashboard.py
 !translations.py
 !sql_connection.py
+!category_scope.py
 !.streamlit/
 !.streamlit/config.toml
