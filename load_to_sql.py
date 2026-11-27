@@ -114,14 +114,12 @@ def upsert_rider(cursor, rider: dict):
         MERGE riders AS target
         USING (SELECT ? AS rider_id) AS source ON target.rider_id = source.rider_id
         WHEN MATCHED THEN UPDATE SET
-            full_name=?, number=COALESCE(?, target.number), nationality_iso=?, nationality=?
+            full_name=target.full_name
         WHEN NOT MATCHED THEN INSERT
             (rider_id, full_name, number, nationality_iso, nationality)
         VALUES (?, ?, ?, ?, ?);
     """,
         rider["id"],
-        rider.get("full_name"), rider.get("number"),
-        rider.get("country", {}).get("iso"), rider.get("country", {}).get("name"),
         # INSERT values
         rider["id"],
         rider.get("full_name"), rider.get("number"),
@@ -188,12 +186,12 @@ CLASSIFICATION_SQL = """
         WHEN MATCHED THEN UPDATE SET
             position=?, team_id=?, total_laps=?, time_ms=?, time_text=?,
             gap_first=?, gap_prev=?, best_lap_number=?, best_lap_time=?,
-            top_speed=?, points=?, status=?, constructor_id=?, constructor_name=?
+            top_speed=?, points=?, status=?, constructor_id=?, constructor_name=?, rider_number=?
         WHEN NOT MATCHED THEN INSERT
             (session_id, rider_id, position, team_id, total_laps, time_ms,
              time_text, gap_first, gap_prev, best_lap_number, best_lap_time,
-             top_speed, points, status, constructor_id, constructor_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+             top_speed, points, status, constructor_id, constructor_name,rider_number)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 
@@ -216,6 +214,7 @@ def classification_parameters(session_id: str, entry: dict, year: int) -> tuple:
         str(entry.get("time") or ""), format_time_api(entry.get("time")),
         gap.get("first"), gap.get("prev"), best_lap.get("number"), best_lap.get("time"),
         top_speed, points, entry.get("status"), constructor.get("id"), constructor.get("name"),
+        entry["rider"].get("number") or None,
     )
     return (session_id, rider_id, *values, session_id, rider_id, *values)
 
@@ -234,7 +233,7 @@ def upsert_classification(cursor, session_id: str, entry: dict, year: int):
 def build_rider_lookup(cursor, session_id: str) -> tuple[dict, dict]:
     """Build a number→rider_id map from the classification we already loaded."""
     cursor.execute(
-        "SELECT r.rider_id, r.number, r.full_name FROM classifications c "
+        "SELECT r.rider_id, COALESCE(c.rider_number,r.number), r.full_name FROM classifications c "
         "JOIN riders r ON c.rider_id = r.rider_id WHERE c.session_id = ?",
         session_id,
     )
@@ -243,7 +242,7 @@ def build_rider_lookup(cursor, session_id: str) -> tuple[dict, dict]:
         print("   (empty session classification: resolving lap riders from "
               "other sessions in the same event/category)")
         cursor.execute(
-            "SELECT DISTINCT r.rider_id, r.number, r.full_name "
+            "SELECT DISTINCT r.rider_id, COALESCE(c.rider_number,r.number), r.full_name "
             "FROM classifications c JOIN riders r ON c.rider_id = r.rider_id "
             "JOIN sessions s ON c.session_id = s.session_id "
             "JOIN sessions target ON s.event_id = target.event_id "
@@ -483,41 +482,7 @@ def main():
     cursor.execute("SELECT COUNT(*) FROM riders")
     n_riders = cursor.fetchone()[0]
 
-    # Post-import data cleanup
-    print("\nRunning post-import cleanup...")
-
-    # Fix bad speed values (PDF parser sometimes confuses sector times with speed)
-    cursor.execute("UPDATE laps SET speed_kmh = NULL WHERE speed_kmh IS NOT NULL AND speed_kmh < 150")
-    bad_speeds = cursor.rowcount
-    if bad_speeds:
-        print(f"   Cleaned {bad_speeds} invalid speed values (< 150 km/h)")
-
-    # Fill in historical points for pre-2005 seasons (500cc era has no points in API)
-    pts_pre93 = {1:20, 2:17, 3:15, 4:13, 5:11, 6:10, 7:9, 8:8, 9:7, 10:6}
-    pts_93_04 = {1:25, 2:20, 3:16, 4:13, 5:11, 6:10, 7:9, 8:8, 9:7, 10:6,
-                 11:5, 12:4, 13:3, 14:2, 15:1}
-    cursor.execute("""
-        SELECT c.session_id, c.rider_id, c.position, e.season_year
-        FROM classifications c
-        JOIN sessions s ON c.session_id = s.session_id
-        JOIN events e ON s.event_id = e.event_id
-        WHERE e.season_year BETWEEN 1990 AND 2004
-          AND s.session_type = 'RAC'
-          AND c.position IS NOT NULL
-          AND (c.points IS NULL OR c.points = 0)
-    """)
-    pts_rows = cursor.fetchall()
-    pts_fixed = 0
-    for session_id, rider_id, position, year in pts_rows:
-        pts_table = pts_pre93 if year < 1993 else pts_93_04
-        pts = pts_table.get(int(position), 0)
-        if pts > 0:
-            cursor.execute("UPDATE classifications SET points = ? WHERE session_id = ? AND rider_id = ?",
-                          pts, session_id, rider_id)
-            pts_fixed += 1
-    if pts_fixed:
-        print(f"   Filled {pts_fixed} historical points (1990-2004)")
-
+    print("Unavailable points/speeds were not reconstructed; official standings are imported separately.")
     conn.commit()
     cursor.close()
     conn.close()

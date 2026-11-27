@@ -109,9 +109,45 @@ class HistoricalImportTests(unittest.TestCase):
 
     def test_year_ranges_are_bounded_and_can_resume_in_batches(self):
         self.assertEqual(historical.parse_years("1966,1975-1976,1966"), [1966, 1975, 1976])
-        for value in ["1948", "1990", "1975-1966", "1966-1990", "invalid"]:
+        for value in ["1948", "3001", "1975-1966", "1966-3001", "invalid"]:
             with self.subTest(value=value), self.assertRaises(argparse.ArgumentTypeError):
                 historical.parse_years(value)
+
+    def test_lower_class_retains_label_and_is_not_prematurely_final(self):
+        data = snapshot()
+        data["year"] = 2026
+        data["category"] = "Moto2\u2122"
+        data["is_final"] = False
+        historical.validate_snapshot(data, 2026, "Moto2")
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = None
+        with patch.object(historical, "verify_season"), contextlib.redirect_stdout(io.StringIO()):
+            historical.persist_season(connection, data)
+        calls = connection.cursor.return_value.executemany.call_args_list
+        rows = next(c.args[1] for c in calls if c.args[0] == historical.STANDINGS_SQL)
+        self.assertEqual(rows[0][1], "Moto2\u2122")
+        self.assertFalse(rows[0][7])
+
+    def test_session_number_is_independent_of_shared_rider_profile(self):
+        entry = snapshot()["events"][0]["sessions"][0]["classification"][0]
+        entry["rider"]["number"] = 12
+        first = loader.classification_parameters("first", entry, 2026)
+        entry["rider"]["number"] = 63
+        second = loader.classification_parameters("second", entry, 2026)
+        self.assertEqual((first[16], second[16]), (12, 63))
+        cursor = MagicMock()
+        loader.upsert_rider(cursor, entry["rider"])
+        sql = cursor.execute.call_args.args[0]
+        self.assertNotIn("number=COALESCE", sql)
+
+    def test_category_family_scope_is_allowlisted_and_keeps_lineages_separate(self):
+        from category_scope import category_sql, canonical_category
+        self.assertIn("'moto2','250cc'", category_sql("intermediate", "s.category"))
+        self.assertNotIn("'motogp'", category_sql("lightweight"))
+        self.assertEqual(canonical_category(" Moto3\u2122 "), "Moto3")
+        for value in ["all", "sidecar", "'; DROP TABLE riders;--"]:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                category_sql(value)
 
 
 if __name__ == "__main__":

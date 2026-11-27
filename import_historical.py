@@ -1,4 +1,4 @@
-"""Import verified 1949-1989 premier-class archives, one atomic season at a time."""
+"""Import official Grand Prix race archives and standings, one season/class transaction at a time."""
 
 import argparse
 from datetime import datetime, timezone
@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 
 import load_to_sql as loader
 from sql_connection import connect_to_sql
+from category_scope import CATEGORY_YEARS, canonical_category, normalize_category
 
 
 MIGRATION = Path(__file__).parent / "migrations" / "20261126_01_historical_archive.sql"
@@ -20,11 +21,11 @@ STANDINGS_SQL = """
     ON target.season_year=source.season_year AND target.category=source.category
         AND target.rider_id=source.rider_id
     WHEN MATCHED THEN UPDATE SET position=?,points=?,constructor_id=?,constructor_name=?,
-        is_final=1,source_url=?,source_json=?,fetched_at=SYSUTCDATETIME()
+        is_final=?,source_url=?,source_json=?,fetched_at=SYSUTCDATETIME()
     WHEN NOT MATCHED THEN INSERT
         (season_year,category,rider_id,position,points,constructor_id,constructor_name,
          is_final,source_url,source_json)
-    VALUES (?,?,?,?,?,?,?,1,?,?);
+    VALUES (?,?,?,?,?,?,?,?,?,?);
 """
 
 
@@ -41,13 +42,13 @@ def parse_years(value):
                 raise ValueError
     except ValueError as exc:
         raise argparse.ArgumentTypeError("Use years such as 1966,1975 or 1949-1959") from exc
-    if not years or min(years) < 1949 or max(years) > 1989:
-        raise argparse.ArgumentTypeError("This importer is restricted to 1949-1989")
+    if not years or min(years) < 1949 or max(years) > datetime.now(timezone.utc).year:
+        raise argparse.ArgumentTypeError("Use Grand Prix seasons from 1949 through the current year")
     return sorted(years)
 
 
-def validate_snapshot(data, year):
-    if data["version"] != 1 or data["year"] != year or data["category"] != CATEGORY:
+def validate_snapshot(data, year, category=CATEGORY):
+    if data["version"] != 1 or data["year"] != year or normalize_category(data["category"]) != normalize_category(category):
         raise ValueError("Historical snapshot version/year/category mismatch")
     if not data["events"] or not data["standings"]["classification"]:
         raise ValueError(f"{year}: empty race archive or official standings")
@@ -58,7 +59,7 @@ def validate_snapshot(data, year):
             raise ValueError(f"{year}: event belongs to another season")
         for item in event["sessions"]:
             session = item["session"]
-            if session["id"] in session_ids or session["type"] != "RAC" or session["status"] != "FINISHED":
+            if session["id"] in session_ids or session["type"] not in ("RAC", "SPR") or session["status"] != "FINISHED":
                 raise ValueError(f"{year}: duplicate or unsupported historical session")
             source_event = (session.get("event") or {}).get("id")
             if source_event is not None and source_event != event["event"]["id"]:
@@ -96,11 +97,16 @@ def validate_riders(entries):
         raise ValueError("Empty classification or duplicate rider IDs")
 
 
-def fetch_snapshot(year):
+def fetch_snapshot(year, category=CATEGORY):
+    canonical = canonical_category(category)
+    first, last = CATEGORY_YEARS[canonical]
+    if not first <= year <= last:
+        raise ValueError(f"{canonical} did not run in {year}")
     season_id, _ = loader.get_season_id(year)
     events = loader.api_get("events", {"seasonUuid": season_id, "isFinished": "true"})
     data = {
-        "version": 1, "year": year, "category": CATEGORY, "season_id": season_id,
+        "version": 1, "year": year, "category": canonical, "season_id": season_id,
+        "is_final": year < datetime.now(timezone.utc).year,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "events": [], "skipped_events": [],
     }
@@ -109,45 +115,53 @@ def fetch_snapshot(year):
         if event.get("test"):
             continue
         categories = loader.api_get("categories", {"eventUuid": event["id"]})
-        category = next((c for c in categories if c["name"].strip().lower() == "500cc"), None)
-        if category is None:
+        source_category = next((c for c in categories if normalize_category(c["name"]) == normalize_category(canonical)), None)
+        if source_category is None:
             data["skipped_events"].append({
-                "event": event["short_name"], "reason": "500cc not listed by source",
+                "event": event["short_name"], "reason": f"{canonical} not listed by source",
                 "source_event": event,
             })
             continue
-        category_id = category["id"]
+        category_id = source_category["id"]
+        data["category"] = source_category["name"]
         sessions = [
-            s for s in loader.get_all_sessions(event["id"], category_id) if s["type"] == "RAC"
+            s for s in loader.get_all_sessions(event["id"], category_id) if s["type"] in ("RAC", "SPR")
         ]
         if not sessions:
-            data["skipped_events"].append({"event": event["short_name"], "reason": "no finished 500cc race"})
+            data["skipped_events"].append({"event": event["short_name"], "reason": f"no finished {canonical} race"})
             continue
-        data["events"].append({
-            "event": event,
-            "sessions": [
-                {"session": session, "classification": loader.get_classification(session["id"])}
-                for session in sessions
-            ],
-        })
+        items = [
+            {"session": session, "classification": loader.get_classification(session["id"])}
+            for session in sessions
+        ]
+        if not data["is_final"]:
+            # Some future current-season races are incorrectly flagged FINISHED.
+            items = [item for item in items if item["classification"]]
+            if not items:
+                data["skipped_events"].append({
+                    "event": event["short_name"], "reason": "no current-season race results",
+                })
+                continue
+        data["events"].append({"event": event, "sessions": items})
     if category_id is None:
-        raise ValueError(f"{year}: no 500cc category found")
+        raise ValueError(f"{year}: no {canonical} category found")
     params = {"seasonUuid": season_id, "categoryUuid": category_id}
     data["standings"] = loader.api_get("standings", params)
     data["standings_url"] = f"{loader.API_BASE_URL}/standings?{urlencode(params)}"
-    return validate_snapshot(data, year)
+    return validate_snapshot(data, year, canonical)
 
 
 def apply_migration(conn):
     with conn:
         cursor = conn.cursor()
-        cursor.execute(MIGRATION.read_text(encoding="utf-8"))
-        cursor.execute(
-            "IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=?) "
-            "INSERT INTO schema_migrations(version) VALUES (?)",
-            MIGRATION.stem, MIGRATION.stem,
-        )
-    print(f"Schema verified: {MIGRATION.stem}", flush=True)
+        for migration in sorted(MIGRATION.parent.glob("*.sql")):
+            cursor.execute(migration.read_text(encoding="utf-8"))
+            cursor.execute(
+                "IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=?) "
+                "INSERT INTO schema_migrations(version) VALUES (?)",
+                migration.stem, migration.stem,
+            )
+    print("Archive schema migrations verified", flush=True)
 
 
 def race_entries(data):
@@ -160,27 +174,31 @@ def race_entries(data):
 
 def verify_season(conn, data):
     year = data["year"]
+    category = data["category"]
     actual = conn.execute("""
         SELECT c.session_id,c.rider_id,c.position,c.team_id,c.total_laps,
                c.time_ms,c.time_text,c.gap_first,c.gap_prev,c.best_lap_number,
-               c.best_lap_time,c.top_speed,c.points,c.status,c.constructor_id,c.constructor_name
+               c.best_lap_time,c.top_speed,c.points,c.status,c.constructor_id,c.constructor_name,
+               c.rider_number
         FROM classifications c JOIN sessions s ON s.session_id=c.session_id
         JOIN events e ON e.event_id=s.event_id
-        WHERE e.season_year=? AND s.category=?
-    """, year, CATEGORY).fetchall()
+        WHERE e.season_year=? AND s.category=? AND s.source_kind='official-api'
+            AND s.session_type IN ('RAC','SPR')
+    """, year, category).fetchall()
     expected = []
     for sid, entry in race_entries(data):
         p = loader.classification_parameters(sid, entry, year)
-        expected.append(p[:16])
+        expected.append(p[:17])
     if sorted(map(tuple, actual)) != sorted(expected):
         raise ValueError(f"{year}: stored race classifications differ from official source")
     actual_standings = conn.execute("""
-        SELECT rider_id,position,points,constructor_id,constructor_name
-        FROM championship_standings WHERE season_year=? AND category=? AND is_final=1
-    """, year, CATEGORY).fetchall()
+        SELECT rider_id,position,points,constructor_id,constructor_name,is_final
+        FROM championship_standings WHERE season_year=? AND category=?
+    """, year, category).fetchall()
     expected_standings = [
         (entry["rider"]["id"], entry["position"], Decimal(str(entry["points"])),
-         (entry.get("constructor") or {}).get("id"), (entry.get("constructor") or {}).get("name"))
+         (entry.get("constructor") or {}).get("id"), (entry.get("constructor") or {}).get("name"),
+         data.get("is_final", True))
         for entry in data["standings"]["classification"]
     ]
     if sorted(map(tuple, actual_standings)) != sorted(expected_standings):
@@ -192,15 +210,17 @@ def verify_season(conn, data):
     actual_sessions = conn.execute("""
         SELECT e.event_id,s.session_id
         FROM events e JOIN sessions s ON s.event_id=e.event_id
-        WHERE e.season_year=? AND s.category=?
-    """, year, CATEGORY).fetchall()
+        WHERE e.season_year=? AND s.category=? AND s.source_kind='official-api'
+            AND s.session_type IN ('RAC','SPR')
+    """, year, category).fetchall()
     if set(map(tuple, actual_sessions)) != expected_sessions:
         raise ValueError(f"{year}: GP/session coverage differs from official archive")
 
 
 def persist_season(conn, data):
     year = data["year"]
-    validate_snapshot(data, year)
+    category = data["category"]
+    validate_snapshot(data, year, category)
     payload = json.dumps(data, ensure_ascii=True, sort_keys=True)
     fingerprint = hashlib.sha256(json.dumps(
         {key: value for key, value in data.items() if key != "fetched_at"},
@@ -209,7 +229,7 @@ def persist_season(conn, data):
     with conn:
         existing = conn.execute(
             "SELECT source_hash FROM historical_imports WHERE season_year=? AND category=?",
-            year, CATEGORY,
+            year, category,
         ).fetchone()
         if existing and existing[0] == fingerprint:
             verify_season(conn, data)
@@ -232,7 +252,7 @@ def persist_season(conn, data):
         for event in data["events"]:
             loader.upsert_event(cursor, event["event"], year)
             for item in event["sessions"]:
-                loader.upsert_session(cursor, item["session"], event["event"]["id"], CATEGORY)
+                loader.upsert_session(cursor, item["session"], event["event"]["id"], category)
         cursor.fast_executemany = True
         if entries:
             cursor.executemany(
@@ -244,9 +264,10 @@ def persist_season(conn, data):
             constructor = entry.get("constructor") or {}
             values = (
                 entry["position"], Decimal(str(entry["points"])), constructor.get("id"),
-                constructor.get("name"), data["standings_url"], json.dumps(entry, ensure_ascii=True),
+                constructor.get("name"), data.get("is_final", True),
+                data["standings_url"], json.dumps(entry, ensure_ascii=True),
             )
-            key = (year, CATEGORY, entry["rider"]["id"])
+            key = (year, category, entry["rider"]["id"])
             standings_rows.append((*key, *values, *key, *values))
         cursor.executemany(STANDINGS_SQL, standings_rows)
         verify_season(conn, data)
@@ -261,10 +282,10 @@ def persist_season(conn, data):
                 (season_year,category,source_hash,event_count,session_count,
                  classification_count,standings_count,source_payload)
             VALUES (?,?,?,?,?,?,?,?);
-        """, year, CATEGORY,
+        """, year, category,
             fingerprint, len(data["events"]), sum(len(e["sessions"]) for e in data["events"]),
             len(entries), len(standings_rows), payload,
-            year, CATEGORY, fingerprint, len(data["events"]),
+            year, category, fingerprint, len(data["events"]),
             sum(len(e["sessions"]) for e in data["events"]), len(entries), len(standings_rows), payload)
     champion = next(entry for entry in data["standings"]["classification"] if entry["position"] == 1)
     print(f"{year}: verified {len(data['events'])} GPs, {len(entries)} race results, "
@@ -275,6 +296,8 @@ def persist_season(conn, data):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--years", type=parse_years, required=True)
+    parser.add_argument("--category", type=canonical_category, default=CATEGORY,
+                        help="Source class: 500cc, MotoGP, 250cc, Moto2, 125cc, Moto3, 350cc, 50cc, 80cc")
     parser.add_argument("--apply", action="store_true", help="Write verified seasons to Azure SQL")
     parser.add_argument("--migrate", action="store_true", help="Apply the additive schema migration")
     parser.add_argument("--refresh", action="store_true", help="Refetch cached official archives")
@@ -288,18 +311,18 @@ def main():
         if args.migrate:
             apply_migration(conn)
         for year in args.years:
-            path = args.cache_dir / f"{year}_500cc.json"
+            path = args.cache_dir / f"{year}_{args.category}.json"
             if path.exists() and not args.refresh:
-                data = validate_snapshot(json.loads(path.read_text(encoding="utf-8")), year)
+                data = validate_snapshot(json.loads(path.read_text(encoding="utf-8")), year, args.category)
             else:
-                data = fetch_snapshot(year)
+                data = fetch_snapshot(year, args.category)
                 path.write_text(json.dumps(data, ensure_ascii=True, sort_keys=True), encoding="utf-8")
             missing = [
                 event["event"]["short_name"] for event in data["events"]
                 for item in event["sessions"] if not item["classification"]
             ]
-            print(f"{year}: source verified; {len(data['events'])} listed premier-class GPs; "
-                  f"weekends without a listed finished 500cc race: {len(data['skipped_events'])}; "
+            print(f"{year} {data['category']}: source verified; {len(data['events'])} listed GPs; "
+                  f"weekends without a listed finished class race: {len(data['skipped_events'])}; "
                   f"empty race classifications: {','.join(missing) or 'none'}", flush=True)
             if conn is not None:
                 persist_season(conn, data)
