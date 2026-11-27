@@ -1,0 +1,24 @@
+{
+  "rules": [
+    {
+      "description": "Paddock React app, including prefixed assets and APIs",
+      "routes": [
+        {
+          "match": { "pathSeparatedPrefix": "/paddock", "caseSensitive": true }
+        }
+      ],
+      "targets": [
+        { "containerApp": "motogp-data", "label": "preview" }
+      ]
+    },
+    {
+      "description": "Classic Streamlit app for all other paths",
+      "routes": [
+        { "match": { "prefix": "/" } }
+      ],
+      "targets": [
+        { "containerApp": "motogp-data", "label": "classic" }
+      ]
+    }
+  ]
+}

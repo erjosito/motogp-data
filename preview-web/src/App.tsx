@@ -74,12 +74,13 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
   const data = resource.data
   if (resource.error) return <DataState resource={resource} />
   if (!data) return <Loading />
-  if (!data.standings.length) return <DataState resource={resource} empty={data.rounds.length
-    ? 'Classifications exist, but usable championship points are unavailable. Historical placeholder zeros are not treated as an official championship. Session results remain available.'
-    : 'No Grand Prix or Sprint results have been imported for this season.'} />
+  if (!data.standings.length) return <><div className="page-heading"><div><p className="eyebrow">{season} / SEASON STORY</p><h1>{data.story.headline}</h1><p>{data.story.accent}</p></div></div>
+    <DataState resource={resource} empty={data.story.summary} /></>
 
   const story = data.comeback
-  const featured = season === 2026 && story
+  const featured = season === 2026 && story?.verified_102
+  const official = data.standings_source === 'official'
+  const narrative = data.story
   const marc = data.standings.find((rider) => rider.rider_id === MARC_ID)
   const leader = data.standings[0]
   const last = data.rounds.at(-1)
@@ -88,32 +89,30 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
   return <>
     <div className="page-heading"><div><p className="eyebrow">THE BIG PICTURE</p><h1>The title fight.</h1>
       <p>Not just the standings. The story behind them.</p></div>
-      <span className="quiet-badge"><span className="status-dot" />Through {last?.event} · {dateLabel(last?.date)}</span>
+      <span className="quiet-badge"><span className="status-dot" />{official ? `${season} · Official final standings` : `Through ${last?.event} · ${dateLabel(last?.date)}`}</span>
     </div>
 
-    {featured && marc && <section className="story-card" aria-labelledby="comeback-title">
+    <section className="story-card" aria-labelledby="season-story-title">
       <div className="story-intro">
         <div className="story-copy">
-          <p className="eyebrow accent">SEASON STORY / MARC MÁRQUEZ</p>
-          <h2 id="comeback-title">102 points behind.<br /><span>A title fight rewritten.</span></h2>
-          <p>{story.verified_102
-            ? `After ${story.low.event === 'ITA' ? 'the Italian Grand Prix' : story.low.label}, Márquez had a 102-point deficit. ${gap > 0 ? 'He now leads' : 'He is now back to'} ${Math.abs(gap)} ${Math.abs(gap) === 1 ? 'point' : 'points'} ${gap > 0 ? 'clear of his nearest rival' : 'from the championship lead'}.`
-            : 'Follow Marc Márquez’s comeback from a reported 102-point deficit. The timeline reflects imported results; the reported low is not yet verified in this dataset.'}
-          </p>
-          <span className={`verification ${story.verified_102 ? 'verified' : ''}`}>
-            {story.verified_102 ? <Check size={14} /> : <RefreshCw size={14} />}
-            {story.verified_102 ? '102-point deficit verified in race results' : 'More results needed to verify the reported deficit'}
+          <p className="eyebrow accent">{season} / SEASON STORY</p>
+          <h2 id="season-story-title">{narrative.headline}<br /><span>{narrative.accent}</span></h2>
+          <p>{narrative.summary}</p>
+          {narrative.context_url && <a className="classic-link" href={narrative.context_url} target="_blank" rel="noreferrer">The injury-recovery story · MotoGP<ArrowUpRight size={16} /></a>}
+          <span className="verification verified">
+            <Check size={14} />
+            {featured ? '102-point deficit verified in race results' : official ? 'Based on official final standings' : 'Based on imported race results · coverage shown below'}
           </span>
         </div>
         <div className="comeback-score">
-          <span className="ghost-number" aria-hidden="true">93</span>
-          <span className="eyebrow">THE RECOVERY</span>
-          <div className="recovery-value">{story.recovered}<ArrowUpRight size={35} aria-hidden="true" /></div>
-          <p>points recovered since the low</p>
-          <div className="mini-stats"><div><strong>P{marc.position}</strong><span>in the championship</span></div><div><strong>{marc.points}</strong><span>points earned</span></div></div>
+          <span className="ghost-number" aria-hidden="true">{featured ? '93' : leader.number ?? season}</span>
+          <span className="eyebrow">{narrative.metric_label}</span>
+          <div className="recovery-value">{narrative.metric}<ArrowUpRight size={35} aria-hidden="true" /></div>
+          <p>{narrative.metric_note}</p>
+          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? 'official final rank' : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>points earned</span></div></div>
         </div>
       </div>
-      <div className="story-chart">
+      {featured && story && <div className="story-chart">
         <div className="section-heading"><div><h3>The comeback curve</h3><p>Points relative to the strongest title rival after every Sprint and Grand Prix.</p></div><span className="chart-key"><i />Marc Márquez</span></div>
         <Plot series={[{
           id: MARC_ID, name: 'Marc Márquez',
@@ -129,13 +128,13 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
           <div className="table-scroll"><table><thead><tr><th>Source session</th><th>Márquez points</th><th>Margin to nearest rival</th></tr></thead>
             <tbody>{story.history.map((point) => <tr key={point.session_id}><td>{point.label}</td><td>{point.points}</td><td>{signed(point.margin)} pts</td></tr>)}</tbody></table></div>
         </details>
-      </div>
-    </section>}
+      </div>}
+    </section>
 
     <div className="stats-grid">
-      <Stat label="CHAMPIONSHIP LEADER" value={leader.rider} note={`${leader.points} points · ${leader.wins} Grand Prix wins`} />
-      <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : `${data.standings[1]?.gap ?? 0} pts`} note={featured ? 'Relative to the closest title rival' : 'Calculated from imported results'} />
-      <Stat label="SCORING WEEKENDS" value={data.weekends} note={`${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
+      <Stat label={official ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={`${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} Grand Prix wins`}`} />
+      <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : `${data.standings[1]?.gap ?? 0} pts`} note={featured ? 'Relative to the closest title rival' : official ? 'From official final standings' : 'Calculated from imported results'} />
+      <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? 'Riders in the preserved final standings' : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
 
     <div className="championship-grid">
@@ -145,15 +144,15 @@ function ChampionshipPage({ season, theme }: { season: number; theme: string }) 
           <tbody>{data.standings.map((rider) => <tr key={rider.rider_id} className={featured && rider.rider_id === MARC_ID ? 'featured-row' : ''}>
             <td><span className={`position ${rider.position <= 3 ? 'top-position' : ''}`}>{String(rider.position).padStart(2, '0')}</span></td>
             <td><RiderName rider={rider} /><small>{rider.constructor || rider.team || 'Team not recorded'}</small></td>
-            <td className="strong numeric">{rider.points}</td><td className="muted numeric">{rider.gap ? `−${rider.gap}` : '—'}</td><td className="numeric">{rider.wins}</td>
+            <td className="strong numeric">{rider.points}</td><td className="muted numeric">{rider.gap ? `−${rider.gap}` : '—'}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
-        <p className="panel-note">GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.</p>
+        <p className="panel-note">{official ? 'Official final positions and decimal points preserve period counting rules. Missing race wins are not inferred from incomplete archival classifications.' : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
       </section>
       <section className="panel progression-panel"><div className="section-heading"><div><p className="eyebrow">THE TRAJECTORY</p><h2>Points on the board</h2><p>The leading five riders, session by session.</p></div></div>
-        <Plot series={data.standings.slice(0, 5).map((rider) => ({
+        {official ? <p className="notice">Historical race points are unavailable or incomplete. There is no reliable cumulative championship curve for this season; the final official table is authoritative.</p> : <Plot series={data.standings.slice(0, 5).map((rider) => ({
           id: rider.rider_id, name: rider.rider, x: data.rounds.map((round) => round.label), y: rider.series,
-        }))} yTitle="Championship points" theme={theme} height={400} />
-        <div className="context-note"><Trophy size={22} /><div><strong>{leader.rider} leads on {leader.points} points.</strong><p>{featured ? 'The gap chart above tracks Márquez against whichever rival is strongest at each point, not just today’s runner-up.' : 'Standings reflect the sessions currently imported. Visit Classic for the complete analysis suite.'}</p></div></div>
+        }))} yTitle="Championship points" theme={theme} height={400} />}
+        <div className="context-note"><Trophy size={22} /><div><strong>{leader.rider} {official ? 'is ranked first' : 'leads'} on {leader.points} points.</strong><p>{featured ? 'The gap chart above tracks Márquez against whichever rival is strongest at each point, not just today’s runner-up.' : 'The headline is grounded in this season’s available evidence. Visit Classic for the complete analysis suite.'}</p></div></div>
       </section>
     </div>
   </>

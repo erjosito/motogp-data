@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { appPath } from './paths'
 
 export function useResource<T>(url: string | null) {
   const [attempt, setAttempt] = useState(0)
@@ -11,7 +12,7 @@ export function useResource<T>(url: string | null) {
   useEffect(() => {
     if (!url) return
     const controller = new AbortController()
-    fetch(url, { signal: controller.signal, cache: 'no-store' })
+    fetch(appPath(url), { signal: controller.signal, cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) {
           let message = `The request failed (${response.status}). Please retry.`
