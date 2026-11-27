@@ -4,7 +4,7 @@ param environmentName string = 'motogp-env'
 param routeName string = 'paddock'
 
 @description('Preserve existing route bindings when validating an already-bound route. The cutover script manages hostname migration.')
-param customDomains array = []
+param customDomains array
 
 resource environment 'Microsoft.App/managedEnvironments@2026-07-01' existing = {
   name: environmentName

@@ -108,6 +108,11 @@ ingress is used: no Front Door, Application Gateway or premium ingress is added.
 Build/storage usage and traffic-driven compute, requests, bandwidth and logs
 can still affect the bill; this is not a guarantee of zero incremental cost.
 
+`infra/main.bicep` validates the same route rules. Its `customDomains` parameter
+is deliberately required: supply `[]` only before hostname migration, or the
+actual existing bindings afterward. Never apply an empty domain list to an
+already-bound route. The deployment script preserves the live bindings.
+
 The script prints the label URL after checking revision health and the unchanged
 production traffic allocation. A prebuilt image can be deployed with
 `.\scripts\deploy-preview.ps1 -Tag <existing-tag> -SkipBuild`.
@@ -301,8 +306,17 @@ can affect standings. **Data coverage** retains the historical
 database statistics and coverage charts. Navigation and filters are preserved
 when switching between English, Spanish, and Italian.
 
-The shared light theme is configured in `.streamlit/config.toml` and included
-in the Docker image. The visual refresh retains the database schema and existing
+The default light theme is configured in `.streamlit/config.toml` and included
+in the Docker image. Switch light/dark appearance through Streamlit's top-right
+**menu > Light / Dark**; localized sidebar guidance points to this control.
+The native control themes widgets, tables, charts, and custom cards without a
+server restart, preserving filters and language. The preference is browser-local,
+not a process-global setting. Custom light/dark variants require Streamlit 1.51
+or newer, as specified in `requirements.txt`. Streamlit has no supported Python theme setter,
+so the dashboard uses its native control rather than a simulated sidebar toggle.
+Plotly uses Streamlit's theme-aware template, including animation axes and labels;
+explicit podium and in-bar label color pairs retain their readable contrast.
+The visual refresh retains the database schema and existing
 analytical views. Both championship views share the same Race + Sprint points
 calculation. Both views show tied points as shared positions, without
 claiming to apply official championship countback rules.
