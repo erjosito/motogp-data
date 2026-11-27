@@ -8,6 +8,11 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "session_types_explainer": {
+        "en": "Counts show imported premier-class sessions grouped by recorded session type, not races or rider-lap records. FP means free practice; P/PR practice; Q qualifying; WUP warm-up; SPR sprint race; and RAC race. Unrecognized source codes are displayed unchanged. Coverage depends on available sources and import progress.",
+        "es": "Los recuentos muestran sesiones importadas de la categoría reina agrupadas por su tipo registrado, no carreras ni registros de piloto y vuelta. FP indica entrenamientos libres; P/PR entrenamientos; Q clasificación; WUP calentamiento; SPR carrera sprint; y RAC carrera. Los códigos desconocidos se muestran sin modificar. La cobertura depende de las fuentes disponibles y del progreso de la importación.",
+        "it": "I conteggi mostrano sessioni importate della classe regina raggruppate per tipo registrato, non gare né record di pilota e giro. FP indica prove libere; P/PR prove; Q qualifiche; WUP warm-up; SPR gara sprint; e RAC gara. I codici sconosciuti sono mostrati invariati. La copertura dipende dalle fonti disponibili e dall'avanzamento dell'importazione.",
+    },
     "races_coverage_explanation": {
         "en": "Counts show imported GP weekends with a premier-class session, not individual races or a complete historical calendar. Missing weekends can reflect source availability or an unfinished import; they do not prove that no race took place.",
         "es": "Los recuentos muestran los fines de semana de GP importados con una sesión de la categoría reina, no carreras individuales ni un calendario histórico completo. Las ausencias pueden deberse a las fuentes disponibles o a una importación incompleta; no demuestran que no hubiera carrera.",
