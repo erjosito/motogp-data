@@ -9,6 +9,7 @@
 !circuit_catalog.py
 !circuit_catalog.json
 !rider_media.py
+!rider_numbers.py
 !media_catalog.json
 !assets/
 assets/**
@@ -16,6 +17,8 @@ assets/**
 !assets/riders/LICENSE.txt
 !assets/riders/marc-marquez-2026-portrait-320.webp
 !assets/riders/marc-marquez-2026-portrait-640.webp
+!assets/rider-numbers/
+!assets/rider-numbers/**
 !preview-web/
 preview-web/**
 !preview-web/package.json

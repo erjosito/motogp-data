@@ -21,6 +21,28 @@ export interface RiderPortrait {
   } | null
 }
 
+export interface NumberArtwork {
+  artwork: { season: number; category: string; number: number; source_url: string; url: string }[]
+}
+
+function NumberArtworkImage({ item, name }: { item: NumberArtwork['artwork'][number]; name: string }) {
+  const [failed, setFailed] = useState(false)
+  return failed ? <span role="alert">Artwork unavailable</span> : <img src={appPath(item.url)}
+    alt={`${name}, number ${item.number}, ${item.season} ${item.category}`} onError={() => setFailed(true)} />
+}
+
+export function RiderNumberArtwork({ data, name }: { data: NumberArtwork; name: string }) {
+  if (!data.artwork.length) return null
+  return <details className="number-artwork">
+    <summary>Rider number artwork</summary>
+    <div className="number-artwork-grid">{data.artwork.map((item) =>
+      <figure key={`${item.season}-${item.category}-${item.number}`}>
+        <NumberArtworkImage item={item} name={name} />
+        <figcaption>{item.season} · {item.category} · #{item.number} · <a href={item.source_url} target="_blank" rel="noreferrer">Source</a></figcaption>
+      </figure>)}</div>
+  </details>
+}
+
 export function RiderIdentity({ rider, enrichment, media, season }: {
   rider: Rider; enrichment?: RiderEnrichment | null; media?: RiderPortrait | null; season?: number
 }) {
@@ -59,10 +81,13 @@ export function RiderIdentity({ rider, enrichment, media, season }: {
 export function RiderVisualContext({ rider }: { rider: Rider }) {
   const enrichment = useResource<RiderEnrichment>(`/api/riders/${encodeURIComponent(rider.rider_id)}/enrichment`)
   const portrait = useResource<RiderPortrait>(`/api/riders/${encodeURIComponent(rider.rider_id)}/portrait?season=2026&category=premier`)
+  const numbers = useResource<NumberArtwork>(`/api/riders/${encodeURIComponent(rider.rider_id)}/number-art`)
   return <>
     <RiderIdentity key={rider.rider_id} rider={rider} enrichment={enrichment.data} media={portrait.data} />
+    {numbers.data && <RiderNumberArtwork data={numbers.data} name={rider.rider} />}
     {enrichment.error && <p className="panel-note" role="alert">Biography could not be loaded. <button className="text-button" onClick={enrichment.retry}>Try again</button></p>}
     {portrait.error && <p className="panel-note" role="alert">Portrait could not be loaded. <button className="text-button" onClick={portrait.retry}>Try again</button></p>}
+    {numbers.error && <p className="panel-note" role="alert">Number artwork could not be loaded. <button className="text-button" onClick={numbers.retry}>Try again</button></p>}
   </>
 }
 

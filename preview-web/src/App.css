@@ -147,6 +147,12 @@ td small { display: block; font-size: 10px; color: var(--cp-text-soft); padding-
 .rider-portrait img, .rider-initials { width: 100%; aspect-ratio: 4 / 5; height: auto; border-radius: .625rem; object-fit: contain; background: var(--cp-accent-soft); }
 .rider-identity figcaption { grid-column: 1 / -1; }
 .rider-identity summary { cursor: pointer; }
+.number-artwork { margin-top: 16px; }
+.number-artwork summary { cursor: pointer; }
+.number-artwork-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.number-artwork-grid figure { margin: 12px 0 0; }
+.number-artwork-grid img { width: 100%; max-width: 120px; height: 80px; object-fit: contain; }
+.number-artwork-grid figcaption { font-size: 11px; color: var(--cp-text-muted); }
 .rider-initials { display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--cp-accent); font-size: 48px; font-weight: 750; }
 .rider-initials small { font: 16px Consolas, monospace; margin-top: 8px; }
 .rider-identity .visual-facts { margin: 16px 0; gap: 16px 24px; }
