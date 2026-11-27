@@ -150,6 +150,18 @@ class PreviewApiTests(unittest.TestCase):
                 preview_api.add_finish_gaps(kind, rows)
                 self.assertTrue(all(row["finish_gap_seconds"] is None for row in rows))
 
+    def test_analysis_exposes_comparison_without_changing_original_gap_labels(self):
+        for prefix in ("", "/paddock"):
+            rows = [
+                {"position": 1, "time_ms": "41:30.802", "gap_first": "0.000", "total_laps": 25, "status": "INSTND", "best_lap_time": None},
+                {"position": 2, "time_ms": "41:34.647", "gap_first": "+3.845", "total_laps": 25, "status": "INSTND", "best_lap_time": None},
+            ]
+            with patch("preview_api.query", side_effect=[[{"session_type": "RAC"}], rows, []]):
+                response = self.client.get(f"{prefix}/api/sessions/portugal/analysis")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["results"][1]["finish_gap_seconds"], 3.845)
+            self.assertEqual(response.json()["results"][1]["gap_first"], "+3.845")
+
     def test_circuit_context_uses_only_sourced_current_reference(self):
         with patch("preview_api.query") as query:
             for prefix in ["", "/paddock"]:
