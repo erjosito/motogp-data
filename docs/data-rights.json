@@ -1,0 +1,44 @@
+{
+  "notice_version": 1,
+  "reviewed_on": "2026-11-27",
+  "combined_data_license": "NOASSERTION",
+  "redistribution_clearance": "not-established",
+  "decision": "Create a local preservation and analysis export, but do not commit, upload or publish the combined data archive without establishing upstream permission. No blanket CC BY or CC0 grant is made.",
+  "sources": [
+    {
+      "name": "Official MotoGP results API and timing documents",
+      "urls": [
+        "https://api.motogp.pulselive.com/motogp/v1/results/",
+        "https://resources.motogp.com/files/results/",
+        "https://www.motogp.com/en/legal-notice"
+      ],
+      "license": "NOASSERTION",
+      "status": "No open redistribution permission established",
+      "notes": "The published website terms, particularly clauses 1 and 3, restrict copying and transmission. Their precise application to individual factual records, APIs and database rights requires review; public access alone is not an open license. Preserve attribution and source URLs."
+    },
+    {
+      "name": "Kaggle amalsalilan/motogpresultdataset",
+      "url": "https://www.kaggle.com/datasets/amalsalilan/motogpresultdataset",
+      "declared_license": "CC0-1.0",
+      "declaration_source": "Publisher-declared; recorded by the importer, not independent verification of all underlying rights",
+      "csv_sha256": "de114c7cdccc9850c645c2fc1569efcfbf31ae534b01ac336e80a87eb3cdb76f",
+      "status": "Retain the upstream declaration and provenance; do not represent it as clearance for the entire combined dataset"
+    },
+    {
+      "name": "Independent historical corroboration",
+      "urls": [
+        "http://racingmemo.fr/aa-legendesgrilles.htm",
+        "https://www.iomtt.com/tt-database/events/races?meet_code=TT66&race_seq=6"
+      ],
+      "license": "NOASSERTION",
+      "status": "Reference links and individually corroborated facts; no bulk reuse grant asserted"
+    }
+  ],
+  "clarifications": [
+    "This notice does not claim copyright over unprotectable facts or restrict existing public-domain rights, statutory exceptions or valid upstream permissions.",
+    "Local export capability is not a legal opinion or a grant of any rights absent from upstream sources.",
+    "Source-specific rights remain separate; this notice does not revoke a valid upstream CC0 dedication.",
+    "This decision does not change the license status of existing repository code or documentation.",
+    "Raw PDFs, images, access tokens, connection credentials and database permissions are not included."
+  ]
+}

@@ -6,6 +6,11 @@ __pycache__/
 *.pyc
 historical_cache/
 
+# Local data preservation exports: upstream redistribution is not cleared.
+exports/*.tar.xz
+exports/*.tar.xz.sha256
+exports/.export-*/
+
 # Streamlit
 .streamlit/*
 !.streamlit/config.toml

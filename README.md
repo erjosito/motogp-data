@@ -584,6 +584,18 @@ championship archive.
 python -m unittest test_import_historical test_load_to_sql test_dashboard
 ```
 
+## Portable data snapshot
+
+`python export_data.py --output exports\motogp-data-2026-11-27.tar.xz` creates a
+maximum-compression, consistent CSV snapshot of all application tables, including
+source provenance, live schema/keys, a convenient flat results file, quality
+metadata and verified checksums. `python export_data.py --verify <archive>`
+validates it offline. See [the export guide](docs/data-export.md) for reproduction,
+encoding, consumption and restoration instructions, and
+[the rights notice](docs/data-rights.json) for source-specific licensing.
+The combined dataset has **no blanket redistribution license**; archives remain
+local and Git-ignored pending permission review.
+
 ## API Reference
 
 The script uses these endpoints (all free, no auth required):
