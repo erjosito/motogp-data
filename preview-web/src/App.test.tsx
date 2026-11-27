@@ -66,7 +66,7 @@ describe('category selector and navigation', () => {
       }
       const html = renderToStaticMarkup(<RiderProfileContent data={data} params={new URLSearchParams('clawpilotTheme=dark')} theme="dark" />)
       expect(html.match(/data-rider-chart=/g)).toHaveLength(2)
-      expect(html).toContain('OFFICIAL TITLES RECORDED')
+      expect(html).toContain('>TITLES</span>')
       expect(html).toContain('view=championship&amp;season=1970&amp;category=350cc&amp;clawpilotTheme=dark')
       expect(html).toContain('The championship finishing record')
       expect(html).not.toContain('0 recorded GP wins')
@@ -75,7 +75,7 @@ describe('category selector and navigation', () => {
       expect(html).not.toContain('ghost-number')
       const nonChampion = renderToStaticMarkup(<RiderProfileContent data={{ ...data, totals: { ...data.totals, titles: 0 },
         seasons: [{ ...season, position: 5 }], titles: [] }} params={new URLSearchParams()} theme="dark" />)
-      expect(nonChampion).toContain('OFFICIAL SEASON RECORDS</span><div class="recovery-value">1</div>')
+      expect(nonChampion).toContain('SEASON RECORDS</span><div class="recovery-value">1</div>')
       expect(nonChampion).not.toContain('RECORDED GP APPEARANCES')
     })
 
@@ -94,10 +94,10 @@ describe('category selector and navigation', () => {
       expect(heading).toContain('aria-label="Rider number 93">#93</span>')
       expect(heading).toContain('A Rider.')
       expect(html).not.toContain('ghost-number')
-      expect(html).toContain('RECORDED GP WINS</span><div class="recovery-value">15</div>')
+      expect(html).toContain('GP WINS</span><div class="recovery-value">15</div>')
       expect(html).not.toContain('OFFICIAL TITLES RECORDED')
-      expect(html).toContain('OFFICIAL TITLE SEASONS IN THE ARCHIVE')
-      expect(html).toContain('RECORDED GP APPEARANCES')
+      expect(html).toContain('TITLE SEASONS')
+      expect(html).toContain('>GP APPEARANCES</span>')
     })
   })
 
@@ -130,7 +130,7 @@ describe('category selector and navigation', () => {
       ...data, standings: data.standings.map((row, i) => ({ ...row, number: i === 0 ? 46 : null })),
     }} category="350cc" theme="dark" />)
     const storyRider = identity.slice(identity.indexOf('class="story-rider"'), identity.indexOf('<h2 id="season-story-title"'))
-    expect(storyRider).toContain('>46</span>')
+    expect(storyRider).toContain('>#46</span>')
     expect(storyRider).toContain('Giacomo Agostini')
     expect(storyRider).toContain('view=riders')
     expect(identity).not.toContain('ghost-number')
@@ -139,7 +139,7 @@ describe('category selector and navigation', () => {
     expect(markup).not.toContain('need verification')
     expect(markup).not.toContain('Verification required')
     expect(markup).not.toContain('source verification required')
-    expect(markup).toContain('OFFICIAL CHAMPION')
+    expect(markup).toContain('>CHAMPION</span>')
     expect(markup).toContain('Giacomo Agostini')
     expect(markup).toContain('<th>Pts</th>')
     for (const points of [9, 28, 46]) expect(markup).toContain(`class="strong numeric">${points}</td>`)

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { CircuitGraphic, RiderIdentity, RiderNumberArtwork } from './VisualContext'
+import { CircuitGraphic, NumberMark, RiderIdentity } from './VisualContext'
 import type { CircuitContextData, RiderEnrichment, RiderPortrait } from './VisualContext'
 
 const rider = { rider_id: 'marc', rider: 'Marc Marquez', number: 93 }
@@ -17,17 +17,33 @@ const media: RiderPortrait = { status: 'available', portrait: {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('rider visual context', () => {
-  it('labels each number design with its own season and class', () => {
+  it('uses the latest matching career number design in place of text, preserving its actual scope in credits', () => {
     vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
-    const html = renderToStaticMarkup(<RiderNumberArtwork name="Marc Marquez" data={{ artwork: [{
-      season: 2011, category: 'Moto2', number: 93, url: '/api/numbers/93', source_url: 'https://example.com/art',
-    }] }} />)
+    const html = renderToStaticMarkup(<NumberMark rider={rider} data={{ artwork: [{
+      season: 2011, category: 'Moto2', number: 93, url: '/api/numbers/old', source_url: 'https://example.com/art',
+    }, { season: 2024, category: 'MotoGP', number: 93, url: '/api/numbers/93', source_url: 'https://example.com/art' }] }} />)
     expect(html).toContain('/paddock/api/numbers/93')
-    expect(html).toContain('2011 · Moto2 · #93')
-    expect(html).toContain('Marc Marquez, number 93, 2011 Moto2')
-    expect(renderToStaticMarkup(<RiderNumberArtwork name="Marc" data={{ artwork: [] }} />)).toBe('')
+    expect(html).not.toContain('/api/numbers/old')
+    expect(html).toContain('2024 · MotoGP · #93')
+    expect(html).toContain('Marc Marquez, number 93, 2024 MotoGP design')
+    expect(html).not.toContain('<summary>')
+    expect(html).not.toContain('aria-label="Rider number 93"')
   })
-  it('keeps portrait context, sources and adaptation credit alongside reviewed facts', () => {
+  it('never borrows a different season, class or number for a scoped identity and holds ambiguous designs', () => {
+    vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
+    const item = { season: 2024, category: 'MotoGP', number: 93, url: '/api/numbers/93', source_url: 'https://example.com/art' }
+    const number = (artwork = [item], season = 2024, category: 'premier' | 'intermediate' = 'premier') =>
+      renderToStaticMarkup(<NumberMark rider={rider} data={{ artwork }} season={season} category={category} />)
+    expect(number()).toContain('<img')
+    for (const html of [number([], 2024), number([item], 2026), number([item], 2024, 'intermediate'),
+      number([{ ...item, number: 1 }]), number([item, { ...item, url: '/api/ambiguous' }])]) {
+      expect(html).not.toContain('<img')
+      expect(html).toContain('aria-label="Rider number 93">#93')
+    }
+    expect(renderToStaticMarkup(<NumberMark rider={{ ...rider, number: null }} data={{ artwork: [item] }} />))
+      .toContain('Race number unavailable')
+  })
+  it('keeps portrait context in the caption and preserves separate source and adaptation credits', () => {
     vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
     const html = renderToStaticMarkup(<RiderIdentity rider={rider} enrichment={enrichment} media={media} />)
     expect(html).toContain('/paddock/api/rider-media/marc/320')
@@ -38,6 +54,11 @@ describe('rider visual context', () => {
     expect(html).toContain('Feb 17, 1993')
     expect(html).toContain('Cervera, Spain')
     expect(html).toContain('not a historical measurement')
+    const caption = html.slice(html.indexOf('<figcaption'), html.indexOf('</figcaption>'))
+    expect(caption).toContain('2026 · Ducati Lenovo Team')
+    expect(caption).not.toContain('Denkmit')
+    expect(caption).not.toContain('creativecommons')
+    expect(caption).not.toContain('adapted')
   })
 
   it('never applies another rider or season portrait, and missing facts remain absent', () => {
