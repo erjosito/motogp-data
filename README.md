@@ -752,6 +752,13 @@ limitations. Official photographs/number graphics are not automatically approved
 for display. The reviewed references in `media_catalog.json` retain their own
 source-specific permissions; no blanket license is asserted.
 
+The shared reviewed biography catalog covers 21 champions selected at the
+requested threshold: at least two 500cc/MotoGP titles, or five titles combined
+across lower classes. All 21 have sourced birth dates/cities; unavailable
+heights and other facts stay null. `build_champion_biographies.py` reproduces
+the selection from a verified export without treating incomplete recorded
+title counts as complete career totals. Photography permission remains separate.
+
 ## API Reference
 
 The script uses these endpoints (all free, no auth required):
