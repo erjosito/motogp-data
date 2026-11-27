@@ -1,4 +1,5 @@
 import ast
+import base64
 import json
 import math
 import sqlite3
@@ -213,6 +214,149 @@ class DashboardTests(unittest.TestCase):
             self.assertIn(category_sql(family), career_sql)
         app.multiselect(key="profile_categories").set_value(["Moto3"]).run()
         self.assertEqual(app.dataframe[0].value["Category"].tolist(), ["Moto3"])
+
+    def test_historical_profile_keeps_partial_scores_and_efficiency_unavailable(self):
+        def historical(sql, conn=None, params=None):
+            data = sample_query(sql, conn, params)
+            if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+                data = data.iloc[:2].copy()
+                data["category"] = "50cc"
+                data["season_year"] = [1971, 1972]
+                data["points"] = [None, 3.0]
+            return data
+
+        self.read_sql.side_effect = historical
+        app = self.start_app()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.metric[5].value, "—")
+        self.assertTrue(pd.isna(app.dataframe[0].value["Points"].iloc[0]))
+        season_points = json.loads(app.get("plotly_chart")[1].proto.spec)
+        self.assertEqual(season_points["data"][0]["x"], ["1972"])
+        self.assertNotIn("NaN", json.dumps(season_points))
+        season_table = next(table.value for table in app.dataframe
+                            if "Year" in table.value and "Pts %" in table.value)
+        self.assertTrue(season_table["Pts %"].isna().all())
+
+    def test_constructor_only_history_and_recorded_winner_pace_render(self):
+        def historical(sql, conn=None, params=None):
+            if "COUNT(DISTINCT r.rider_id) AS riders" in sql:
+                self.assertIn("COALESCE(c.constructor_name, t.constructor)", sql)
+                return pd.DataFrame([
+                    dict(season_year=1984, constructor="Zundapp", riders=2,
+                         total_pts=None, wins=1, race_entries=3)
+                ])
+            if "c.best_lap_time, l.lap_time" in sql:
+                return pd.DataFrame([
+                    dict(season_year=2026, date_end="2026-11-22", circuit_name=name,
+                         circuit_place=name, session_id=identity, rider="Winner",
+                         best_lap_time=None, lap_time=lap)
+                    for name, identity, lap in [
+                        ("Estoril", "estoril", "1:45.000"),
+                        ("Algarve", "algarve", "1:42.000"),
+                        ("Algarve", "algarve", "1:43.000"),
+                    ]
+                ])
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = historical
+        app = self.start_app()
+        app.session_state["selected_view_nav_history"] = "viz_crossyear"
+        app.selectbox(key="nav_group").set_value("nav_history")
+        for chart in ["cross_constructor_evolution", "cross_circuit_pace"]:
+            with self.subTest(chart=chart):
+                with patch("streamlit.selectbox", return_value=get_translator("en")(chart)):
+                    app.run()
+                self.assertFalse(app.exception)
+                self.assertTrue(app.get("plotly_chart"))
+        figure = json.loads(app.get("plotly_chart")[0].proto.spec)
+        self.assertEqual({trace["name"] for trace in figure["data"]}, {"Estoril", "Algarve"})
+        coordinates = next(trace for trace in figure["data"] if trace["name"] == "Algarve")["x"]
+        count = (np.frombuffer(base64.b64decode(coordinates["bdata"]), dtype=coordinates["dtype"]).size
+                 if isinstance(coordinates, dict) else len(coordinates))
+        self.assertEqual(count, 1)
+
+    def test_titles_are_official_only_and_missing_poles_stay_unavailable(self):
+        def rankings(sql, conn=None, params=None):
+            if "AS race_starts" in sql:
+                return pd.DataFrame([dict(
+                    rider="Historical Rider", nationality="IT", race_starts=12, sprint_starts=0,
+                    race_wins=10, sprint_wins=0, race_podiums=12, sprint_podiums=0,
+                    poles=0, qualifying_entries=0, race_finishes=12, dnfs=0, total_pts=150,
+                    seasons=1, first_year=1970, last_year=1970,
+                )])
+            if "COUNT(*) AS championships" in sql:
+                self.assertIn("cs.is_final=1", sql)
+                self.assertNotIn("UNION ALL", sql)
+                self.assertNotIn("SUM(c.points)", sql)
+                return pd.DataFrame([dict(rider="Historical Rider", championships=1)])
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = rankings
+        app = self.start_app()
+        app.session_state["selected_view_nav_riders"] = "viz_rankings"
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        full = next(table.value for table in app.dataframe if "Nationality" in table.value)
+        self.assertEqual(full["Titles"].tolist(), [1])
+        self.assertTrue(full["Poles"].isna().all())
+        self.assertTrue(full["Pts %"].isna().all())
+
+    def test_concentration_does_not_divide_official_full_season_scores_by_imported_starts(self):
+        def partial(sql, conn=None, params=None):
+            if "SELECT cs.position" in sql:
+                return pd.DataFrame([
+                    dict(position=rank, rider=f"Rider {rank}", points=1000 - 100 * rank,
+                         constructor="Bike", is_final=True, source_url=None)
+                    for rank in [1, 2, 3]
+                ])
+            if "SUM(c.points) AS pts" in sql:
+                return pd.DataFrame([
+                    dict(season_year=2026, rider=f"Rider {rank}", pts=points, races=1, sprints=0)
+                    for rank, points in [(1, 25), (2, 20), (3, 16)]
+                ])
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = partial
+        app = self.start_app()
+        app.session_state["selected_view_nav_history"] = "viz_crossyear"
+        app.selectbox(key="nav_group").set_value("nav_history")
+        with patch("streamlit.selectbox", return_value=get_translator("en")("cross_championship_concentration")):
+            app.run()
+        self.assertFalse(app.exception)
+        table = next(table.value for table in app.dataframe if "Champion %" in table.value)
+        self.assertEqual(table["Champion %"].tolist(), [100])
+        self.assertEqual(table["Champion Pts"].tolist(), [900])
+
+    def test_grid_proxy_includes_unclassified_starters_in_conversion_denominator(self):
+        def qualifying(sql, conn=None, params=None):
+            if "s.category, s.session_number" in sql:
+                return pd.DataFrame([
+                    dict(event_id="por", season_year=2026, category="MotoGP",
+                         session_number=stage, rider_id=rider, position=position)
+                    for stage, riders in [(1, ["a", "b", "q1-only", "dns"]),
+                                          (2, ["a", "b", *map(str, range(10))])]
+                    for position, rider in enumerate(riders, 1)
+                ])
+            if "c.position AS finish_pos, c.status" in sql:
+                return pd.DataFrame([
+                    dict(event_id="por", season_year=2026, short_name="POR", category="MotoGP",
+                         session_id="por-race", session_type="RAC", rider_id=rider,
+                         rider=rider, finish_pos=position, status=status)
+                    for rider, position, status in [
+                        ("a", 1, "INSTND"), ("b", None, "OUTSTND"),
+                        ("q1-only", 3, "INSTND"), ("dns", None, "NOTSTARTED"),
+                    ]
+                ])
+            return sample_query(sql, conn, params)
+        self.read_sql.side_effect = qualifying
+        app = self.start_app()
+        app.session_state["selected_view_nav_season"] = "viz_grid"
+        app.selectbox(key="nav_group").set_value("nav_season").run()
+        self.assertFalse(app.exception)
+        self.assertIn("50.0%", " ".join(element.value for element in app.markdown))
+        app.slider[1].set_value(13).run()
+        self.assertFalse(app.exception)
+        self.assertIn("66.7%", " ".join(element.value for element in app.markdown))
 
     def test_views_restore_their_own_filters_without_inheriting_category(self):
         app = self.start_race_analysis()
