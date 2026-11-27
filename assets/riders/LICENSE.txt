@@ -1,0 +1,17 @@
+Marc Marquez 2026 portrait display derivatives
+
+Original creator: Denkmit / Wikimedia Commons
+Source: https://commons.wikimedia.org/wiki/File:Marc_Marquez_at_the_2026_Spanish_Grand_Prix.jpg
+Original and adapted image contributions: Creative Commons Attribution-ShareAlike 4.0 International
+License: https://creativecommons.org/licenses/by-sa/4.0/
+
+Files: marc-marquez-2026-portrait-320.webp, marc-marquez-2026-portrait-640.webp
+Changes: applied EXIF orientation 8, cropped the upright original at
+[350,380,3350,4130], resized to 320x400 / 640x800 and converted to WebP.
+No background removal. Creator and license are also embedded in the derivatives.
+Source and derivative hashes/dimensions are recorded in media_catalog.json.
+
+The image depicts the 2026 Spanish Grand Prix and Ducati Lenovo Team context.
+Do not imply another season's kit, historical appearance, endorsement, or a
+blanket license for visible trademarks or personality rights. This image license
+does not change the license of the surrounding application or SQL data.

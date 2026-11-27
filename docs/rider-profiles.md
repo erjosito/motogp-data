@@ -161,6 +161,31 @@ for image adaptations. It is not a universally licensed transparent asset pack.
 Apply EXIF orientation before cropping: that original is encoded landscape but
 displays upright at 3848 x 5776. A coherent full-grid portrait set is still absent.
 
+## Packaged portrait display contract
+
+The approved Marc 2026 portrait now has two local head-and-shoulders WebP
+derivatives in `assets/riders`: `marc-marquez-2026-portrait-320.webp` (320x400,
+18,772 bytes) and `marc-marquez-2026-portrait-640.webp` (640x800, 51,600 bytes).
+The 9.75 MB original is not shipped. EXIF orientation is applied before the
+upright crop `[350,380,3350,4130]`; no background is removed. Attribution and
+CC BY-SA 4.0 are embedded and recorded in the adjacent `LICENSE.txt`.
+
+The existing portrait asset in `media_catalog.json` owns a `display_derivatives`
+array: repository-relative `path`, dimensions, byte count, SHA-256, original
+`source_sha256`, adaptation `changes`, `license` and `license_url`. Its parent
+retains the verified results `rider_id`, season/class/team, creator and source.
+`rider_media.read_portrait(rider_id, season, categories)` selects only an
+approved face for that exact season and actual class and checks the local
+derivative hashes/source/license. No remote image fetch occurs. All-career,
+historical, other-class and unpictured selections intentionally return no face;
+helmeted bike photos are never promoted to portraits.
+
+Both apps must show creator, source and license links, describe the crop/resize
+adaptation and label the photo's season/team honestly. Adapted image contributions
+remain CC BY-SA 4.0; this is not a new license for the application, SQL data,
+visible marks or personality rights. Biography enrichment remains independently
+keyed through the reviewed factual catalog, not through names or image presence.
+
 ## Circuit context already present
 
 `circuit_catalog.json` / `circuit_catalog.py` already supply six current-layout

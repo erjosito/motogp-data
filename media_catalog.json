@@ -107,7 +107,31 @@
                 "background_removal_copyright_permitted": true,
                 "derivative_requirements": "Credit creator and source, link CC BY-SA 4.0, identify changes, and distribute adapted image contributions under the same or a compatible license. Do not imply endorsement.",
                 "other_rights_note": "No endorsement implied. Personality, trademark and misleading-context restrictions remain separate from image copyright."
-            }
+            },
+            "display_derivatives": [
+                {
+                    "path": "assets/riders/marc-marquez-2026-portrait-320.webp",
+                    "width_px": 320,
+                    "height_px": 400,
+                    "bytes": 18772,
+                    "sha256": "3bc28a41e782c676c71ca5e58ca140dded5651fc5fd5fe8dc2fa740f6c9e25ca",
+                    "source_sha256": "7f128450a964651a96595618e37a54545dd870ef370192b46b5e7041b49cc71f",
+                    "license": "CC-BY-SA-4.0",
+                    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                    "changes": "EXIF orientation applied; upright crop [350,380,3350,4130]; resized to 320x400 and converted to WebP. No background removal."
+                },
+                {
+                    "path": "assets/riders/marc-marquez-2026-portrait-640.webp",
+                    "width_px": 640,
+                    "height_px": 800,
+                    "bytes": 51600,
+                    "sha256": "d9a7ec8cac193c5cc685ed71c7dfbd39abf9032a54a96f904b8957f2c2e28344",
+                    "source_sha256": "7f128450a964651a96595618e37a54545dd870ef370192b46b5e7041b49cc71f",
+                    "license": "CC-BY-SA-4.0",
+                    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                    "changes": "EXIF orientation applied; upright crop [350,380,3350,4130]; resized to 640x800 and converted to WebP. No background removal."
+                }
+            ]
         },
         {
             "id": "alex-marquez-assen-2025-with-bike",
