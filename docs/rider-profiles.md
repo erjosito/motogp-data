@@ -186,6 +186,18 @@ remain CC BY-SA 4.0; this is not a new license for the application, SQL data,
 visible marks or personality rights. Biography enrichment remains independently
 keyed through the reviewed factual catalog, not through names or image presence.
 
+Classic's **Riders -> Pilot Profile** uses stable results rider IDs as selector
+values and SQL parameters, with display names used only as labels. Its compact
+identity panel shows the reviewed birth facts, explicitly retrieval-dated height
+and biography source. The photo appears only for the selected 2026 season when
+the filtered records include MotoGP; All-career, older-year, other-class and
+unpictured views use initials without changing the existing career analytics.
+Creator/source/license/adaptation credits remain visible below the photo.
+Classic packages only the reviewed factual file, approved media metadata and
+the two small WebPs/license notice, never the source package or full local catalog.
+Invalid configured enrichment or packaged-media integrity errors are reported,
+not silently presented as an ordinary unpictured rider.
+
 ## Circuit context already present
 
 `circuit_catalog.json` / `circuit_catalog.py` already supply six current-layout
