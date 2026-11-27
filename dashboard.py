@@ -23,6 +23,7 @@ from category_scope import (
 from circuit_catalog import circuit_details, circuit_key, projected_outline
 from rider_profiles import read_enrichment
 from rider_media import read_portrait
+from rider_numbers import list_numbers
 from archive_analytics import (
     CATEGORY_ORDER, archive_availability, career_seasons, constructor_eras,
     complete_points, nominal_maximum, points_efficiency, qualifying_proxy,
@@ -744,6 +745,7 @@ def render_rider_identity(rider_id, name, year, categories):
         ):
             raise ValueError("Rider enrichment has no verified results-ID link.")
         portrait = read_portrait(rider_id, year, categories)
+        numbers = list_numbers(rider_id, year, categories)
     except (OSError, ValueError, KeyError, TypeError) as error:
         st.error(t("rider_context_error", reason=str(error)))
         st.stop()
@@ -781,6 +783,12 @@ def render_rider_identity(rider_id, name, year, categories):
                 "rider_portrait_credit", creator=portrait["rights"]["creator"],
                 source=portrait["source_page"], license=portrait["rights"]["license_url"],
             ))
+        if numbers:
+            with st.expander(t("rider_number_artwork")):
+                for asset, image in numbers:
+                    st.image(image, width=120)
+                    st.caption(f'{asset["season"]} · {asset["category"]} · #{asset["number"]} · '
+                               f'[{t("rider_number_source")}]({asset["source_url"]})')
 
 
 @st.cache_data(ttl=300)

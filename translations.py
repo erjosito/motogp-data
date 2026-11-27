@@ -17,6 +17,8 @@ TRANSLATIONS = {
     "rider_birthplace": {"en": "Birthplace", "es": "Lugar de nacimiento", "it": "Luogo di nascita"},
     "rider_reported_height": {"en": "Reported height: **{height} cm** (source retrieved {date}; not a historical measurement).", "es": "Altura declarada: **{height} cm** (fuente consultada el {date}; no es una medida histórica).", "it": "Altezza dichiarata: **{height} cm** (fonte consultata il {date}; non è una misura storica)."},
     "rider_biography_source": {"en": "Biography source", "es": "Fuente biográfica", "it": "Fonte biografica"},
+    "rider_number_artwork": {"en": "Rider number artwork", "es": "Diseños de dorsales", "it": "Grafica dei numeri di gara"},
+    "rider_number_source": {"en": "Artwork source", "es": "Fuente del diseño", "it": "Fonte della grafica"},
     "rider_portrait_credit": {
         "en": "Photo: {creator} / Wikimedia Commons · [Source]({source}) · [CC BY-SA 4.0]({license}). EXIF-corrected, cropped, resized and converted to WebP; adapted image contributions are also CC BY-SA 4.0. No endorsement implied.",
         "es": "Foto: {creator} / Wikimedia Commons · [Fuente]({source}) · [CC BY-SA 4.0]({license}). Orientación EXIF corregida, recorte, cambio de tamaño y conversión a WebP; la imagen adaptada también es CC BY-SA 4.0. No implica patrocinio.",

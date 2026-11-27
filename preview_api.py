@@ -10,7 +10,7 @@ from pathlib import Path
 import pyodbc
 from azure.core.exceptions import ClientAuthenticationError
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
@@ -18,6 +18,7 @@ from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, 
 from rider_profiles import read_enrichment
 from circuit_catalog import circuit_details, projected_outline
 from rider_media import read_portrait
+from rider_numbers import list_numbers, read_number
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -467,6 +468,26 @@ def rider_portrait(rider_id: str, season: int = Query(ge=1949, le=3000), categor
             "width": item["width_px"], "height": item["height_px"],
         } for item in sorted(asset["display_derivatives"], key=lambda row: row["width_px"])],
     }}
+
+
+@api.get("/api/riders/{rider_id}/number-art")
+def rider_number_art(rider_id: str):
+    assets = list_numbers(rider_id)
+    return {"artwork": [{
+        "season": asset["season"], "category": asset["category"], "number": asset["number"],
+        "source_url": asset["source_url"],
+        "url": f'/api/riders/{rider_id}/number-art/{asset["season"]}/{asset["category"]}/{asset["number"]}',
+    } for asset, _ in assets]}
+
+
+@api.get("/api/riders/{rider_id}/number-art/{season}/{category}/{number}")
+def rider_number_image(rider_id: str, season: int, category: str, number: int):
+    if category not in ("MotoGP", "Moto2", "Moto3", "500cc", "250cc", "125cc", "350cc", "50cc", "80cc"):
+        raise HTTPException(400, "Unsupported category.")
+    result = read_number(rider_id, season, category, number)
+    if result is None:
+        raise HTTPException(404, "No unambiguous number artwork in this scope.")
+    return Response(content=result[1], media_type="image/png")
 
 
 @api.get("/api/riders/{rider_id}/portrait/{width}")

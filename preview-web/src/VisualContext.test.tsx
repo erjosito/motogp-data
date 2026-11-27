@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { CircuitGraphic, RiderIdentity } from './VisualContext'
+import { CircuitGraphic, RiderIdentity, RiderNumberArtwork } from './VisualContext'
 import type { CircuitContextData, RiderEnrichment, RiderPortrait } from './VisualContext'
 
 const rider = { rider_id: 'marc', rider: 'Marc Marquez', number: 93 }
@@ -17,6 +17,16 @@ const media: RiderPortrait = { status: 'available', portrait: {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('rider visual context', () => {
+  it('labels each number design with its own season and class', () => {
+    vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
+    const html = renderToStaticMarkup(<RiderNumberArtwork name="Marc Marquez" data={{ artwork: [{
+      season: 2011, category: 'Moto2', number: 93, url: '/api/numbers/93', source_url: 'https://example.com/art',
+    }] }} />)
+    expect(html).toContain('/paddock/api/numbers/93')
+    expect(html).toContain('2011 · Moto2 · #93')
+    expect(html).toContain('Marc Marquez, number 93, 2011 Moto2')
+    expect(renderToStaticMarkup(<RiderNumberArtwork name="Marc" data={{ artwork: [] }} />)).toBe('')
+  })
   it('keeps portrait context, sources and adaptation credit alongside reviewed facts', () => {
     vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
     const html = renderToStaticMarkup(<RiderIdentity rider={rider} enrichment={enrichment} media={media} />)

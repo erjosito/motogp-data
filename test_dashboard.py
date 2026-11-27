@@ -1,6 +1,7 @@
 import ast
 import base64
 import json
+import io
 import math
 import sqlite3
 import unittest
@@ -11,6 +12,7 @@ from unittest.mock import patch
 import pandas as pd
 import numpy as np
 import streamlit as st
+from PIL import Image
 from streamlit.testing.v1 import AppTest
 from translations import get_translator
 from category_scope import CATEGORY_FAMILIES, category_sql
@@ -172,6 +174,7 @@ class DashboardTests(unittest.TestCase):
     def setUp(self):
         st.cache_data.clear()
         self.addCleanup(st.cache_data.clear)
+        patch("rider_numbers.DEFAULT_BUNDLE", DASHBOARD.parent / "__no-number-artwork-test-bundle__").start()
         self.connection = patch("sql_connection.connect_to_sql").start()
         self.addCleanup(patch.stopall)
         self.read_sql = patch("pandas.read_sql", side_effect=sample_query).start()
@@ -317,6 +320,25 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(app.selectbox(key="pp_yr").value, "All")
         self.assertFalse(app.get("image"))
         self.assertNotIn("1993-02-17", " ".join(markdown.value for markdown in app.markdown))
+
+    def test_number_artwork_displays_labeled_selected_scope(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (3, 3), "red").save(image, format="PNG")
+        asset = {"season": 2026, "category": "MotoGP", "number": 12,
+                 "source_url": "https://photos.motogp.com/test.png"}
+        def artwork(rider_id, season, categories):
+            return [(asset, image.getvalue())] if rider_id == "sample-rider" and season == 2026 and "MotoGP" in categories else []
+
+        with patch("rider_numbers.list_numbers", side_effect=artwork):
+            app = self.start_app()
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+            self.assertFalse(app.get("image"))
+            app.selectbox(key="pp_yr").set_value(2026).run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.get("image")), 1)
+            self.assertIn("2026 · MotoGP · #12", " ".join(c.value for c in app.caption))
+            app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
+            self.assertFalse(app.get("image"))
 
     def test_legacy_named_rider_preference_preserves_unique_identity_filters(self):
         app = self.start_app()

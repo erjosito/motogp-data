@@ -41,6 +41,7 @@
     "Source-specific rights remain separate; this notice does not revoke a valid upstream CC0 dedication.",
     "This decision does not change the license status of existing repository code or documentation.",
     "The SQL data export does not include raw PDFs, images, access tokens, connection credentials or database permissions.",
-    "The optional rider profile catalog is separate from the SQL export. Official image URLs are unapproved references, not a permission grant. Individually reviewed reusable photographs in media_catalog.json retain their separate author dedications or Creative Commons licenses and do not clear official artwork."
+    "The optional rider profile catalog is separate from the SQL export. Official image URLs are unapproved references, not a permission grant. Individually reviewed reusable photographs in media_catalog.json retain their separate author dedications or Creative Commons licenses and do not clear official artwork.",
+    "The user stated they obtained permission to use their separately supplied number artwork. This does not establish an open license or public repository redistribution rights; keep supplied originals in a private bundle."
   ]
 }
