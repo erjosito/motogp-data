@@ -39,10 +39,14 @@ Image season/team and current-layout labels stay with their visuals. Unapproved 
 references and the full local biography catalog are not shipped.
 Approved number designs replace plain numbers in profile titles, featured
 championship identities and race podiums; they are not a separate artwork gallery.
-A career title uses the latest unambiguous design for that rider's number, with
-its actual year/class credited below. Season-specific views require an exact
-year/class/number match. Missing, ambiguous or failed designs retain the plain
+A rider identity uses the latest verified design for its stable rider ID,
+independent of the selected year/class or a missing/different classification
+number, with its actual design year/class/number credited below. Multiple designs
+in the latest year are selected deterministically. Missing or failed designs retain the plain
 number (or initials when the race number is unknown).
+The additive `/api/riders/{rider_id}/number-identity` metadata and `/image`
+endpoint use the shared verified identity selector. Existing season-scoped
+`number-art` endpoints retain their original contract; portrait matching is unchanged.
 
 The other views cover category-scoped championships, session results, rider lap
 comparisons, and sector analysis. Explicit season/event/session deep links retain

@@ -35,7 +35,8 @@ function resultStory(data: Analysis) {
 function Identity({ row, season, category }: { row: Result; season: number; category?: Category }) {
   const initials = row.rider.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('')
   return <a className="finish-identity" href={profilePath(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search), { view: 'riders', rider: row.rider_id })}>
-    <span className="finish-number" aria-label={row.number == null ? `${row.rider}, initials` : undefined}>{row.number == null ? initials : <RiderNumber rider={row} season={season} category={category} />}</span>
+    <span className="finish-number"><RiderNumber rider={row} season={season} category={category}
+      fallback={row.number == null ? <span aria-label={`${row.rider}, initials`}>{initials}</span> : undefined} /></span>
     <span>{row.rider}</span>
   </a>
 }

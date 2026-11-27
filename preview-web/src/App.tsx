@@ -46,7 +46,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
     finalRanks.set(label, (finalRanks.get(label) ?? 0) + 1)
   }
   return <>
-    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1 className="rider-title">{rider.number != null && <span className="identity-number"><RiderNumber rider={rider} /></span>}<span>{rider.rider}.</span></h1><p>More than a name on the timing screen.</p></div>
+    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1 className="rider-title"><span className="identity-number"><RiderNumber rider={rider} fallback={rider.number == null ? null : undefined} /></span><span>{rider.rider}.</span></h1><p>More than a name on the timing screen.</p></div>
       <span className="quiet-badge">{data.first_season === data.latest_season ? data.first_season : `${data.first_season} — ${data.latest_season}`} · seasons</span></div>
     <section className={`story-card rider-hero ${rider.rider_id === MARC_ID ? 'marc-hero' : ''}`}>
       <div className="rider-visual-header"><RiderVisualContext rider={rider} /></div>

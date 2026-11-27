@@ -57,6 +57,9 @@ class NumberArtworkTests(unittest.TestCase):
                 self.assertEqual(response.content, data)
                 self.assertEqual(response.headers["content-type"], "image/png")
                 self.assertEqual(client.get(f"{prefix}/api/riders/{RIDER}/number-art/2022/MotoGP/93").status_code, 404)
+                identity = client.get(f"{prefix}/api/riders/{RIDER}/number-identity?season=1970&category=350cc&number=1").json()["artwork"][0]
+                self.assertEqual((identity["season"], identity["category"], identity["number"]), (2021, "MotoGP", 93))
+                self.assertEqual(client.get(prefix + identity["url"]).content, data)
 
     def test_conflicting_designs_are_not_selected(self):
         other = self.source / "other.png"
@@ -65,6 +68,13 @@ class NumberArtworkTests(unittest.TestCase):
         self.make_bundle([self.row, second])
         self.assertIsNone(read_number(RIDER, 2021, "MotoGP", 93, self.bundle))
         self.assertEqual(list_numbers(RIDER, bundle=self.bundle), [])
+        with patch.dict("os.environ", {"MOTOGP_RIDER_NUMBERS": str(self.bundle)}):
+            client = TestClient(preview_api.app)
+            for prefix in ("", "/paddock"):
+                identity = client.get(f"{prefix}/api/riders/{RIDER}/number-identity").json()["artwork"][0]
+                response = client.get(prefix + identity["url"])
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(response.content, [self.image.read_bytes(), other.read_bytes()])
 
     def test_identity_uses_latest_design_with_stable_tie_break_and_verified_bytes(self):
         other = self.source / "other.png"
