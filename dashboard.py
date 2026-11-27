@@ -23,7 +23,7 @@ from category_scope import (
 from circuit_catalog import circuit_details, circuit_key, projected_outline
 from rider_profiles import read_enrichment
 from rider_media import read_portrait
-from rider_numbers import list_numbers
+from rider_numbers import list_numbers, read_identity_number
 from archive_analytics import (
     CATEGORY_ORDER, archive_availability, career_seasons, constructor_eras,
     complete_points, nominal_maximum, points_efficiency, qualifying_proxy,
@@ -736,7 +736,7 @@ def load_archive_finals(families, rider_id=None):
     return rows
 
 
-def render_rider_identity(rider_id, name, year, categories, number=None):
+def render_rider_identity(rider_id, name, year, categories):
     try:
         profile = read_enrichment(rider_id)["profile"]
         if profile and (
@@ -746,11 +746,7 @@ def render_rider_identity(rider_id, name, year, categories, number=None):
             raise ValueError("Rider enrichment has no verified results-ID link.")
         portrait = read_portrait(rider_id, year, categories)
         numbers = list_numbers(rider_id, year, categories)
-        title_candidates = [(asset, image) for asset, image in numbers if asset["number"] == number]
-        if year is None and title_candidates:
-            latest = max(asset["season"] for asset, _ in title_candidates)
-            title_candidates = [(asset, image) for asset, image in title_candidates if asset["season"] == latest]
-        title_artwork = title_candidates[0] if len(title_candidates) == 1 else None
+        title_artwork = read_identity_number(rider_id)
     except (OSError, ValueError, KeyError, TypeError) as error:
         st.error(t("rider_context_error", reason=str(error)))
         st.stop()
@@ -2815,7 +2811,7 @@ elif viz == "👤 Pilot Profile":
     st.header(t("pilot_profile_header"))
     st.caption(t("profile_scope_help"))
     riders_all = premier_q(
-        "SELECT r.rider_id, r.full_name, r.number FROM riders r WHERE EXISTS "
+        "SELECT r.rider_id, r.full_name FROM riders r WHERE EXISTS "
         "(SELECT 1 FROM classifications c JOIN sessions s ON c.session_id = s.session_id "
         "WHERE c.rider_id = r.rider_id) OR EXISTS "
         "(SELECT 1 FROM championship_standings cs WHERE cs.rider_id=r.rider_id "
@@ -2847,7 +2843,7 @@ elif viz == "👤 Pilot Profile":
 
     career = premier_q("""
         SELECT e.season_year, e.short_name, e.date_end, s.session_type, s.session_label,
-            s.session_id, s.category, c.rider_id, c.rider_number,
+            s.session_id, s.category, c.rider_id,
             c.position, c.points, c.best_lap_time, c.top_speed, c.status,
             COALESCE(ta.canonical_name, t.team_name) AS team_name,
             COALESCE(c.constructor_name, t.constructor) AS constructor, e.circuit_name
@@ -2892,14 +2888,8 @@ elif viz == "👤 Pilot Profile":
 
     # --- Key stats ---
     identity_categories = sorted(set(career["category"]) | set(career_finals["category"]))
-    if filter_year is None:
-        identity_number = riders_all.loc[riders_all["rider_id"].eq(pilot_id), "number"].iloc[0]
-        identity_number = int(identity_number) if pd.notna(identity_number) else None
-    else:
-        observed_numbers = career["rider_number"].dropna().unique()
-        identity_number = int(observed_numbers[0]) if len(identity_categories) == 1 and len(observed_numbers) == 1 else None
     render_rider_identity(
-        pilot_id, pilot, filter_year, identity_categories, identity_number,
+        pilot_id, pilot, filter_year, identity_categories,
     )
 
     n_races = len(races)

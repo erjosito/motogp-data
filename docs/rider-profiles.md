@@ -134,8 +134,9 @@ profile-to-results UUID links, legacy IDs, source paths, PNGs, lengths and
 SHA-256 hashes. It stores deduplicated originals and a catalog without local
 source paths. An explicitly configured `MOTOGP_RIDER_NUMBERS` points to an
 alternative private bundle directory; missing or corrupt configured content
-is an error. With no default bundle, artwork is simply unavailable. Multiple
-different images for the same rider, season, class and number are withheld.
+is an error. With no default bundle, artwork is simply unavailable. Exact-scope
+requests with multiple different images for the same rider, season, class and
+number are withheld; rider-identity display can choose one deterministically.
 MotoE entries are retained but are not displayed because that class is not
 covered by the app. Each displayed item is labeled with its own season and
 class, never substituted as current artwork for a different year.
@@ -292,12 +293,15 @@ the filtered records include MotoGP; All-career, older-year, other-class and
 unpictured views use initials without changing the existing career analytics.
 Creator/source/license/adaptation credits remain visible below the photo.
 Number artwork can also sit beside the profile name, without removing the
-existing scoped gallery. Career titles use the latest unambiguous design for
-the rider's registered number within the filtered classes, with its actual
-year/class/source visibly labeled as a reference. A selected season requires
-one actual class and an unambiguous classification-level `rider_number`;
-the current registered number is never substituted for missing historical data.
-Missing or ambiguous matches leave the existing name/initials unchanged.
+existing scoped gallery. It is rider identity, not season-specific evidence:
+`read_identity_number(results_rider_id)` uses the latest available design for
+that stable rider ID, independently of the selected year/class or absent race
+numbers. Multiple latest designs have a deterministic category/number/hash
+tie-break so the display does not flicker. Its actual year/class/source remain
+visibly labeled as a reference, not as the artwork used in the selected race.
+The helper verifies the chosen bytes and does not change portrait rights or
+the exact-scope `read_number` / gallery rules. Missing artwork leaves the existing
+name/initials unchanged.
 Classic packages the reviewed factual file, approved media metadata, the two
 small WebPs/license notice and the separately staged user-supplied number bundle,
 never the portrait source package or full local biography catalog.
