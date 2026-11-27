@@ -5,5 +5,7 @@
 !translations.py
 !sql_connection.py
 !category_scope.py
+!circuit_catalog.py
+!circuit_catalog.json
 !.streamlit/
 !.streamlit/config.toml

@@ -375,6 +375,33 @@ analytics underneath are for the selected **Detailed analysis category**;
 they never silently pool championships or point totals. Empty selections show
 an explicit prompt. Navigation and language changes retain each task's filters.
 
+**History > Circuits** matches physical circuit names and verified aliases,
+not reused GP short codes. Track facts do not change with the racing class;
+the winner, timing and points analyses below remain class-scoped. The bundled
+`circuit_catalog.json` contains sourced modern-layout length and corner counts
+for Jerez, Le Mans (Bugatti), Assen, Mugello, Phillip Island and Valencia,
+verified on 2026-11-27 against the active track entries in the
+[official MotoGP event API](https://api.pulselive.motogp.com/motogp/v1/events?seasonYear=2026).
+Official circuit/track IDs preserve the factual snapshot's provenance.
+Modern diagrams and distances must not be interpreted as the layout used
+in every historical season.
+
+Attendance means an explicitly reported MotoGP record, with year, weekend or
+race-day scope and source. The initial verified record is Le Mans:
+[311,797 over the 2025 GP weekend](https://www.motorsport.com/motogp/news/french-gp-breaks-moto-gp-attendance-record-in-2025/10721868/).
+Capacity, ordinary attendance and unverified or disputed historical estimates
+are not substituted. Missing facts, records and reusable geometry are shown
+explicitly; this is a curated snapshot, not a live all-time ranking.
+
+Diagrams are original Plotly renderings of mapped raceway coordinates, with
+local longitude/latitude projection and equal axis scales. Geometry is
+[OpenStreetMap contributors' data](https://www.openstreetmap.org/copyright),
+not copied MotoGP artwork. The bundled circuit database is available under
+[ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/); each outline records
+its OSM source identifiers and retrieval date. Attribution and source links
+appear beneath the diagram. No runtime map API or external artwork request
+is required.
+
 Pilot Rhythm and Sector Heatmap compare absolute times within one selected
 session, not across unrelated circuits or conditions. Pace cleaning excludes
 pit laps, non-finite/non-positive times, and laps at least 15% slower than their

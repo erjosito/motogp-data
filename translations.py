@@ -8,6 +8,46 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "circuit_distance": {"en": "Track length", "es": "Longitud del circuito", "it": "Lunghezza del circuito"},
+    "circuit_turns": {"en": "Corners", "es": "Curvas", "it": "Curve"},
+    "circuit_record_attendance": {"en": "Record MotoGP attendance", "es": "Récord de asistencia de MotoGP", "it": "Record di affluenza MotoGP"},
+    "circuit_not_available": {"en": "Unavailable", "es": "No disponible", "it": "Non disponibile"},
+    "circuit_diagram": {"en": "Circuit layout", "es": "Trazado del circuito", "it": "Tracciato del circuito"},
+    "circuit_facts_source": {"en": "Circuit facts source", "es": "Fuente de los datos del circuito", "it": "Fonte dei dati del circuito"},
+    "circuit_attendance_source": {"en": "Attendance record source", "es": "Fuente del récord de asistencia", "it": "Fonte del record di affluenza"},
+    "circuit_outline_source": {"en": "Diagram geometry and attribution", "es": "Geometría y atribución del diagrama", "it": "Geometria e attribuzione del diagramma"},
+    "attendance_weekend": {"en": "GP weekend", "es": "fin de semana del GP", "it": "weekend del GP"},
+    "attendance_race_day": {"en": "race day", "es": "día de la carrera", "it": "giorno della gara"},
+    "circuit_layout_help": {
+        "en": "Facts and diagrams describe the sourced modern layout, independently of the racing class. Historical layouts may differ; the diagram is not evidence of the configuration used in every season below.",
+        "es": "Los datos y diagramas describen el trazado moderno documentado, independientemente de la categoría. Los trazados históricos pueden diferir; el diagrama no demuestra la configuración utilizada en cada temporada.",
+        "it": "Dati e diagrammi descrivono il tracciato moderno documentato, indipendentemente dalla categoria. I tracciati storici possono essere diversi; il diagramma non dimostra la configurazione usata in ogni stagione.",
+    },
+    "circuit_facts_verified": {
+        "en": "Fact snapshot verified {date}; source links are provided for later updates.",
+        "es": "Datos verificados el {date}; los enlaces permiten consultar actualizaciones posteriores.",
+        "it": "Dati verificati il {date}; i collegamenti permettono di consultare aggiornamenti successivi.",
+    },
+    "circuit_attendance_scope": {
+        "en": "{year} · {scope}. Record as reported by the linked source, not a live all-time ranking.",
+        "es": "{year} · {scope}. Récord según la fuente enlazada, no una clasificación histórica actualizada en directo.",
+        "it": "{year} · {scope}. Record secondo la fonte collegata, non una classifica storica aggiornata in tempo reale.",
+    },
+    "circuit_facts_unavailable": {
+        "en": "Verified circuit facts are not yet available for this circuit.",
+        "es": "Todavía no hay datos verificados para este circuito.",
+        "it": "Non sono ancora disponibili dati verificati per questo circuito.",
+    },
+    "circuit_diagram_unavailable": {
+        "en": "A verified, reusable diagram is not yet available for this circuit.",
+        "es": "Todavía no hay un diagrama verificado y reutilizable para este circuito.",
+        "it": "Non è ancora disponibile un diagramma verificato e riutilizzabile per questo circuito.",
+    },
+    "circuit_attendance_unavailable": {
+        "en": "No explicitly reported MotoGP attendance record has been verified; ordinary attendance is not substituted.",
+        "es": "No se ha verificado un récord explícito de asistencia de MotoGP; no se sustituye por una asistencia ordinaria.",
+        "it": "Non è stato verificato un record esplicito di affluenza MotoGP; non viene sostituito con un'affluenza ordinaria.",
+    },
     "categories": {"en": "Categories", "es": "Categorías", "it": "Categorie"},
     "category_detail": {"en": "Detailed analysis category", "es": "Categoría del análisis detallado", "it": "Categoria dell'analisi dettagliata"},
     "select_category": {"en": "Select at least one category.", "es": "Selecciona al menos una categoría.", "it": "Seleziona almeno una categoria."},
