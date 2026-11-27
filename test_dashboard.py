@@ -155,6 +155,9 @@ class DashboardTests(unittest.TestCase):
                 self.assertFalse(app.exception)
                 columns = app.get("column")
                 translator = get_translator(language)
+                self.assertIn(
+                    translator("data_quality_caption"), [caption.value for caption in app.caption]
+                )
                 for key in ["races_coverage_explanation", "laps_coverage_explanation"]:
                     explanation = translator(key)
                     matching = [

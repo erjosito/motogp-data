@@ -174,9 +174,9 @@ TRANSLATIONS = {
         "it": "📊 Qualità e copertura dati",
     },
     "data_quality_caption": {
-        "en": "Classifications come from the API (available for all years). Lap and sector data is parsed from official timing PDFs (not available before 2007, limited for some older seasons).",
-        "es": "Las clasificaciones provienen de la API (disponibles para todos los años). Los datos de vueltas y sectores se extraen de PDFs oficiales de cronometraje (no disponibles antes de 2007, limitados en temporadas más antiguas).",
-        "it": "Le classifiche provengono dall'API (disponibili per tutti gli anni). I dati di giri e settori sono estratti dai PDF ufficiali di cronometraggio (non disponibili prima del 2007, limitati per alcune stagioni più vecchie).",
+        "en": "Coverage reflects imported records, not a complete race archive. Classifications come from available official API results; lap and sector timing comes from available official timing PDFs. Source availability and import progress vary by season and event.",
+        "es": "La cobertura refleja registros importados, no un archivo completo de carreras. Las clasificaciones proceden de los resultados disponibles de la API oficial; los tiempos de vueltas y sectores, de los PDF oficiales disponibles. Las fuentes y el progreso de la importación varían según la temporada y el evento.",
+        "it": "La copertura riflette i record importati, non un archivio completo delle gare. Le classifiche provengono dai risultati disponibili dell'API ufficiale; i tempi di giri e settori, dai PDF ufficiali disponibili. Le fonti e l'avanzamento dell'importazione variano per stagione ed evento.",
     },
     "classifications": {"en": "Classifications", "es": "Clasificaciones", "it": "Classifiche"},
     "lap_entries": {"en": "Lap entries", "es": "Registros de vueltas", "it": "Registri giri"},
