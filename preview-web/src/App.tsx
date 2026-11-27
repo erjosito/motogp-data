@@ -43,18 +43,18 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
     finalRanks.set(label, (finalRanks.get(label) ?? 0) + 1)
   }
   return <>
-    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1>{rider.rider}.</h1><p>More than a name on the timing screen.</p></div>
+    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1 className="rider-title">{rider.number != null && <span className="identity-number" aria-label={`Rider number ${rider.number}`}>#{rider.number}</span>}<span>{rider.rider}.</span></h1><p>More than a name on the timing screen.</p></div>
       <span className="quiet-badge">{data.first_season === data.latest_season ? data.first_season : `${data.first_season} — ${data.latest_season}`} · recorded seasons</span></div>
     <section className={`story-card rider-hero ${rider.rider_id === MARC_ID ? 'marc-hero' : ''}`}>
       <div className="rider-visual-header"><RiderVisualContext rider={rider} /></div>
-      <div className="story-intro"><div className="story-copy"><p className="eyebrow accent">{rider.rider_id === MARC_ID ? 'THE PROTAGONIST / 93' : 'A CAREER IN FOCUS'}</p>
+      <div className="story-intro"><div className="story-copy"><p className="eyebrow accent">{rider.rider_id === MARC_ID ? 'THE PROTAGONIST' : 'A CAREER IN FOCUS'}</p>
         <h2>{data.headline}</h2><p>{data.summary}</p>
         {!!data.titles.length && <p className="eyebrow">OFFICIAL TITLE SEASONS IN THE ARCHIVE</p>}
         <div className="rider-title-years">{data.titles.map((row) => <a key={`${row.season}-${row.category}`}
           href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>
           <Trophy size={13} />{row.season}<span>{categories[row.category]}</span></a>)}</div>
         {!data.titles.length && <p>Explore the recorded results and championship positions below.</p>}
-      </div><div className="comeback-score"><span className="ghost-number" aria-hidden="true">{rider.number ?? ''}</span>
+      </div><div className="comeback-score">
         <span className="eyebrow">{heroLabel}</span><div className="recovery-value">{titleHero || totals.gp_appearances ? totals[heroMetric] : ranked.length}</div>
         <p>{titleHero ? 'Final rank-one season/class records' : !totals.gp_appearances ? 'Supplied season/class championship positions' : 'Across the recorded Grand Prix archive'}</p><div className="mini-stats"><div><strong>{new Set(data.seasons.map((row) => row.season)).size}</strong><span>recorded seasons</span></div>
           <div><strong>{new Set(data.seasons.map((row) => row.category)).size}</strong><span>category families</span></div></div>
@@ -223,6 +223,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
   const narrative = data.story
   const marc = data.standings.find((rider) => rider.rider_id === MARC_ID)
   const leader = data.standings[0]
+  const storyRider = featured && marc ? marc : leader
   const last = data.rounds.at(-1)
   const gap = story ? story.current_margin : 0
   const marginLabel = gap > 0 ? `${gap} points ahead` : gap === 0 ? 'Level on points' : `${-gap} points behind`
@@ -235,6 +236,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
       <div className="story-intro">
         <div className="story-copy">
           <p className="eyebrow accent">{season} / SEASON STORY</p>
+          <div className="story-rider"><RiderName rider={storyRider} linked /></div>
           <h2 id="season-story-title">{narrative.headline}<br /><span>{narrative.accent}</span></h2>
           <p>{narrative.summary}</p>
           {narrative.context_url && <a className="classic-link" href={narrative.context_url} target="_blank" rel="noreferrer">The injury-recovery story · MotoGP<ArrowUpRight size={16} /></a>}
@@ -244,7 +246,6 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
           </span>
         </div>
         <div className="comeback-score">
-          <span className="ghost-number" aria-hidden="true">{featured ? '93' : leader.number ?? season}</span>
           <span className="eyebrow">{narrative.metric_label}</span>
           <div className="recovery-value">{narrative.metric}<ArrowUpRight size={35} aria-hidden="true" /></div>
           <p>{narrative.metric_note}</p>

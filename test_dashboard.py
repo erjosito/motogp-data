@@ -189,6 +189,23 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.exception)
         return app
 
+    def test_paddock_link_is_available_in_the_sidebar_in_each_language(self):
+        app = self.start_app()
+        for language, label in [
+            ("🇬🇧 English", "Open Paddock (React)"),
+            ("🇪🇸 Español", "Abrir Paddock (React)"),
+            ("🇮🇹 Italiano", "Apri Paddock (React)"),
+        ]:
+            app.selectbox(key="language").select(language).run()
+            self.assertFalse(app.exception)
+            links = app.sidebar.get("link_button")
+            self.assertEqual(len(links), 1)
+            self.assertEqual(links[0].proto.url, "https://motogp-data.com/paddock/")
+            self.assertEqual(links[0].proto.label, label)
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.sidebar.get("link_button")[0].proto.url, "https://motogp-data.com/paddock/")
+
     def test_championship_and_coverage_are_both_accessible(self):
         app = self.start_app()
         self.assertIn("2026 MotoGP World Championship", [h.value for h in app.subheader])

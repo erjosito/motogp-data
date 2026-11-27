@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import App, { RiderProfileContent } from './App'
+import App, { ChampionshipContent, RiderProfileContent } from './App'
 import * as api from './api'
 import type { Championship, RiderProfile } from './types'
 
@@ -71,6 +71,8 @@ describe('category selector and navigation', () => {
       expect(html).toContain('The championship finishing record')
       expect(html).not.toContain('0 recorded GP wins')
       expect(html).not.toContain('verification required')
+      expect(html).not.toContain('class="identity-number"')
+      expect(html).not.toContain('ghost-number')
       const nonChampion = renderToStaticMarkup(<RiderProfileContent data={{ ...data, totals: { ...data.totals, titles: 0 },
         seasons: [{ ...season, position: 5 }], titles: [] }} params={new URLSearchParams()} theme="dark" />)
       expect(nonChampion).toContain('OFFICIAL SEASON RECORDS</span><div class="recovery-value">1</div>')
@@ -88,6 +90,10 @@ describe('category selector and navigation', () => {
         titles: [title], venues: [{ venue: 'Circuit', appearances: 2, wins: 1, podiums: 2 }],
       }
       const html = renderToStaticMarkup(<RiderProfileContent data={data} params={new URLSearchParams()} theme="dark" />)
+      const heading = html.slice(html.indexOf('<h1'), html.indexOf('</h1>'))
+      expect(heading).toContain('aria-label="Rider number 93">#93</span>')
+      expect(heading).toContain('A Rider.')
+      expect(html).not.toContain('ghost-number')
       expect(html).toContain('RECORDED GP WINS</span><div class="recovery-value">15</div>')
       expect(html).not.toContain('OFFICIAL TITLES RECORDED')
       expect(html).toContain('OFFICIAL TITLE SEASONS IN THE ARCHIVE')
@@ -120,6 +126,14 @@ describe('category selector and navigation', () => {
       .mockReturnValueOnce({ key: 'seasons', data: [1970], loading: false, error: null, retry: () => {} })
       .mockReturnValueOnce({ key: 'championship', data, loading: false, error: null, retry: () => {} })
     const markup = render('?category=350cc&season=1970')
+    const identity = renderToStaticMarkup(<ChampionshipContent data={{
+      ...data, standings: data.standings.map((row, i) => ({ ...row, number: i === 0 ? 46 : null })),
+    }} category="350cc" theme="dark" />)
+    const storyRider = identity.slice(identity.indexOf('class="story-rider"'), identity.indexOf('<h2 id="season-story-title"'))
+    expect(storyRider).toContain('>46</span>')
+    expect(storyRider).toContain('Giacomo Agostini')
+    expect(storyRider).toContain('view=riders')
+    expect(identity).not.toContain('ghost-number')
     expect(markup).not.toContain('role="alert"')
     expect(markup).not.toContain('Period scoring or source discrepancies')
     expect(markup).not.toContain('need verification')
