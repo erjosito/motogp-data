@@ -182,6 +182,13 @@ class HistoricalImportTests(unittest.TestCase):
                 self.assertEqual(get.call_count, 1)
             self.assertEqual(len(list(Path(directory).glob("*.json"))), 1)
 
+    def test_official_rank_point_disagreement_is_flagged_without_reordering_source(self):
+        from category_scope import official_points_inconsistent
+        raw = [(1, Decimal("9")), (2, Decimal("28")), (3, Decimal("46"))]
+        self.assertTrue(official_points_inconsistent(raw))
+        self.assertFalse(official_points_inconsistent([(3, 40), (1, 76), (2, 76)]))
+        self.assertEqual(raw[0], (1, Decimal("9")))
+
 
 if __name__ == "__main__":
     unittest.main()

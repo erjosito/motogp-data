@@ -16,7 +16,7 @@ import streamlit as st
 from azure.core.exceptions import ClientAuthenticationError
 
 from sql_connection import connect_to_sql
-from category_scope import CATEGORY_FAMILIES, category_sql
+from category_scope import CATEGORY_FAMILIES, category_sql, official_points_inconsistent
 
 warnings.filterwarnings("ignore", message=".*pandas only supports SQLAlchemy.*")
 
@@ -608,12 +608,24 @@ def load_official_standings(year, family="premier"):
     return standings
 
 
+def final_points_need_verification(standings):
+    if standings.empty:
+        return False
+    finals = standings.loc[standings["is_final"].eq(True), ["position", "points"]].dropna()
+    return official_points_inconsistent(finals.itertuples(index=False, name=None))
+
+
 def show_official_standings(standings):
     is_final = standings["is_final"].all()
+    needs_verification = final_points_need_verification(standings)
     st.subheader(t("official_final_standings" if is_final else "official_current_standings"))
-    st.caption(t("official_standings_method"))
+    if needs_verification:
+        st.warning(t("official_points_verification_warning"))
+    else:
+        st.caption(t("official_standings_method"))
     st.dataframe(standings[["position", "rider", "points", "constructor"]].rename(columns={
-        "position": t("position"), "rider": t("rider"), "points": t("points"),
+        "position": t("position"), "rider": t("rider"),
+        "points": t("source_points_verification" if needs_verification else "points"),
         "constructor": t("constructor"),
     }), width="stretch", hide_index=True)
     for url in standings["source_url"].dropna().unique():
@@ -721,6 +733,9 @@ if viz == "🏠 Home":
             show_historical_standings(selected_year, selected_category)
             st.stop()
         official = load_official_standings(selected_year, selected_category)
+        if final_points_need_verification(official):
+            show_official_standings(official)
+            st.stop()
         champ = load_championship(selected_year, selected_category)
         if champ.empty:
             if not official.empty:
@@ -1529,6 +1544,9 @@ elif viz == "🌍 Championship":
     st.caption(t("championship_caption"))
 
     official = load_official_standings(selected_year, selected_category)
+    if final_points_need_verification(official):
+        show_official_standings(official)
+        st.stop()
     champ = load_championship(selected_year, selected_category)
 
     if champ.empty:
@@ -2913,6 +2931,10 @@ elif viz == "📈 Cross-Year":
             show_historical_standings(bump_yr, selected_category)
             st.stop()
 
+        official = load_official_standings(bump_yr, selected_category)
+        if final_points_need_verification(official):
+            show_official_standings(official)
+            st.stop()
         bump = load_championship(bump_yr, selected_category).rename(columns={"race_pts": "pts"})
 
         if bump.empty:
@@ -2957,7 +2979,6 @@ elif viz == "📈 Cross-Year":
         final = cum.iloc[:, -1].sort_values(ascending=False).reset_index()
         final.columns = ["Rider", "Points"]
         final.insert(0, "Pos", range(1, len(final) + 1))
-        official = load_official_standings(bump_yr, selected_category)
         if not official.empty:
             show_official_standings(official)
         else:
@@ -2989,6 +3010,10 @@ elif viz == "📈 Cross-Year":
         rows = []
         for yr, grp in conc.groupby("season_year"):
             official = load_official_standings(int(yr), selected_category)
+            if final_points_need_verification(official):
+                st.caption(f"{t('season')} {int(yr)}")
+                show_official_standings(official)
+                continue
             if not official.empty:
                 top3 = official.head(3).rename(columns={"points": "pts"}).merge(
                     grp.drop(columns=["pts"]), on="rider", how="left"
@@ -3012,6 +3037,8 @@ elif viz == "📈 Cross-Year":
                 "Top 3": top3_names,
             })
         df = pd.DataFrame(rows)
+        if df.empty:
+            st.info(t("no_data")); st.stop()
 
         fig = go.Figure()
         fig.add_trace(go.Bar(x=df["Year"], y=df["Top 3 Avg %"], name=t("top3_avg_efficiency"),
@@ -3538,6 +3565,10 @@ elif viz == "📈 Cross-Year":
         rows = []
         for yr, grp in champ.groupby("season_year"):
             official = load_official_standings(int(yr), selected_category)
+            if final_points_need_verification(official):
+                st.caption(f"{t('season')} {int(yr)}")
+                show_official_standings(official)
+                continue
             if not official.empty:
                 top2 = official.head(2).rename(columns={"points": "pts"}).merge(
                     grp.drop(columns=["pts"]), on="rider", how="left"

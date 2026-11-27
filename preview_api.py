@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
-from category_scope import CATEGORY_FAMILIES, category_sql
+from category_scope import CATEGORY_FAMILIES, category_sql, official_points_inconsistent
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -137,6 +137,7 @@ def build_championship(rows: list[dict], season: int, category: str = "premier")
     return {
         "season": season, "category": category, "standings": standings, "rounds": rounds, "comeback": comeback,
         "external_sources_used": any(row.get("source_kind", "official-api") != "official-api" for row in rows),
+        "official_points_inconsistent": False, "points_warning": None,
         "weekends": len(scoring_events),
         "gp_results": len(gp_events),
         "scoring_sessions": scoring_sessions,
@@ -165,6 +166,16 @@ def season_story(data: dict) -> dict:
     name = leader["rider"]
     official = data["standings_source"] == "official"
     final = data.get("is_final", official)
+    if official and data.get("official_points_inconsistent"):
+        return {
+            "headline": f"{name}: officially ranked first.",
+            "accent": "Supplied points need verification.",
+            "summary": data["points_warning"] + " Official source ranks and supplied scores are preserved unchanged. "
+                       "No points gaps, title margins or comeback are inferred from these totals.",
+            "metric_label": "OFFICIAL RANK", "metric": leader["position"],
+            "metric_note": "Official champion rank" if final else "Official rank to date; not a final result",
+            "context_url": None,
+        }
     summary = (
         f"{name} is officially ranked first on {leader['points']:g} points"
         if official else f"{name} leads the imported results on {leader['points']:g} points"
@@ -331,14 +342,25 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
                   {"AND cs.is_final = 1" if season < 1990 else ""}
             ORDER BY cs.position
         """, (season,))
+    inconsistent = official_points_inconsistent([
+        (row["position"], float(row["points"])) for row in official_rows
+    ])
+    points_warning = (
+        "Supplied official point totals require source verification: points do not follow official ranks. "
+        "Period scoring or source discrepancies may explain this."
+        if inconsistent else None
+    )
     if season < 1990:
         data = build_championship([], season, category)
         first_points = float(official_rows[0]["points"]) if official_rows else 0
         data["standings"] = [{
-            **row, "points": float(row["points"]), "gap": first_points - float(row["points"]),
+            **row, "points": float(row["points"]),
+            "gap": None if inconsistent else first_points - float(row["points"]),
             "team": None, "wins": None, "podiums": None, "series": [],
         } for row in official_rows]
         data["standings_source"] = "official"
+        data["official_points_inconsistent"] = inconsistent
+        data["points_warning"] = points_warning
         data["is_final"] = bool(official_rows) and all(row.get("is_final", season < 1990) for row in official_rows)
         data["story"] = season_story(data)
         return data
@@ -364,7 +386,8 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
         first_points = float(official_rows[0]["points"])
         imported = {row["rider_id"]: row for row in data["standings"]}
         data["standings"] = [{
-            **row, "points": float(row["points"]), "gap": first_points - float(row["points"]),
+            **row, "points": float(row["points"]),
+            "gap": None if inconsistent else first_points - float(row["points"]),
             "team": None,
             "number": imported.get(row["rider_id"], {}).get("number", row["number"]),
             "wins": imported.get(row["rider_id"], {}).get("wins"),
@@ -373,6 +396,10 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
         } for row in official_rows]
         data["standings_source"] = "official"
         data["is_final"] = all(row["is_final"] for row in official_rows)
+        data["official_points_inconsistent"] = inconsistent
+        data["points_warning"] = points_warning
+        if inconsistent:
+            data["comeback"] = None
     data["story"] = season_story(data)
     return data
 

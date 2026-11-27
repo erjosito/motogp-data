@@ -419,6 +419,14 @@ standings are stored separately and must not be derived by summing those gaps.
 The pilots, for example, provide Agostini's official 36 points in 1966 and
 84 in 1975, but only part of each season's race classifications.
 
+Source fidelity does not guarantee that every supplied point total is reliable.
+Both apps warn when official point totals increase down the official ranking.
+Historical counted/gross scoring or source discrepancies may explain a mismatch;
+the original ranks and raw scores are preserved for verification, while derived
+gaps, title margins and point-progression claims are withheld. For example, the
+1970 350cc API supplies 9/28/46 points for its first three ranked riders. These
+values are not silently corrected or replaced with reconstructed race totals.
+
 Source snapshots are cached in ignored `historical_cache\`. Cached reruns verify
 the stored rows without duplicating them; `--refresh` refetches official data.
 Each season commits only after comparison with its source. If verification fails,
@@ -474,9 +482,15 @@ across 21 race parts**. Eight laps have unavailable sector cells; elapsed times
 are preserved but ambiguous collapsed sector values are not guessed.
 Practice/qualifying timing backfill is a separate stage.
 
-The broader uncached expansion encountered an official API rate limit and must
-resume after cooldown. The complete premier archive is preserved. Lower-class
-coverage is not yet a claim of complete careers or all 13 Nieto/15 Agostini titles.
+The broader expansion resumes with cached successful responses and paced
+uncached requests after respecting the official API cooldown. The original
+premier archive is preserved. All seven Agostini 350cc title rankings are now
+represented alongside his eight 500cc titles, but this does not validate every
+supplied point total. Nieto's six 50cc and four 125cc title rankings are available;
+the official API has no final standings for his 1979, 1983 and 1984 125cc titles.
+Those gaps are not filled by summing incomplete race results. Lower-class
+coverage is not yet a claim of complete careers or an independently complete
+championship archive.
 
 ```powershell
 python -m unittest test_import_historical test_load_to_sql test_dashboard

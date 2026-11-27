@@ -72,7 +72,7 @@ export interface Standing extends Rider {
   source_url?: string
   position: number
   points: number
-  gap: number
+  gap: number | null
   wins: number | null
   podiums: number | null
   team: string | null
@@ -90,6 +90,8 @@ export interface Championship {
   standings_source: 'official' | 'computed'
   is_final: boolean
   external_sources_used: boolean
+  official_points_inconsistent: boolean
+  points_warning: string | null
   story: {
     headline: string
     accent: string

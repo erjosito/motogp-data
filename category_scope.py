@@ -36,3 +36,9 @@ def canonical_category(value):
         if normalize_category(category) == key:
             return category
     raise ValueError(f"Unsupported Grand Prix class: {value}")
+
+
+def official_points_inconsistent(position_points):
+    """Flag source totals that cannot safely support rank-derived gaps/margins."""
+    rows = sorted(position_points)
+    return any(right[1] > left[1] for left, right in zip(rows, rows[1:]))

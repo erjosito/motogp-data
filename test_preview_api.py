@@ -146,6 +146,9 @@ class PreviewApiTests(unittest.TestCase):
         self.assertEqual(data["standings_source"], "official")
         self.assertEqual(data["story"]["headline"], "Equal points.")
         self.assertEqual(data["story"]["metric"], 0)
+        self.assertFalse(data["official_points_inconsistent"])
+        self.assertIsNone(data["points_warning"])
+        self.assertEqual([row["gap"] for row in data["standings"]], [0, 0])
         self.assertEqual(data["rounds"], [])
         self.assertIsNone(data["standings"][0]["wins"])
 
@@ -291,6 +294,44 @@ class CategoryApiTests(unittest.TestCase):
         self.assertTrue(data["comeback"]["verified_102"])
         self.assertEqual(data["story"]["headline"], "102 points behind.")
         self.assertFalse(data["is_final"])
+        self.db.execute("UPDATE championship_standings SET points=200 WHERE category='MotoGP' AND position=2")
+        data = self.client.get("/api/championship?season=2026").json()
+        self.assertTrue(data["official_points_inconsistent"])
+        self.assertEqual([row["points"] for row in data["standings"]], [102, 200])
+        self.assertEqual([row["gap"] for row in data["standings"]], [None, None])
+        self.assertIsNone(data["comeback"])
+        self.assertEqual(data["story"]["metric_label"], "OFFICIAL RANK")
+        self.assertNotEqual(data["story"]["headline"], "102 points behind.")
+        self.assertFalse(data["is_final"])
+
+    def test_non_monotonic_historical_points_preserve_ranks_without_a_winning_margin(self):
+        for rider, name in [("ago", "Giacomo Agostini"), ("carruthers", "Kel Carruthers"),
+                            ("pasolini", "Renzo Pasolini")]:
+            self.db.execute("INSERT INTO riders VALUES (?,?,NULL)", (rider, name))
+        for position, rider, points in [(1, "ago", 9), (2, "carruthers", 28), (3, "pasolini", 46)]:
+            self.db.execute("INSERT INTO championship_standings VALUES (1970,'350cc',?,?,?,'Bike','https://example.com',1)",
+                            (position, rider, points))
+        for prefix in ["", "/paddock"]:
+            data = self.client.get(f"{prefix}/api/championship?season=1970&category=350cc").json()
+            self.assertTrue(data["official_points_inconsistent"])
+            self.assertTrue(data["is_final"])
+            self.assertEqual([(row["position"], row["rider_id"], row["points"]) for row in data["standings"]],
+                             [(1, "ago", 9), (2, "carruthers", 28), (3, "pasolini", 46)])
+            self.assertEqual([row["gap"] for row in data["standings"]], [None, None, None])
+            self.assertIsNone(data["comeback"])
+            self.assertIn("source verification", data["points_warning"])
+            self.assertIn("Period scoring or source discrepancies", data["points_warning"])
+            self.assertEqual(data["story"]["metric_label"], "OFFICIAL RANK")
+            self.assertEqual(data["story"]["metric"], 1)
+            self.assertEqual(data["story"]["metric_note"], "Official champion rank")
+            self.assertNotIn("-19", str(data["story"]))
+            self.assertNotIn("a narrow crown", str(data["story"]))
+        self.db.execute("UPDATE championship_standings SET points=46 WHERE rider_id='ago'")
+        self.db.execute("UPDATE championship_standings SET points=9 WHERE rider_id='carruthers'")
+        self.db.execute("UPDATE championship_standings SET points=28 WHERE rider_id='pasolini'")
+        data = self.client.get("/api/championship?season=1970&category=350cc").json()
+        self.assertTrue(data["official_points_inconsistent"])
+        self.assertEqual([row["gap"] for row in data["standings"]], [None, None, None])
 
     def test_official_2025_table_preserves_evidence_backed_marc_story(self):
         self.db.execute("UPDATE events SET season_year=2025")

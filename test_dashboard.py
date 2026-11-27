@@ -245,6 +245,93 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.get("plotly_chart"))
         self.assertIn("counting rules", " ".join(c.value for c in app.caption))
 
+    def test_1970_350cc_anomalous_official_points_remain_raw_and_warn_in_each_language(self):
+        supplied = pd.DataFrame({
+            "position": [1, 2, 3], "rider": ["Ago", "Carruthers", "Pasolini"],
+            "points": [9, 28, 46], "constructor": ["MV Agusta", "Yamaha", "Benelli"],
+            "is_final": [True] * 3, "source_url": [None] * 3,
+        })
+
+        def anomaly_query(sql, conn=None, params=None):
+            if "SELECT DISTINCT season_year" in sql:
+                return pd.DataFrame({"season_year": [1970]})
+            if "SELECT cs.position" in sql and category_sql("350cc", "cs.category") in sql:
+                return supplied.copy()
+            if "SUM(cl.points)" in sql:
+                raise AssertionError("Never reconstruct the anomalous official final")
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = anomaly_query
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("350cc").run()
+        for label, language in [
+            ("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")
+        ]:
+            with self.subTest(language=language):
+                app.selectbox(key="language").select(label).run()
+                translator = get_translator(language)
+                self.assertFalse(app.exception)
+                self.assertIn(translator("official_points_verification_warning"),
+                              [warning.value for warning in app.warning])
+                table = app.dataframe[0].value
+                self.assertEqual(table[translator("position")].tolist(), [1, 2, 3])
+                self.assertEqual(table[translator("rider")].tolist(), ["Ago", "Carruthers", "Pasolini"])
+                self.assertEqual(table[translator("source_points_verification")].tolist(), [9, 28, 46])
+                self.assertNotIn(translator("home_gap_to_leader"), table.columns)
+                self.assertNotIn(translator("official_standings_method"), [c.value for c in app.caption])
+                self.assertFalse(app.metric)
+                self.assertFalse(app.get("plotly_chart"))
+        app.selectbox(key="nav_group").set_value("nav_season").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.warning)
+        self.assertFalse(app.get("plotly_chart"))
+        self.assertEqual(supplied["points"].tolist(), [9, 28, 46])
+
+    def test_flagged_finals_suppress_modern_gaps_progression_and_title_margins(self):
+        def anomaly_query(sql, conn=None, params=None):
+            if "SELECT cs.position" in sql and category_sql("350cc", "cs.category") in sql:
+                return pd.DataFrame({
+                    "position": [1, 2, 3], "rider": ["Ago", "Carruthers", "Pasolini"],
+                    "points": [9, 28, 46], "constructor": ["Bike"] * 3,
+                    "is_final": [True] * 3, "source_url": [None] * 3,
+                })
+            if "SUM(cl.points)" in sql and category_sql("350cc") in sql:
+                raise AssertionError("Flagged finals must not produce progression")
+            if "SUM(c.points) AS pts" in sql:
+                return pd.DataFrame({
+                    "season_year": [2026] * 3, "rider": ["Ago", "Carruthers", "Pasolini"],
+                    "pts": [9, 28, 46], "races": [3] * 3, "sprints": [0] * 3,
+                    "wins": [2, 1, 0], "podiums": [3] * 3,
+                })
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = anomaly_query
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("350cc").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.warning)
+        self.assertFalse(app.metric)
+        self.assertFalse(app.get("plotly_chart"))
+        app.selectbox(key="nav_group").set_value("nav_season").run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.get("plotly_chart"))
+        app.session_state["selected_view_nav_history"] = "viz_crossyear"
+        app.selectbox(key="nav_group").set_value("nav_history")
+        translator = get_translator("en")
+        for chart, selections in [
+            ("cross_bump_chart", [translator("cross_bump_chart"), 2026]),
+            ("cross_championship_concentration", [translator("cross_championship_concentration")]),
+            ("cross_season_dominance", [translator("cross_season_dominance")]),
+        ]:
+            with self.subTest(chart=chart):
+                with patch("streamlit.selectbox", side_effect=selections):
+                    app.run()
+                self.assertFalse(app.exception)
+                self.assertTrue(app.warning)
+                self.assertFalse(app.get("plotly_chart"))
+                self.assertEqual(app.dataframe[0].value[translator("source_points_verification")].tolist(),
+                                 [9, 28, 46])
+
     def test_incomplete_sectors_do_not_produce_ideal_laps(self):
         def partial_sectors(sql, conn=None, params=None):
             data = sample_query(sql, conn, params)

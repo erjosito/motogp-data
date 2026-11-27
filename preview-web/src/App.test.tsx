@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import App from './App'
+import * as api from './api'
+import type { Championship } from './types'
 
 function render(search: string) {
   vi.stubGlobal('window', { location: { search, pathname: '/paddock/' } })
@@ -8,7 +10,10 @@ function render(search: string) {
   return renderToStaticMarkup(<App />)
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 describe('category selector and navigation', () => {
   it('keeps an extinct category selectable alongside every lineage while resources load', () => {
@@ -29,5 +34,43 @@ describe('category selector and navigation', () => {
     expect(markup).toContain('This category key is unsupported')
     expect(markup).toContain('aria-label="Category"')
     expect(markup).not.toContain('Loading race data')
+  })
+
+  it('preserves 9/28/46 supplied scores and official champion rank without displaying a points margin', () => {
+    const data: Championship = {
+      season: 1970, standings_source: 'official', is_final: true,
+      official_points_inconsistent: true,
+      points_warning: 'Supplied official point totals require source verification. Period scoring or source discrepancies may explain this.',
+      external_sources_used: false, rounds: [], gp_results: 0, weekends: 0,
+      scoring_sessions: 0, comeback: null,
+      standings: ['Giacomo Agostini', 'Kel Carruthers', 'Renzo Pasolini'].map((rider, index) => ({
+        rider, rider_id: rider, number: null, position: index + 1,
+        points: [9, 28, 46][index], gap: null, wins: null, podiums: null,
+        team: null, constructor: 'Bike', series: [],
+      })),
+      story: {
+        headline: 'Giacomo Agostini: officially ranked first.',
+        accent: 'Supplied points need verification.',
+        summary: 'Official source ranks and supplied scores are preserved unchanged.',
+        metric_label: 'OFFICIAL RANK', metric: 1, metric_note: 'Official champion rank',
+        context_url: null,
+      },
+    }
+    vi.spyOn(api, 'useResource')
+      .mockReturnValueOnce({ key: 'seasons', data: [1970], loading: false, error: null, retry: () => {} })
+      .mockReturnValueOnce({ key: 'championship', data, loading: false, error: null, retry: () => {} })
+    const markup = render('?category=350cc&season=1970')
+    expect(markup).toContain('role="alert"')
+    expect(markup).toContain('Period scoring or source discrepancies')
+    expect(markup).toContain('OFFICIAL CHAMPION')
+    expect(markup).toContain('Giacomo Agostini')
+    expect(markup).toContain('Supplied pts*')
+    for (const points of [9, 28, 46]) expect(markup).toContain(`class="strong numeric">${points}</td>`)
+    expect(markup).toContain('Dashes in the Gap column mean unavailable, not zero')
+    expect(markup).not.toContain('LEAD OVER SECOND')
+    expect(markup).not.toContain('0 pts')
+    expect(markup).not.toContain('−-19')
+    expect(markup).not.toContain('The comeback curve')
+    expect(markup).not.toContain('a narrow crown')
   })
 })

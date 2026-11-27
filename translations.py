@@ -273,6 +273,16 @@ TRANSLATIONS = {
         "es": "Las posiciones y puntos oficiales importados son la referencia, incluidos los desempates. La clasificación actual es una instantánea, no en directo ni necesariamente final. Los gráficos usan solo puntos de carreras importadas.",
         "it": "Posizioni e punti ufficiali importati sono autorevoli, inclusi gli spareggi. La classifica attuale è un'istantanea, non in diretta né necessariamente finale. I grafici usano solo punti delle gare importate.",
     },
+    "official_points_verification_warning": {
+        "en": "Official final source scores increase down the official ranking. This may reflect period scoring rules or source discrepancies; verify the source before comparing points. Official positions and supplied scores are preserved unchanged; no corrected totals, derived gaps, title margins or points progression are shown for this season.",
+        "es": "Los puntos finales de la fuente oficial aumentan al descender en la clasificación. Puede deberse a las reglas de puntuación de la época o a discrepancias de la fuente; verifique la fuente antes de comparar puntos. Se conservan las posiciones oficiales y los puntos suministrados sin cambios; no se muestran totales corregidos, diferencias calculadas, márgenes del título ni progresión de puntos para esta temporada.",
+        "it": "I punteggi finali della fonte ufficiale aumentano scendendo nella classifica. Ciò può riflettere le regole di punteggio dell'epoca o discrepanze della fonte; verificare la fonte prima di confrontare i punti. Posizioni ufficiali e punteggi forniti sono conservati invariati; per questa stagione non vengono mostrati totali corretti, distacchi calcolati, margini del titolo né progressioni di punti.",
+    },
+    "source_points_verification": {
+        "en": "Source points (verification needed)",
+        "es": "Puntos de la fuente (requieren verificación)",
+        "it": "Punti della fonte (da verificare)",
+    },
     "standings_source": {"en": "Standings source", "es": "Fuente del campeonato", "it": "Fonte della classifica"},
     "historical_standings_method": {
         "en": "Official final positions and season scores for the selected category use the counting rules of the period. These finals are separate from augmented race classifications, which may contain verified external point facts and corroborated missing rows but remain incomplete. Unknown points and lap/sector timing are unavailable, not zero. No cumulative progression or championship title is inferred from partial race scores.",
