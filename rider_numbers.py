@@ -1,4 +1,4 @@
-"""Read exact, verified rider number artwork from a private local asset bundle."""
+"""Read verified rider number artwork for identity or exact historical scope."""
 
 import hashlib
 import json
@@ -45,6 +45,19 @@ def read_number(rider_id, season, category, number, bundle=None):
     if len({asset["sha256"] for asset in matches}) != 1:
         return None
     return _verified(root, matches[0])
+
+
+def read_identity_number(rider_id, bundle=None):
+    """Choose one latest rider design, independently of the displayed race era."""
+    root, assets = _catalog(bundle)
+    matches = [asset for asset in assets
+               if asset["rider_id"] == rider_id and asset["category"] != "MotoE"]
+    if not matches:
+        return None
+    asset = max(matches, key=lambda item: (
+        item["season"], item["category"], item["number"], item["sha256"],
+    ))
+    return _verified(root, asset)
 
 
 def list_numbers(rider_id, season=None, categories=None, bundle=None):

@@ -9,7 +9,7 @@ from PIL import Image
 from fastapi.testclient import TestClient
 
 import preview_api
-from rider_numbers import list_numbers, read_number
+from rider_numbers import list_numbers, read_identity_number, read_number
 from stage_rider_numbers import stage
 
 
@@ -65,6 +65,25 @@ class NumberArtworkTests(unittest.TestCase):
         self.make_bundle([self.row, second])
         self.assertIsNone(read_number(RIDER, 2021, "MotoGP", 93, self.bundle))
         self.assertEqual(list_numbers(RIDER, bundle=self.bundle), [])
+
+    def test_identity_uses_latest_design_with_stable_tie_break_and_verified_bytes(self):
+        other = self.source / "other.png"
+        Image.new("RGBA", (3, 3), "blue").save(other)
+        newer = {**self.row, "season": 2024}
+        alternative = {**newer, "file": str(other), "bytes": other.stat().st_size}
+        self.make_bundle([self.row, newer, alternative])
+        selected, data = read_identity_number(RIDER, self.bundle)
+        self.assertEqual(selected["season"], 2024)
+        self.assertEqual(hashlib.sha256(data).hexdigest(), selected["sha256"])
+        self.assertIsNone(read_identity_number("another-rider", self.bundle))
+        catalog_path = self.bundle / "catalog.json"
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        catalog["assets"].reverse()
+        catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+        self.assertEqual(read_identity_number(RIDER, self.bundle), (selected, data))
+        (self.bundle / selected["file"]).write_bytes(b"tampered")
+        with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            read_identity_number(RIDER, self.bundle)
 
     def test_integrity_and_path_tampering_are_errors(self):
         self.make_bundle()
