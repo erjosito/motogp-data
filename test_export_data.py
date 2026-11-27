@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 from decimal import Decimal
 import io
 import json
@@ -131,6 +132,34 @@ class ExportTests(unittest.TestCase):
                     export.export_database(conn, output)
             self.assertFalse(any(path.name.startswith(".export-") for path in output.parent.iterdir()))
             conn.rollback.assert_called_once()
+
+    def test_snapshot_is_selected_outside_odbc_transaction_before_reading_data(self):
+        conn = MagicMock()
+        conn.autocommit = False
+
+        def execute(query):
+            cursor = MagicMock()
+            if "snapshot_isolation_state" in query:
+                cursor.fetchone.return_value = (1,)
+            elif "SET TRANSACTION" in query:
+                self.assertTrue(conn.autocommit)
+            elif "COUNT_BIG" in query:
+                self.assertFalse(conn.autocommit)
+                cursor.fetchone.return_value = (datetime(2026, 11, 27), 10)
+            elif query == export.RESULTS_SQL:
+                self.assertFalse(conn.autocommit)
+            else:
+                self.fail(query)
+            return cursor
+
+        conn.execute.side_effect = execute
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.object(export, "discover_schema", return_value={"tables": [], "views": []}), \
+                patch.object(export, "write_csv", return_value={"rows": 0, "columns": []}), \
+                patch.object(export, "quality_report", return_value={}):
+            manifest = export.build_payload(conn, Path(temporary))
+        self.assertEqual(manifest["isolation"], "SNAPSHOT")
+        self.assertFalse(conn.autocommit)
 
     def test_failed_verification_never_publishes_an_archive(self):
         with tempfile.TemporaryDirectory() as temporary:

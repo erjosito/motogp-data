@@ -294,7 +294,12 @@ def build_payload(conn, directory):
         raise ValueError("SNAPSHOT isolation is required; the exporter never changes database settings")
     if conn.autocommit:
         raise ValueError("Autocommit must be disabled for a transactionally consistent snapshot")
-    conn.execute("SET TRANSACTION ISOLATION LEVEL SNAPSHOT")
+    # ODBC otherwise starts the SET itself in a transaction at the old isolation level.
+    conn.autocommit = True
+    try:
+        conn.execute("SET TRANSACTION ISOLATION LEVEL SNAPSHOT")
+    finally:
+        conn.autocommit = False
     # Pin the row-version snapshot with a real application-table read.
     snapshot_time = conn.execute("SELECT SYSUTCDATETIME(),COUNT_BIG(*) FROM dbo.events").fetchone()[0]
     schema = discover_schema(conn)
