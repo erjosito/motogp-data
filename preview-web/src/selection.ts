@@ -9,6 +9,13 @@ export const categories = {
 
 export type Category = keyof typeof categories
 
+export function seasonCategory(category: Category, season: number) {
+  if (category === 'premier') return season < 2002 ? '500cc' : 'MotoGP'
+  if (category === 'intermediate') return season < 2010 ? '250cc' : 'Moto2'
+  if (category === 'lightweight') return season < 2012 ? '125cc' : 'Moto3'
+  return categories[category]
+}
+
 export function selectedView(params: URLSearchParams) {
   const requested = params.get('view')
   if (requested && ['riders', 'championship', 'results', 'laps', 'sectors'].includes(requested)) return requested as 'riders' | 'championship' | 'results' | 'laps' | 'sectors'

@@ -5,7 +5,7 @@ import {
   Gauge, Layers3, Menu, Moon, RefreshCw, Sun, Timer, Trophy, Users,
 } from 'lucide-react'
 import { useResource } from './api'
-import { categories, categoryPath, navigationPath, profilePath, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
+import { categories, categoryPath, navigationPath, profilePath, seasonCategory, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
 import type { Category } from './selection'
 import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed, statisticText } from './data'
 import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Session } from './types'
@@ -39,7 +39,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
   const heroLabel = titleHero ? 'TITLES' : !totals.gp_appearances ? 'SEASON RECORDS' : totals.gp_wins ? 'GP WINS' : totals.gp_podiums ? 'GP PODIUMS' : 'GP APPEARANCES'
   const venueMetric = totals.gp_wins > 0 ? 'wins' : totals.gp_podiums > 0 ? 'podiums' : 'appearances'
   const venueRows = [...data.venues].sort((a, b) => b[venueMetric] - a[venueMetric]).slice(0, 7)
-  const seasonLabel = (row: typeof data.seasons[number]) => `${row.season} / ${categories[row.category]}`
+  const seasonLabel = (row: typeof data.seasons[number]) => `${row.season} / ${seasonCategory(row.category, row.season)}`
   const finalRanks = new Map<string, number>()
   for (const row of ranked) {
     const label = `P${row.position}${row.is_final ? '' : ' (to date)'}`
@@ -55,7 +55,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
         {!!data.titles.length && <p className="eyebrow">TITLE SEASONS</p>}
         <div className="rider-title-years">{data.titles.map((row) => <a key={`${row.season}-${row.category}`}
           href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>
-          <Trophy size={13} />{row.season}<span>{categories[row.category]}</span></a>)}</div>
+          <Trophy size={13} />{row.season}<span>{seasonCategory(row.category, row.season)}</span></a>)}</div>
         {!data.titles.length && <p>Explore results and championship positions below.</p>}
       </div><div className="comeback-score">
         <span className="eyebrow">{statisticText(heroLabel)}</span><div className="recovery-value">{titleHero || totals.gp_appearances ? totals[heroMetric] : ranked.length}</div>
@@ -472,6 +472,7 @@ export default function App() {
   const resource = useResource<number[]>(category && view !== 'riders' ? categoryPath('/api/seasons', category) : null)
   const seasons = resource.data ?? []
   const season = selectedSeason(params, seasons)
+  const categoryLabel = category && season ? seasonCategory(category, season) : category ? categories[category] : 'Unknown category'
   useEffect(() => {
     document.title = `MotoGP | ${views.find((item) => item.id === view)!.name}`
   }, [view])
@@ -520,7 +521,7 @@ export default function App() {
       </div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumb"><span>{view === 'riders' ? 'The paddock' : category ? categories[category] : 'Unknown category'}</span><ChevronRight size={13} /><strong>{view === 'riders' ? 'Rider stories' : season ?? 'Season'}</strong></div>
+      <header className="topbar"><div className="breadcrumb"><span>{view === 'riders' ? 'The paddock' : categoryLabel}</span><ChevronRight size={13} /><strong>{view === 'riders' ? 'Rider stories' : season ?? 'Season'}</strong></div>
         <div className="topbar-actions">
           <a className="streamlit-link" href={classicUrl} target="_blank" rel="noreferrer" title="Open Data analysis in a new tab">Data analysis<ArrowUpRight size={16} aria-hidden="true" /></a>
           {view !== 'riders' && <><label className="season-select category-select"><span>CATEGORY</span><select aria-label="Category" value={category ?? ''} onChange={(event) => update({ category: event.target.value })}>
@@ -539,7 +540,7 @@ export default function App() {
         {view !== 'riders' && category && params.has('season') && seasons.length > 0 && Number(params.get('season')) !== season && <p className="notice" role="status">The requested season value is invalid. Showing {season}.</p>}
         {view === 'riders' ? <RiderPage params={params} update={update} theme={theme} /> : !category ? <DataState resource={{ error: null, retry: () => {} }} empty="This category key is unsupported. Choose a Grand Prix category above." />
           : resource.error ? <DataState resource={resource} /> : resource.loading ? <Loading />
-          : !season || !seasons.includes(season) ? <DataState resource={resource} empty={`No data is available for ${categories[category]}${season ? ` in ${season}` : ''}. Choose another season or category.`} />
+          : !season || !seasons.includes(season) ? <DataState resource={resource} empty={`No data is available for ${categoryLabel}${season ? ` in ${season}` : ''}. Choose another season or category.`} />
             : view === 'championship' ? <ChampionshipPage key={category} season={season} category={category} theme={theme} />
               : <SessionWorkspace key={`${category}:${season}`} season={season} category={category} params={params} update={update} view={view} theme={theme} />}
       </main></PageNotes>

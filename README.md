@@ -21,6 +21,10 @@ does not span their recorded seasons. Modern race counts
 exclude non-scoring restarts; historical classification evidence may lack points.
 Standings-only riders receive official-rank charts instead of invented race counts.
 Share a profile with `?view=riders&rider=<rider_id>`; theme parameters persist.
+Season-linked titles, career-chart labels and records use the period's class:
+500cc through 2001 / MotoGP from 2002, 250cc through 2009 / Moto2 from 2010,
+and 125cc through 2011 / Moto3 from 2012. Lineage filters retain their combined
+names; the selected season's breadcrumb uses its actual class.
 The Classic domain root is unchanged.
 Classic's sidebar includes an **Open Paddock (React)** link with an external-link
 icon; it opens the new app in a separate tab without replacing the current analysis.
