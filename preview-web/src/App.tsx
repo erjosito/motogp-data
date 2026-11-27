@@ -2,13 +2,13 @@ import { Component, lazy, Suspense, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, Check, ChevronRight, Flag,
-  Gauge, Layers3, Menu, Moon, RefreshCw, Sun, Timer, Trophy,
+  Gauge, Layers3, Menu, Moon, RefreshCw, Sun, Timer, Trophy, Users,
 } from 'lucide-react'
 import { useResource } from './api'
-import { categories, categoryPath, navigationPath, selectedCategory, selectedSeason, selectionParams } from './selection'
+import { categories, categoryPath, navigationPath, profilePath, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
 import type { Category } from './selection'
 import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed } from './data'
-import type { Analysis, Championship, GrandPrix, Lap, Rider, Session } from './types'
+import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Session } from './types'
 import type { PlotChartProps } from './PlotChart'
 import { seasonCharts } from './seasonCharts'
 import type { SeasonChart } from './seasonCharts'
@@ -17,6 +17,7 @@ import './App.css'
 const Chart = lazy(() => import('./PlotChart'))
 const classicUrl = import.meta.env.VITE_CLASSIC_URL || 'https://motogp-data.com'
 const views = [
+  { id: 'riders', name: 'The riders', icon: Users, detail: 'Remarkable careers. Unforgettable rides.' },
   { id: 'championship', name: 'The title fight', icon: Trophy, detail: 'The season, in perspective' },
   { id: 'results', name: 'Session results', icon: Flag, detail: 'Every position. Every point.' },
   { id: 'laps', name: 'Lap comparison', icon: Timer, detail: 'Find the difference in pace' },
@@ -25,15 +26,129 @@ const views = [
 type View = typeof views[number]['id']
 type UpdateLocation = (values: Record<string, string | null>) => void
 
+export function RiderProfileContent({ data, params, theme }: { data: RiderProfile; params: URLSearchParams; theme: string }) {
+  const { rider, totals } = data
+  const racing = data.seasons.filter((row) => row.gp_appearances > 0)
+  const ranked = data.seasons.filter((row) => row.position != null)
+  const titleHero = totals.titles > 0 && ranked.length === data.seasons.length
+  const heroMetric = titleHero ? 'titles' : totals.gp_wins ? 'gp_wins' : totals.gp_podiums ? 'gp_podiums' : 'gp_appearances'
+  const heroLabel = titleHero ? 'OFFICIAL TITLES RECORDED' : !totals.gp_appearances ? 'OFFICIAL SEASON RECORDS' : totals.gp_wins ? 'RECORDED GP WINS' : totals.gp_podiums ? 'RECORDED GP PODIUMS' : 'RECORDED GP APPEARANCES'
+  const venueMetric = totals.gp_wins > 0 ? 'wins' : totals.gp_podiums > 0 ? 'podiums' : 'appearances'
+  const venueRows = [...data.venues].sort((a, b) => b[venueMetric] - a[venueMetric]).slice(0, 7)
+  const seasonLabel = (row: typeof data.seasons[number]) => `${row.season} / ${categories[row.category]}`
+  const finalRanks = new Map<string, number>()
+  for (const row of ranked) {
+    const label = `P${row.position}${row.is_final ? '' : ' (to date)'}`
+    finalRanks.set(label, (finalRanks.get(label) ?? 0) + 1)
+  }
+  return <>
+    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1>{rider.rider}.</h1><p>More than a name on the timing screen.</p></div>
+      <span className="quiet-badge">{data.first_season === data.latest_season ? data.first_season : `${data.first_season} — ${data.latest_season}`} · recorded seasons</span></div>
+    <section className={`story-card rider-hero ${rider.rider_id === MARC_ID ? 'marc-hero' : ''}`}>
+      <div className="story-intro"><div className="story-copy"><p className="eyebrow accent">{rider.rider_id === MARC_ID ? 'THE PROTAGONIST / 93' : 'A CAREER IN FOCUS'}</p>
+        <h2>{data.headline}</h2><p>{data.summary}</p>
+        {!!data.titles.length && <p className="eyebrow">OFFICIAL TITLE SEASONS IN THE ARCHIVE</p>}
+        <div className="rider-title-years">{data.titles.map((row) => <a key={`${row.season}-${row.category}`}
+          href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>
+          <Trophy size={13} />{row.season}<span>{categories[row.category]}</span></a>)}</div>
+        {!data.titles.length && <p>Explore the recorded results and championship positions below.</p>}
+      </div><div className="comeback-score"><span className="ghost-number" aria-hidden="true">{rider.number ?? ''}</span>
+        <span className="eyebrow">{heroLabel}</span><div className="recovery-value">{titleHero || totals.gp_appearances ? totals[heroMetric] : ranked.length}</div>
+        <p>{titleHero ? 'Final rank-one season/class records' : !totals.gp_appearances ? 'Supplied season/class championship positions' : 'Across the recorded Grand Prix archive'}</p><div className="mini-stats"><div><strong>{new Set(data.seasons.map((row) => row.season)).size}</strong><span>recorded seasons</span></div>
+          <div><strong>{new Set(data.seasons.map((row) => row.category)).size}</strong><span>category families</span></div></div>
+      </div></div>
+    </section>
+    <div className="stats-grid rider-stats">
+      <Stat label={heroMetric === 'gp_wins' ? 'RECORDED GP APPEARANCES' : 'RECORDED GP WINS'} value={totals.gp_appearances ? heroMetric === 'gp_wins' ? totals.gp_appearances : totals.gp_wins : '\u2014'} note="Grand Prix classifications; Sprints kept separate" />
+      <Stat label="RECORDED GP PODIUMS" value={totals.gp_appearances ? totals.gp_podiums : '\u2014'} note="Top-three GP finishes, including victories" />
+      <Stat label="RECORDED SPRINT WINS" value={totals.sprint_appearances ? totals.sprint_wins : '\u2014'} note="Sprint classifications only, not Grand Prix wins" />
+    </div>
+    {rider.rider_id === MARC_ID && <MarcRiderStory params={params} theme={theme} />}
+    <div className="season-chart-grid rider-chart-grid">
+      <section className="panel" data-rider-chart="seasons"><div className="section-heading"><div><p className="eyebrow">THE CAREER ARC</p>
+        <h2>{racing.length ? 'Seasons that made the rider' : 'A place in championship history'}</h2>
+        <p>{racing.length ? totals.gp_podiums ? 'GP wins and other podiums, season by season and class by class.' : 'Recorded Grand Prix appearances, season by season and class by class.' : 'Official championship positions, with final and to-date records distinguished.'}</p></div></div>
+        {racing.length ? <Plot theme={theme} height={420} yTitle={totals.gp_podiums ? 'Recorded GP podiums' : 'Recorded GP appearances'} valueUnit={totals.gp_podiums ? 'podiums' : 'appearances'} stacked series={totals.gp_podiums ? [
+          { id: rider.rider_id, name: 'Wins', type: 'bar', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_wins) },
+          { id: 'other-podiums', name: 'Other podiums', type: 'bar', colors: ['--cp-text-muted'], x: racing.map(seasonLabel), y: racing.map((row) => row.gp_podiums - row.gp_wins) },
+        ] : [{ id: rider.rider_id, name: 'GP appearances', type: 'bar', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_appearances) }]} /> : <Plot theme={theme} height={420} yTitle="Official championship rank" rank valueUnit="rank" series={[
+          { id: rider.rider_id, name: rider.rider, type: 'scatter', x: ranked.map((row) => `${seasonLabel(row)}${row.is_final ? '' : ' (to date)'}`), y: ranked.map((row) => row.position) },
+        ]} />}
+      </section>
+      <section className="panel" data-rider-chart="signature"><div className="section-heading"><div><p className="eyebrow">THE SIGNATURE</p>
+        <h2>{venueRows.length ? `Where the ${venueMetric === 'wins' ? 'victories' : venueMetric === 'podiums' ? 'podiums' : 'races'} happened` : 'The championship finishing record'}</h2>
+        <p>{venueRows.length ? 'Leading venues across the rider’s recorded Grand Prix results.' : 'Frequency of supplied official ranks; no race results inferred.'}</p></div></div>
+        <Plot theme={theme} height={420} yTitle="" xTitle={venueRows.length ? `Recorded GP ${venueMetric}` : 'Season/class records'} valueUnit={venueRows.length ? venueMetric : 'records'} series={[{
+          id: rider.rider_id, name: venueRows.length ? `GP ${venueMetric}` : 'Championship ranks', type: 'bar', orientation: 'h', showValues: true,
+          x: venueRows.length ? venueRows.map((row) => row[venueMetric]) : [...finalRanks.values()],
+          y: venueRows.length ? venueRows.map((row) => row.venue) : [...finalRanks.keys()],
+        }]} />
+      </section>
+    </div>
+    <section className="panel"><div className="section-heading"><div><p className="eyebrow">CHAPTER BY CHAPTER</p><h2>The season record</h2><p>Open any season to explore the title fight.</p></div></div>
+      <div className="table-scroll"><table><thead><tr><th>Season / class</th><th>Official rank</th><th>GP wins</th><th>GP podiums</th><th>Standings</th></tr></thead>
+        <tbody>{[...data.seasons].reverse().map((row) => <tr key={`${row.season}-${row.category}`}>
+          <td><a href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>{seasonLabel(row)} <ArrowUpRight size={12} /></a></td>
+          <td className="numeric">{row.position == null ? '\u2014' : `P${row.position}${row.is_final ? '' : ' · to date'}`}</td>
+          <td className="numeric">{row.gp_appearances ? row.gp_wins : '\u2014'}</td><td className="numeric">{row.gp_appearances ? row.gp_podiums : '\u2014'}</td>
+          <td>{row.source_url ? <a href={row.source_url} target="_blank" rel="noreferrer">Official source <ArrowUpRight size={12} /></a> : '\u2014'}</td>
+        </tr>)}</tbody></table></div>
+      <p className="panel-note">Titles use official final season/class ranks only. Race statistics describe stored classifications across supported classes, not certified complete-career totals. From 1990, only sessions awarding points are counted. Grand Prix and Sprint records remain separate.</p>
+    </section>
+  </>
+}
+
+function MarcRiderStory({ params, theme }: { params: URLSearchParams; theme: string }) {
+  const resource = useResource<Championship>('/api/championship?season=2026&category=premier')
+  const comeback = resource.data?.comeback
+  if (resource.error) return <DataState resource={resource} />
+  if (resource.loading) return <Loading label="Loading the comeback chapter" />
+  if (!comeback?.verified_102) return null
+  return <section className="panel marc-chapter" data-rider-chart="comeback">
+    <div className="section-heading"><div><p className="eyebrow accent">MARC / THE COMEBACK CHAPTER</p><h2>102 behind. {signed(comeback.current_margin)} at the latest result.</h2>
+      <p>{comeback.recovered} points of net recovery from the low. Every imported Sprint and Grand Prix is part of this chapter.</p></div>
+      <a className="text-button" href={profilePath(params, { view: 'championship', season: '2026', category: 'premier' })}>Read the season <ArrowUpRight size={14} /></a></div>
+    <Plot theme={theme} height={300} baseline yTitle="Points vs strongest rival" series={[{
+      id: MARC_ID, name: 'Marc Marquez', x: comeback.history.map((point) => point.label), y: comeback.history.map((point) => point.margin),
+    }]} />
+  </section>
+}
+
+function RiderPage({ params, update, theme }: { params: URLSearchParams; update: UpdateLocation; theme: string }) {
+  const riderId = params.get('rider') ?? MARC_ID
+  const directory = useResource<Rider[]>('/api/riders')
+  const resource = useResource<RiderProfile>(`/api/riders/${encodeURIComponent(riderId)}`)
+  const [search, setSearch] = useState('')
+  useEffect(() => {
+    if (resource.data) document.title = `MotoGP | ${resource.data.rider.rider}`
+  }, [resource.data])
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const riders = (directory.data ?? []).filter((rider) => normalize(rider.rider).includes(normalize(search)))
+  const featuredNames = ['marc marquez', 'valentino rossi', 'giacomo agostini', 'jorge lorenzo', 'dani pedrosa', 'casey stoner', 'francesco bagnaia', 'fabio quartararo']
+  const visible = search ? riders.slice(0, 24) : featuredNames.flatMap((name) => riders.filter((rider) => normalize(rider.rider) === name))
+  return <>
+    {resource.error ? <DataState resource={resource} /> : resource.data ? <RiderProfileContent data={resource.data} params={params} theme={theme} /> : <Loading label="Loading the rider’s story" />}
+    <section className="panel rider-directory"><div className="section-heading"><div><p className="eyebrow">EXPLORE THE PADDOCK</p><h2>Every rider has a story.</h2><p>Find a current contender or a name from the archives.</p></div>
+      <label className="search-label"><span className="eyebrow">FIND A RIDER</span><input aria-label="Find a rider" type="search" value={search} placeholder="Search any rider…" onChange={(event) => setSearch(event.target.value)} /></label></div>
+      {directory.error ? <DataState resource={directory} /> : directory.loading ? <Loading label="Loading the rider directory" /> : <>
+        <div className="rider-directory-grid">{visible.map((rider) => <a key={rider.rider_id} aria-current={rider.rider_id === riderId ? 'page' : undefined}
+          href={profilePath(params, { view: 'riders', rider: rider.rider_id })} onClick={(event) => { event.preventDefault(); update({ view: 'riders', rider: rider.rider_id }); }}>
+          <RiderName rider={rider} /><ArrowUpRight size={15} /></a>)}</div>
+        <p className="panel-note" role="status">{search ? `${riders.length} matching riders${riders.length > 24 ? ' · Showing the first 24; refine your search.' : ''}` : `${directory.data?.length.toLocaleString()} riders in the archive. Search to explore them all.`}</p>
+      </>}
+    </section>
+  </>
+}
+
 function dateLabel(value: string | null | undefined) {
   return value ? new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short' }).format(new Date(value)) : '\u2014'
 }
 
-function RiderName({ rider }: { rider: Rider }) {
+function RiderName({ rider, linked = false }: { rider: Rider; linked?: boolean }) {
   const token = riderStyle(rider.rider_id).token
   return <span className="rider-name">
     <span className="rider-number" style={{ color: `var(${token})` }}>{rider.number ?? '\u2014'}</span>
-    <span>{rider.rider}</span>
+    {linked ? <a href={profilePath(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search), { view: 'riders', rider: rider.rider_id })}>{rider.rider}</a> : <span>{rider.rider}</span>}
   </span>
 }
 
@@ -168,7 +283,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
           <thead><tr><th>Pos</th><th>Rider</th><th>Pts</th><th>Gap</th><th>{official ? 'Imported GP wins' : 'Wins'}</th></tr></thead>
           <tbody>{data.standings.map((rider) => <tr key={rider.rider_id} className={featured && rider.rider_id === MARC_ID ? 'featured-row' : ''}>
             <td><span className={`position ${rider.position <= 3 ? 'top-position' : ''}`}>{String(rider.position).padStart(2, '0')}</span></td>
-            <td><RiderName rider={rider} /><small>{rider.constructor || rider.team || 'Team not recorded'}</small></td>
+            <td><RiderName rider={rider} linked /><small>{rider.constructor || rider.team || 'Team not recorded'}</small></td>
             <td className="strong numeric">{rider.points}</td><td className="muted numeric">{pointsWarning || rider.gap == null || rider.gap === 0 ? '—' : `−${rider.gap}`}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
         <p className="panel-note">{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
@@ -200,7 +315,7 @@ function ResultTable({ data }: { data: Analysis }) {
         <table className="results-table"><thead><tr><th>Pos</th><th>Rider / team</th><th>Laps</th><th>Time</th><th>Gap</th><th>Best lap</th><th>Top speed</th><th>Pts</th><th>Status</th></tr></thead>
           <tbody>{results.map((rider) => <tr key={rider.rider_id}>
             <td><span className={`position ${(rider.position ?? 99) <= 3 ? 'top-position' : ''}`}>{rider.position == null ? '—' : String(rider.position).padStart(2, '0')}</span></td>
-            <td><RiderName rider={rider} /><small>{rider.team ?? rider.constructor ?? 'Not recorded'}</small>{rider.source_kind !== 'official-api' && <small>{rider.source_kind === 'external' ? 'External archive classification' : 'Official classification · externally augmented'}</small>}</td>
+            <td><RiderName rider={rider} linked /><small>{rider.team ?? rider.constructor ?? 'Not recorded'}</small>{rider.source_kind !== 'official-api' && <small>{rider.source_kind === 'external' ? 'External archive classification' : 'Official classification · externally augmented'}</small>}</td>
             <td className="numeric">{rider.total_laps ?? '—'}</td><td className="numeric">{rider.time_text || '—'}</td><td className="numeric muted">{rider.gap_first || '—'}</td>
             <td className="numeric">{lapTime(rider.best_lap_seconds)}</td><td className="numeric">{rider.top_speed == null ? '—' : `${rider.top_speed.toFixed(1)}`}</td><td className="strong numeric">{rider.points ?? '—'}</td><td><span className="status-label">{rider.status ?? '—'}</span></td>
           </tr>)}</tbody>
@@ -331,7 +446,6 @@ function SessionWorkspace({ season, category, params, update, view, theme }: {
     {(invalidEvent || invalidSession) && <p className="notice" role="status">The requested {invalidEvent ? 'Grand Prix' : 'session'} is unavailable in this scope. Showing the latest available race.</p>}
     {event && session && <div className="event-strip"><div><strong>{event.circuit_name ?? event.event_name}</strong><span>{event.country_name} · {dateLabel(session.session_date)}</span></div><div>{session.weather && <span>{session.weather}</span>}{session.air_temp && <span>Air {session.air_temp}</span>}{session.ground_temp && <span>Track {session.ground_temp}</span>}</div></div>}
     {analysis.data?.results.some((row) => row.source_kind !== 'official-api') && <p className="notice">This classification includes verified external archive supplementation. Source labels identify supplemented and external-only rows; no missing timing is invented.</p>}
-    <p className="notice" role="status">Timing limitation: cancellation flags are not yet stored. Recorded lap and sector comparisons may include cancelled times; they are not official valid-lap rankings.</p>
     {failed ? <DataState resource={failed} />
       : eventResource.loading || sessionResource.loading || analysis.loading ? <Loading />
         : !events.length || !sessions.length ? <DataState resource={{ error: null, retry: () => {} }} empty="No classified sessions have been imported for this season or event." />
@@ -343,11 +457,14 @@ export default function App() {
   const [params, setParams] = useState(() => new URLSearchParams(window.location.search))
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? 'light')
   const [menuOpen, setMenuOpen] = useState(false)
+  const view: View = selectedView(params)
   const category = selectedCategory(params.get('category'))
-  const resource = useResource<number[]>(category ? categoryPath('/api/seasons', category) : null)
+  const resource = useResource<number[]>(category && view !== 'riders' ? categoryPath('/api/seasons', category) : null)
   const seasons = resource.data ?? []
   const season = selectedSeason(params, seasons)
-  const view: View = views.find((item) => item.id === params.get('view'))?.id ?? 'championship'
+  useEffect(() => {
+    document.title = `MotoGP | ${views.find((item) => item.id === view)!.name}`
+  }, [view])
 
   useEffect(() => {
     const onPopState = () => {
@@ -376,7 +493,7 @@ export default function App() {
   return <div className="app-shell">
     <a className="skip-link" href="#main">Skip to content</a>
     <aside className={`sidebar ${menuOpen ? 'menu-open' : ''}`}>
-      <a className="brand" href={navigationPath(params, 'championship')} onClick={(event) => { event.preventDefault(); update({ view: 'championship' }) }}>
+      <a className="brand" href={profilePath(params, { view: 'riders', rider: MARC_ID })} onClick={(event) => { event.preventDefault(); update({ view: 'riders', rider: MARC_ID }) }}>
         <span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span><span>MotoGP<span className="brand-sub">RACE INTELLIGENCE</span></span>
       </a>
       <button className="mobile-menu icon-button" aria-label="Toggle navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><Menu size={23} /></button>
@@ -386,30 +503,30 @@ export default function App() {
           onClick={(event) => { event.preventDefault(); update({ view: id }); setMenuOpen(false) }}>
           <Icon size={19} /><span>{name}</span>{view === id && <ChevronRight size={15} className="nav-chevron" />}
         </a>)}</nav>
-        <div className="sidebar-bottom"><span className="preview-tag">NEW ENGINE / PREVIEW</span><h3>A new way to read the race.</h3><p>Four focused tools. The complete suite and all languages are still in Classic.</p>
+        <div className="sidebar-bottom"><span className="preview-tag">NEW ENGINE / PREVIEW</span><h3>The people behind the points.</h3><p>Rider stories, season battles and race analysis. The complete suite and all languages are still in Classic.</p>
           <a className="classic-link" href={classicUrl} target="_blank" rel="noreferrer">Open Classic<ArrowUpRight size={16} /></a>
           <div className="sidebar-foot"><Gauge size={14} /><span>Read-only · Sources labeled</span></div>
         </div>
       </div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumb"><span>{category ? categories[category] : 'Unknown category'}</span><ChevronRight size={13} /><strong>{season ?? 'Season'}</strong></div>
+      <header className="topbar"><div className="breadcrumb"><span>{view === 'riders' ? 'The paddock' : category ? categories[category] : 'Unknown category'}</span><ChevronRight size={13} /><strong>{view === 'riders' ? 'Rider stories' : season ?? 'Season'}</strong></div>
         <div className="topbar-actions">
-          <label className="season-select category-select"><span>CATEGORY</span><select aria-label="Category" value={category ?? ''} onChange={(event) => update({ category: event.target.value })}>
+          {view !== 'riders' && <><label className="season-select category-select"><span>CATEGORY</span><select aria-label="Category" value={category ?? ''} onChange={(event) => update({ category: event.target.value })}>
             {!category && <option value="" disabled>Unsupported category</option>}
             {Object.entries(categories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select></label>
           <label className="season-select"><span>SEASON</span><select aria-label="Season" value={season ?? ''} disabled={!seasons.length} onChange={(event) => update({ season: event.target.value })}>
           {season && !seasons.includes(season) && <option value={season}>{season} · not imported</option>}
           {!seasons.length && <option value="">—</option>}{seasons.map((year) => <option key={year} value={year}>{year}</option>)}
-        </select></label>
+        </select></label></>}
           <button className="icon-button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
           <button className="icon-button" aria-label="Refresh data" onClick={() => window.location.reload()}><RefreshCw size={17} /></button>
         </div>
       </header>
       <main id="main">
-        {category && params.has('season') && seasons.length > 0 && Number(params.get('season')) !== season && <p className="notice" role="status">The requested season value is invalid. Showing {season}.</p>}
-        {!category ? <DataState resource={{ error: null, retry: () => {} }} empty="This category key is unsupported. Choose a Grand Prix category above." />
+        {view !== 'riders' && category && params.has('season') && seasons.length > 0 && Number(params.get('season')) !== season && <p className="notice" role="status">The requested season value is invalid. Showing {season}.</p>}
+        {view === 'riders' ? <RiderPage params={params} update={update} theme={theme} /> : !category ? <DataState resource={{ error: null, retry: () => {} }} empty="This category key is unsupported. Choose a Grand Prix category above." />
           : resource.error ? <DataState resource={resource} /> : resource.loading ? <Loading />
           : !season || !seasons.includes(season) ? <DataState resource={resource} empty={`No data has been imported for ${categories[category]}${season ? ` in ${season}` : ''}. This is not a zero-point result. Choose another season or category; extinct classes remain separate.`} />
             : view === 'championship' ? <ChampionshipPage key={category} season={season} category={category} theme={theme} />

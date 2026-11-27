@@ -241,6 +241,57 @@ class CategoryApiTests(unittest.TestCase):
                     self.assertEqual(self.client.get(f"{prefix}/api/sessions/session-{(index + 1) % 6}/analysis{query}").status_code, 404)
         self.assertEqual(self.client.get("/api/sessions/session-1/analysis").status_code, 404)
 
+    def test_rider_profile_keeps_gp_sprints_and_final_titles_distinct(self):
+        self.db.execute("INSERT INTO sessions VALUES ('sprint','gp','MotoGP','SPR','Sprint',NULL,10,'FINISHED',NULL,NULL,NULL)")
+        self.db.execute("INSERT INTO dbo.vw_effective_classifications (session_id,rider_id,position,points) VALUES ('sprint','rider',1,12)")
+        self.db.execute("INSERT INTO championship_standings VALUES (1970,'350cc',1,'rider',9,'Bike','https://example.com/final',1)")
+        self.db.execute("INSERT INTO championship_standings VALUES (1970,' 350cc™ ',1,'rider',9,'Bike','https://example.com/final',1)")
+        self.db.execute("INSERT INTO championship_standings VALUES (1970,'350cc™',2,'rider',5,'Bike','https://example.com/to-date',0)")
+        self.db.execute("UPDATE events SET circuit_name='Circuit'")
+        for prefix in ["", "/paddock"]:
+            directory = self.client.get(f"{prefix}/api/riders").json()
+            self.assertEqual([row["rider_id"] for row in directory], ["rider"])
+            data = self.client.get(f"{prefix}/api/riders/rider").json()
+            self.assertEqual(data["totals"], {"titles": 1, "gp_appearances": 6, "gp_wins": 6,
+                                             "gp_podiums": 6, "sprint_wins": 1, "sprint_appearances": 1})
+            self.assertEqual(data["titles"][0]["season"], 1970)
+            self.assertEqual(data["titles"][0]["points"], 9)
+            self.assertEqual(data["venues"], [{"venue": "Circuit", "appearances": 6, "wins": 6, "podiums": 6}])
+            self.assertEqual(len(data["seasons"]), 7)
+            self.assertEqual(data["latest_season"], 2026)
+            self.assertEqual(self.client.get(f"{prefix}/api/riders/missing").status_code, 404)
+
+    def test_rider_profile_accepts_standings_only_and_does_not_invent_race_counts(self):
+        self.db.execute("INSERT INTO riders VALUES ('archival','Archival Rider',NULL)")
+        self.db.execute("INSERT INTO championship_standings VALUES (1967,'500cc',2,'archival',46,NULL,'https://example.com',1)")
+        data = self.client.get("/api/riders/archival").json()
+        self.assertEqual(data["totals"]["titles"], 0)
+        self.assertEqual(data["totals"]["gp_appearances"], 0)
+        self.assertIsNone(data["best_season"])
+        self.assertEqual(data["seasons"][0]["position"], 2)
+        self.assertEqual(data["venues"], [])
+        self.assertIn("archival", [row["rider_id"] for row in self.client.get("/api/riders").json()])
+
+    def test_rider_profile_excludes_practice_and_unfinished_sessions_and_counts_dnf_as_appearance(self):
+        self.db.execute("UPDATE sessions SET session_type='FP1' WHERE session_id='session-0'")
+        self.db.execute("UPDATE sessions SET status='NOTSTARTED' WHERE session_id='session-1'")
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET position=NULL WHERE session_id='session-2'")
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET position=0 WHERE session_id='session-3'")
+        data = self.client.get("/api/riders/rider").json()
+        self.assertEqual(data["totals"]["gp_appearances"], 4)
+        self.assertEqual(data["totals"]["gp_wins"], 2)
+        self.assertEqual(data["totals"]["gp_podiums"], 2)
+        self.db.execute("INSERT INTO riders VALUES ('empty','Empty Rider',NULL)")
+        self.assertEqual(self.client.get("/api/riders/empty").status_code, 404)
+
+    def test_rider_profile_does_not_count_non_scoring_modern_restarts_as_wins(self):
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET points=0 WHERE session_id='session-0'")
+        data = self.client.get("/api/riders/rider").json()
+        self.assertEqual(data["totals"]["gp_wins"], 5)
+        self.db.execute("UPDATE events SET season_year=1969")
+        historical = self.client.get("/api/riders/rider").json()
+        self.assertEqual(historical["totals"]["gp_wins"], 6)
+
     def test_unsupported_keys_are_rejected_before_database_access(self):
         with patch.object(preview_api, "query") as query:
             for endpoint in ["/seasons", "/events?season=2026", "/events/gp/sessions",

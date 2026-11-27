@@ -9,9 +9,24 @@ Downloads comprehensive MotoGP weekend data — **all sessions, lap-by-lap times
 [Preview revision](https://motogp-data---preview.bluehill-35b09ccb.swedencentral.azurecontainerapps.io/)
 
 The React/TypeScript + FastAPI preview runs alongside the classic Streamlit app,
-using the same read-only, managed-identity Azure SQL connection. Its four views
-cover category-scoped championships, session results, rider lap comparisons,
-and sector analysis. Every season has an evidence-backed story: dominance,
+using the same read-only, managed-identity Azure SQL connection. Paddock now opens
+on **Marc Marquez's rider profile**, with a searchable page for every rider in
+the recorded championship/race archive. Each profile features official final
+titles, recorded GP wins and podiums, separately counted Sprint wins, signature
+venues and at least two charts. Marc also has a dedicated verified comeback
+chapter. Career counts describe the stored archive, not certified complete
+career totals; final titles never include standings to date. Profiles lead with
+race achievements instead of a numeric title hero when official rank coverage
+does not span their recorded seasons. Modern race counts
+exclude non-scoring restarts; historical classification evidence may lack points.
+Standings-only riders receive official-rank charts instead of invented race counts.
+Share a profile with `?view=riders&rider=<rider_id>`; theme parameters persist.
+The Classic domain root is unchanged.
+
+The other views cover category-scoped championships, session results, rider lap
+comparisons, and sector analysis. Explicit season/event/session deep links retain
+their destination rather than being redirected to the new entry page.
+Every season has an evidence-backed story: dominance,
 consistency, narrow margins or a turnaround, with the actual supporting metric.
 The 2026 championship highlights Marc Marquez's recovery from the verified
 102-point deficit, including every imported Sprint and Grand Prix. His 2025

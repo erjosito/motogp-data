@@ -25,6 +25,33 @@ export interface Rider {
   number: number | null
 }
 
+export interface RiderSeason {
+  season: number
+  category: Category
+  gp_appearances: number
+  gp_wins: number
+  gp_podiums: number
+  sprint_wins: number
+  sprint_appearances: number
+  position: number | null
+  points: number | null
+  is_final: boolean
+  source_url: string | null
+}
+
+export interface RiderProfile {
+  rider: Rider
+  headline: string
+  summary: string
+  totals: Pick<RiderSeason, 'gp_appearances' | 'gp_wins' | 'gp_podiums' | 'sprint_wins' | 'sprint_appearances'> & { titles: number }
+  seasons: RiderSeason[]
+  titles: RiderSeason[]
+  best_season: RiderSeason | null
+  venues: { venue: string; appearances: number; wins: number; podiums: number }[]
+  first_season: number
+  latest_season: number
+}
+
 export interface Result extends Rider {
   source_kind: 'official-api' | 'official-api+external' | 'external'
   position: number | null

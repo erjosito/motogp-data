@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
-from category_scope import CATEGORY_FAMILIES, category_sql, official_points_inconsistent
+from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, official_points_inconsistent
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -302,6 +302,128 @@ def seasons(category: str = "premier"):
         ORDER BY season DESC
     """)
     return [row["season"] for row in rows]
+
+
+def rider_category(value: str) -> str | None:
+    key = normalize_category(value)
+    return next((family for family, labels in CATEGORY_FAMILIES.items()
+                 if key in [normalize_category(label) for label in labels]), None)
+
+
+def build_rider_profile(rider: dict, races: list[dict], standings: list[dict]) -> dict:
+    seasons_by_class = {}
+    venues = {}
+    for race in races:
+        family = rider_category(race["category"])
+        if family is None:
+            continue
+        key = (race["season"], family)
+        season = seasons_by_class.setdefault(key, {
+            "season": key[0], "category": family, "gp_appearances": 0, "gp_wins": 0,
+            "gp_podiums": 0, "sprint_wins": 0, "sprint_appearances": 0,
+            "position": None, "points": None, "is_final": False, "source_url": None,
+        })
+        position = race["position"]
+        if race["session_type"] == "SPR":
+            season["sprint_appearances"] += 1
+            season["sprint_wins"] += position == 1
+            continue
+        season["gp_appearances"] += 1
+        season["gp_wins"] += position == 1
+        season["gp_podiums"] += position is not None and 1 <= position <= 3
+        venue_name = race["circuit_name"] or race["event_name"]
+        venue = venues.setdefault(venue_name, {"venue": venue_name, "appearances": 0, "wins": 0, "podiums": 0})
+        venue["appearances"] += 1
+        venue["wins"] += position == 1
+        venue["podiums"] += position is not None and 1 <= position <= 3
+    for row in standings:
+        family = rider_category(row["category"])
+        if family is None:
+            continue
+        key = (row["season"], family)
+        season = seasons_by_class.setdefault(key, {
+            "season": key[0], "category": family, "gp_appearances": 0, "gp_wins": 0,
+            "gp_podiums": 0, "sprint_wins": 0, "sprint_appearances": 0,
+            "position": None, "points": None, "is_final": False, "source_url": None,
+        })
+        if season["is_final"] and not row["is_final"]:
+            continue
+        season.update(position=row["position"], points=float(row["points"]),
+                      is_final=bool(row["is_final"]), source_url=row["source_url"])
+    career = sorted(seasons_by_class.values(), key=lambda row: (row["season"], row["category"]))
+    totals = {key: sum(row[key] for row in career)
+              for key in ["gp_appearances", "gp_wins", "gp_podiums", "sprint_wins", "sprint_appearances"]}
+    titles = [row for row in career if row["is_final"] and row["position"] == 1]
+    best = max((row for row in career if row["gp_appearances"]), key=lambda row: (row["gp_wins"], row["gp_podiums"], row["season"]), default=None)
+    is_marc = rider["rider_id"] == MARC_ID
+    name = rider["rider"].split(" ")[0]
+    headline = "The art of coming back." if is_marc else (
+        f"{len(titles)} recorded titles. One remarkable rider." if titles and all(row["position"] is not None for row in career) else
+        f"{name}, at the sharp end." if totals["gp_wins"] else f"{name}, beyond the standings.")
+    if best and best["gp_wins"]:
+        summary = f"{best['gp_wins']} recorded GP wins in {best['season']}: the strongest winning season in this rider's archive."
+    elif titles:
+        summary = "A career defined by official championship-winning seasons."
+    else:
+        summary = "The seasons, results and championship positions that tell this rider's story."
+    return {
+        "rider": rider, "headline": headline, "summary": summary, "totals": {**totals, "titles": len(titles)},
+        "seasons": career, "titles": titles, "best_season": best,
+        "venues": sorted(venues.values(), key=lambda row: (-row["wins"], -row["podiums"], -row["appearances"], row["venue"])),
+        "first_season": career[0]["season"] if career else None,
+        "latest_season": career[-1]["season"] if career else None,
+    }
+
+
+@api.get("/api/riders")
+def rider_directory():
+    scope = " OR ".join(f"({selected_class(family)})" for family in CATEGORY_FAMILIES)
+    standings_scope = " OR ".join(f"({selected_class(family, 'cs.category')})" for family in CATEGORY_FAMILIES)
+    return query(f"""
+        WITH active_riders AS (
+            SELECT cs.rider_id FROM championship_standings cs WHERE {standings_scope}
+            UNION
+            SELECT c.rider_id FROM dbo.vw_effective_classifications c
+            JOIN sessions s ON s.session_id = c.session_id
+            JOIN events e ON e.event_id = s.event_id
+            WHERE s.status = 'FINISHED' AND s.session_type IN ('RAC','SPR') AND ({scope})
+                AND (e.season_year < 1990 OR EXISTS (
+                    SELECT 1 FROM dbo.vw_effective_classifications scored
+                    WHERE scored.session_id = s.session_id AND scored.points > 0
+                ))
+        )
+        SELECT r.rider_id, r.full_name AS rider, r.number FROM riders r
+        JOIN active_riders a ON a.rider_id = r.rider_id
+        ORDER BY r.full_name, r.rider_id
+    """)
+
+
+@api.get("/api/riders/{rider_id}")
+def rider_profile(rider_id: str):
+    riders = query("SELECT rider_id, full_name AS rider, number FROM riders WHERE rider_id = ?", (rider_id,))
+    if not riders:
+        raise HTTPException(404, "Rider not found.")
+    races = query("""
+        SELECT e.season_year AS season, s.category, s.session_type, c.position,
+               e.circuit_name, e.event_name
+        FROM dbo.vw_effective_classifications c
+        JOIN sessions s ON s.session_id = c.session_id JOIN events e ON e.event_id = s.event_id
+        WHERE c.rider_id = ? AND s.status = 'FINISHED' AND s.session_type IN ('RAC','SPR')
+            AND (e.season_year < 1990 OR EXISTS (
+                SELECT 1 FROM dbo.vw_effective_classifications scored
+                WHERE scored.session_id = s.session_id AND scored.points > 0
+            ))
+        ORDER BY e.season_year, s.category, s.session_id
+    """, (rider_id,))
+    standings = query("""
+        SELECT cs.season_year AS season, cs.category, cs.position, cs.points, cs.is_final, cs.source_url
+        FROM championship_standings cs WHERE cs.rider_id = ?
+        ORDER BY cs.season_year, cs.category, cs.is_final
+    """, (rider_id,))
+    profile = build_rider_profile(riders[0], races, standings)
+    if not profile["seasons"]:
+        raise HTTPException(404, "No Grand Prix career evidence is available for this rider.")
+    return profile
 
 
 @api.get("/api/events")

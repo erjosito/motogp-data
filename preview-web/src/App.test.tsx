@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import App from './App'
+import App, { RiderProfileContent } from './App'
 import * as api from './api'
-import type { Championship } from './types'
+import type { Championship, RiderProfile } from './types'
 
 function render(search: string) {
   vi.stubGlobal('window', { location: { search, pathname: '/paddock/' } })
@@ -29,11 +29,62 @@ describe('category selector and navigation', () => {
   })
 
   it('defaults to premier but offers recovery for invalid deep-linked categories', () => {
-    expect(render('')).toContain('<option value="premier" selected="">MotoGP / 500cc</option>')
+    expect(render('?view=championship')).toContain('<option value="premier" selected="">MotoGP / 500cc</option>')
     const markup = render('?category=unsupported')
     expect(markup).toContain('This category key is unsupported')
     expect(markup).toContain('aria-label="Category"')
     expect(markup).not.toContain('Loading race data')
+  })
+
+  describe('rider-first entry', () => {
+    it('opens Marc on a bare or theme-only URL without season controls', () => {
+      const spy = vi.spyOn(api, 'useResource').mockReturnValue({ key: '', data: null, error: null, loading: true, retry: () => {} })
+      const markup = render('?clawpilotTheme=dark')
+      expect(markup).toContain('The riders')
+      expect(markup).toContain('Rider stories')
+      expect(markup).not.toContain('aria-label="Season"')
+      expect(markup).not.toContain('aria-label="Category"')
+      expect(spy).toHaveBeenCalledWith('/api/riders/f55b433d-38b8-4d1d-bb3a-a709c82a0260')
+      expect(markup).toContain('Find a rider')
+    })
+
+    it('gives a standings-only historical rider two charts without claiming zero race results', () => {
+      const season = { season: 1970, category: '350cc' as const, gp_appearances: 0, gp_wins: 0, gp_podiums: 0,
+        sprint_wins: 0, sprint_appearances: 0, position: 1, points: 9, is_final: true, source_url: 'https://example.com' }
+      const data: RiderProfile = {
+        rider: { rider_id: 'ago', rider: 'Giacomo Agostini', number: null }, headline: 'A remarkable rider.', summary: 'Official championship-winning seasons.',
+        totals: { titles: 1, gp_appearances: 0, gp_wins: 0, gp_podiums: 0, sprint_appearances: 0, sprint_wins: 0 },
+        first_season: 1970, latest_season: 1970, best_season: null, seasons: [season], titles: [season], venues: [],
+      }
+      const html = renderToStaticMarkup(<RiderProfileContent data={data} params={new URLSearchParams('clawpilotTheme=dark')} theme="dark" />)
+      expect(html.match(/data-rider-chart=/g)).toHaveLength(2)
+      expect(html).toContain('OFFICIAL TITLES RECORDED')
+      expect(html).toContain('view=championship&amp;season=1970&amp;category=350cc&amp;clawpilotTheme=dark')
+      expect(html).toContain('The championship finishing record')
+      expect(html).not.toContain('0 recorded GP wins')
+      expect(html).not.toContain('verification required')
+      const nonChampion = renderToStaticMarkup(<RiderProfileContent data={{ ...data, totals: { ...data.totals, titles: 0 },
+        seasons: [{ ...season, position: 5 }], titles: [] }} params={new URLSearchParams()} theme="dark" />)
+      expect(nonChampion).toContain('OFFICIAL SEASON RECORDS</span><div class="recovery-value">1</div>')
+      expect(nonChampion).not.toContain('RECORDED GP APPEARANCES')
+    })
+
+    it('leads with race achievements instead of an incomplete title count', () => {
+      const title = { season: 2012, category: 'intermediate' as const, gp_appearances: 17, gp_wins: 9, gp_podiums: 14,
+        sprint_wins: 0, sprint_appearances: 0, position: 1, points: 328, is_final: true, source_url: 'https://example.com' }
+      const data: RiderProfile = {
+        rider: { rider_id: 'rider', rider: 'A Rider', number: 93 }, headline: 'At the sharp end.', summary: 'A winning career.',
+        totals: { titles: 1, gp_appearances: 35, gp_wins: 15, gp_podiums: 30, sprint_appearances: 0, sprint_wins: 0 },
+        first_season: 2012, latest_season: 2013, best_season: title,
+        seasons: [title, { ...title, season: 2013, category: 'premier', position: null, is_final: false, source_url: null }],
+        titles: [title], venues: [{ venue: 'Circuit', appearances: 2, wins: 1, podiums: 2 }],
+      }
+      const html = renderToStaticMarkup(<RiderProfileContent data={data} params={new URLSearchParams()} theme="dark" />)
+      expect(html).toContain('RECORDED GP WINS</span><div class="recovery-value">15</div>')
+      expect(html).not.toContain('OFFICIAL TITLES RECORDED')
+      expect(html).toContain('OFFICIAL TITLE SEASONS IN THE ARCHIVE')
+      expect(html).toContain('RECORDED GP APPEARANCES')
+    })
   })
 
   it('preserves 9/28/46 supplied scores and official champion rank without displaying a points margin', () => {

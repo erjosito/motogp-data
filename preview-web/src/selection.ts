@@ -9,6 +9,20 @@ export const categories = {
 
 export type Category = keyof typeof categories
 
+export function selectedView(params: URLSearchParams) {
+  const requested = params.get('view')
+  if (requested && ['riders', 'championship', 'results', 'laps', 'sectors'].includes(requested)) return requested as 'riders' | 'championship' | 'results' | 'laps' | 'sectors'
+  if (params.has('event') || params.has('session')) return 'results'
+  return params.has('season') || params.has('category') ? 'championship' : 'riders'
+}
+
+export function profilePath(current: URLSearchParams, values: Record<string, string>) {
+  const next = new URLSearchParams(values)
+  const theme = current.get('clawpilotTheme')
+  if (theme) next.set('clawpilotTheme', theme)
+  return `?${next}`
+}
+
 export function selectedCategory(value: string | null): Category | null {
   if (value === null) return 'premier'
   return Object.hasOwn(categories, value) ? value as Category : null

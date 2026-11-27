@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { appPath } from './paths'
-import { categories, categoryPath, navigationPath, selectedCategory, selectedSeason, selectionParams } from './selection'
+import { categories, categoryPath, navigationPath, profilePath, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
 
 describe('category selection', () => {
+  it('defaults to riders while preserving season and session deep links', () => {
+    for (const search of ['', 'clawpilotTheme=light', 'rider=other']) expect(selectedView(new URLSearchParams(search))).toBe('riders')
+    expect(selectedView(new URLSearchParams('season=1967'))).toBe('championship')
+    expect(selectedView(new URLSearchParams('category=50cc'))).toBe('championship')
+    expect(selectedView(new URLSearchParams('session=race'))).toBe('results')
+    expect(selectedView(new URLSearchParams('view=riders&season=1967'))).toBe('riders')
+    expect(selectedView(new URLSearchParams('view=laps&session=race'))).toBe('laps')
+    const link = profilePath(new URLSearchParams('view=laps&session=old&clawpilotTheme=dark'), { view: 'championship', category: '350cc', season: '1970' })
+    expect(link).toBe('?view=championship&category=350cc&season=1970&clawpilotTheme=dark')
+  })
   it('defaults only an absent category and rejects unsupported or inherited keys', () => {
     expect(selectedCategory(null)).toBe('premier')
     for (const key of Object.keys(categories)) expect(selectedCategory(key)).toBe(key)
