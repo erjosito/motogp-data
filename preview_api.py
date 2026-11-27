@@ -2,6 +2,7 @@
 
 import logging
 import math
+import re
 import os
 from collections import Counter, defaultdict
 from contextlib import closing
@@ -10,7 +11,7 @@ from pathlib import Path
 import pyodbc
 from azure.core.exceptions import ClientAuthenticationError
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
@@ -18,6 +19,7 @@ from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, 
 from rider_profiles import read_enrichment
 from circuit_catalog import circuit_details, projected_outline
 from rider_media import read_portrait
+from rider_numbers import list_numbers, read_number
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -226,7 +228,7 @@ def season_story(data: dict) -> dict:
             summary=f"After {low['label']}, Marc Marquez was 102 points behind the strongest rival. "
                     f"His latest margin is {comeback['current_margin']:+g} points. The timeline includes every imported Sprint and Grand Prix.",
             metric_label="THE RECOVERY", metric=comeback["recovered"],
-            metric_note="Points recovered since the lowest recorded margin",
+            metric_note="Points recovered since the lowest margin",
         )
         if official:
             story["summary"] += " The curve uses imported race points; the table preserves official standings to date, not a final championship."
@@ -261,8 +263,8 @@ def season_story(data: dict) -> dict:
         if len(margins) > 1 and margins[-2] < 0 <= margins[-1]:
             story.update(kind="late-surge", headline="The latest race changed the lead." if season == 2026 else "The last race changed everything.",
                          accent=f"{name} took the top spot.",
-                         summary=summary + " The leading rider in the imported points changed in the latest recorded scoring session.",
-                         metric_label="LATEST RECORDED MARGIN" if season == 2026 else "FINAL RECORDED MARGIN", metric=gap,
+                         summary=summary + " The leading rider in the imported points changed in the latest scoring session.",
+                         metric_label="LATEST MARGIN" if season == 2026 else "FINAL MARGIN", metric=gap,
                          metric_note="Points ahead after the last imported session")
         elif deficit >= 25:
             story.update(kind="comeback", headline=f"{name}: the long way back.", accent=f"From {deficit:g} behind to the top.",
@@ -280,7 +282,7 @@ def season_story(data: dict) -> dict:
                          metric_note="From imported scoring classifications")
         elif data["gp_results"] and leader["podiums"] >= data["gp_results"] / 2:
             story.update(kind="consistency", headline=f"{name}: always in the picture.", accent="Consistency wrote the story.",
-                         summary=summary + f" {leader['podiums']} podiums are recorded across {data['gp_results']} GP races.",
+                         summary=summary + f" {leader['podiums']} podiums across {data['gp_results']} GP races.",
                          metric_label="GRAND PRIX PODIUMS", metric=leader["podiums"],
                          metric_note=f"Across {data['gp_results']} imported GP races")
     return story
@@ -361,10 +363,10 @@ def build_rider_profile(rider: dict, races: list[dict], standings: list[dict]) -
     is_marc = rider["rider_id"] == MARC_ID
     name = rider["rider"].split(" ")[0]
     headline = "The art of coming back." if is_marc else (
-        f"{len(titles)} recorded titles. One remarkable rider." if titles and all(row["position"] is not None for row in career) else
+        f"{len(titles)} titles. One remarkable rider." if titles and all(row["position"] is not None for row in career) else
         f"{name}, at the sharp end." if totals["gp_wins"] else f"{name}, beyond the standings.")
     if best and best["gp_wins"]:
-        summary = f"{best['gp_wins']} recorded GP wins in {best['season']}: the strongest winning season in this rider's archive."
+        summary = f"{best['gp_wins']} GP wins in {best['season']}: the strongest winning season."
     elif titles:
         summary = "A career defined by official championship-winning seasons."
     else:
@@ -467,6 +469,26 @@ def rider_portrait(rider_id: str, season: int = Query(ge=1949, le=3000), categor
             "width": item["width_px"], "height": item["height_px"],
         } for item in sorted(asset["display_derivatives"], key=lambda row: row["width_px"])],
     }}
+
+
+@api.get("/api/riders/{rider_id}/number-art")
+def rider_number_art(rider_id: str):
+    assets = list_numbers(rider_id)
+    return {"artwork": [{
+        "season": asset["season"], "category": asset["category"], "number": asset["number"],
+        "source_url": asset["source_url"],
+        "url": f'/api/riders/{rider_id}/number-art/{asset["season"]}/{asset["category"]}/{asset["number"]}',
+    } for asset, _ in assets]}
+
+
+@api.get("/api/riders/{rider_id}/number-art/{season}/{category}/{number}")
+def rider_number_image(rider_id: str, season: int, category: str, number: int):
+    if category not in ("MotoGP", "Moto2", "Moto3", "500cc", "250cc", "125cc", "350cc", "50cc", "80cc"):
+        raise HTTPException(400, "Unsupported category.")
+    result = read_number(rider_id, season, category, number)
+    if result is None:
+        raise HTTPException(404, "No unambiguous number artwork in this scope.")
+    return Response(content=result[1], media_type="image/png")
 
 
 @api.get("/api/riders/{rider_id}/portrait/{width}")
@@ -644,7 +666,54 @@ def analysis(session_id: str, category: str = "premier"):
         lap["sectors"] = [seconds(lap[key]) for key in ["t1", "t2", "t3", "t4"]]
     for result in results:
         result["best_lap_seconds"] = seconds(result["best_lap_time"])
+    add_finish_gaps(metadata[0]["session_type"], results)
     return {"session": metadata[0], "results": results, "laps": laps}
+
+
+def add_finish_gaps(session_type: str, results: list[dict]) -> None:
+    """Compare supported elapsed race times, never heterogeneous source gap text."""
+    winners = [row for row in results if row["position"] == 1]
+    winner = winners[0] if len(winners) == 1 else None
+
+    def elapsed(row):
+        # This legacy column holds the raw source duration string, not milliseconds.
+        raw = row.get("time_ms")
+        if not isinstance(raw, str) or not re.fullmatch(r"\d+:[0-5]\d\.\d{3}", raw):
+            return None
+        return seconds(raw)
+
+    def finished(row):
+        laps = row.get("total_laps")
+        return row.get("status") == "INSTND" and isinstance(laps, int) and not isinstance(laps, bool) and laps > 0
+
+    winner_time = elapsed(winner) if winner and finished(winner) else None
+    if winner and str(winner.get("gap_first") or "").strip().removeprefix("+") not in ("", "0.000"):
+        winner_time = None
+    for row in results:
+        gap = None
+        if session_type not in ("RAC", "SPR"):
+            reason = "Not a race or Sprint."
+        elif winner_time is None:
+            reason = "A unique classified P1 with supported elapsed time is unavailable."
+        elif not isinstance(row["position"], int) or row["position"] < 1 or sum(item["position"] == row["position"] for item in results) != 1:
+            reason = "A unique classification rank is unavailable."
+        elif not finished(row):
+            reason = "A classified finish and positive completed lap count are required."
+        elif row["total_laps"] != winner["total_laps"]:
+            reason = "Different completed lap count; not comparable on this time scale."
+        elif (recorded := elapsed(row)) is None:
+            reason = "Supported elapsed race time is unavailable."
+        elif (difference := round(recorded - winner_time, 3)) < 0:
+            reason = "Elapsed time conflicts with classification order."
+        else:
+            source_gap = str(row.get("gap_first") or "").strip().removeprefix("+")
+            # Compare the source label literally; never turn lap/penalty/status text into seconds.
+            if source_gap and source_gap != f"{difference:.3f}":
+                reason = "Source gap differs from the elapsed-time comparison or has another basis."
+            else:
+                gap, reason = difference, None
+        row["finish_gap_seconds"] = gap
+        row["finish_gap_reason"] = reason
 
 
 app.include_router(api)

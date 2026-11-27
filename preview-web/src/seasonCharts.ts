@@ -85,7 +85,7 @@ export function seasonCharts(data: Championship): { layout: string; charts: [Sea
     return {
       layout: 'coverage',
       charts: [{
-        id: 'record-coverage', title: 'What the archive actually holds',
+        id: 'record-coverage', title: 'The season at a glance',
         description: 'Available records are evidence, not a reconstructed championship.',
         note: 'These are actual counts for finished sessions in this season/category. Zero means no rows are stored.',
         kind: 'bar', yTitle: 'Stored rows', valueUnit: 'rows',
@@ -124,7 +124,7 @@ export function seasonCharts(data: Championship): { layout: string; charts: [Sea
     const subjectName = featured ? data.standings.find((rider) => rider.rider_id === MARC_ID)?.rider ?? 'Marc Marquez' : leader.rider
     const curve: SeasonChart = {
       id: 'gap', title: featured ? 'The comeback curve' : 'The lead changed hands',
-      description: 'Points relative to the strongest imported rival after each recorded scoring session.',
+      description: 'Points relative to the strongest imported rival after each scoring session.',
       note: 'This is an imported race-points curve, independent of any official standings snapshot.',
       kind: 'line', yTitle: 'Points vs strongest rival', baseline: true,
       series: [{ id: subjectId, name: subjectName, x: history.map((point) => point.label), y: history.map((point) => point.margin) }],
@@ -133,7 +133,7 @@ export function seasonCharts(data: Championship): { layout: string; charts: [Sea
       const start = Math.max(0, data.rounds.length - 3)
       return { layout: 'late-surge', charts: [curve, {
         id: 'decisive-sessions', title: 'The sessions that swung the lead',
-        description: 'Points added by the leading pair in the last three recorded sessions.',
+        description: 'Points added by the leading pair in the last three sessions.',
         note: 'Actual changes in imported cumulative points; these are not inferred from official final totals.',
         kind: 'bar', yTitle: 'Imported session points',
         series: [leader, second].map((rider) => ({
@@ -162,7 +162,7 @@ export function seasonCharts(data: Championship): { layout: string; charts: [Sea
     const pair = [leader, second]
     return { layout: 'consistency', charts: [{
       id: 'wins-versus-points', title: 'Winning races is not the same as winning points',
-      description: 'The leading riders placed by their recorded GP wins and championship points.',
+      description: 'The leading riders placed by their GP wins and championship points.',
       note: 'Win counts come from imported scoring GP classifications and may be incomplete. Points keep their original standings source.',
       kind: 'scatter', xTitle: 'Imported GP wins', yTitle: 'Championship points',
       series: winRiders.slice(0, 10).map((rider) => ({
@@ -186,7 +186,7 @@ export function seasonCharts(data: Championship): { layout: string; charts: [Sea
     const winners = winRiders.filter((rider) => rider.wins! > 0).sort((a, b) => b.wins! - a.wins!).slice(0, 8)
     return { layout: 'dominance', charts: [{
       id: 'victories', title: 'Who took the victories?',
-      description: 'The riders with the most recorded GP victories, rather than championship rank.',
+      description: 'The riders with the most GP victories, rather than championship rank.',
       note: 'Imported scoring GP classifications only; the count is not a guarantee of full-season coverage.',
       kind: 'bar', xTitle: 'Imported GP wins', yTitle: '', valueUnit: 'wins',
       series: [{ id: leader.rider_id, name: 'Imported GP wins', type: 'bar', orientation: 'h',
@@ -195,10 +195,10 @@ export function seasonCharts(data: Championship): { layout: string; charts: [Sea
         hovertemplate: '%{text}<br>%{x} imported GP wins<extra></extra>' }],
     }, {
       id: 'wins-share', title: 'One rider against the rest',
-      description: 'The share of recorded victories belonging to the top-ranked rider.',
+      description: 'The share of victories belonging to the top-ranked rider.',
       note: `${totalWins} imported GP wins form this denominator, not the number of scheduled weekends or official title points.`,
       kind: 'doughnut', yTitle: '', valueUnit: 'wins',
-      series: [{ id: leader.rider_id, name: 'Recorded wins', type: 'pie',
+      series: [{ id: leader.rider_id, name: 'Wins', type: 'pie',
         x: [leader.rider, 'All other riders'], y: [leader.wins, totalWins - leader.wins],
         colors: ['--cp-accent', '--cp-text-muted'] }],
     }] }

@@ -1,4 +1,19 @@
 import type { Lap } from './types'
+import type { ChartSeries } from './PlotChart'
+
+export function statisticText(text: string) {
+  return text.replace(/\b(?:recorded|imported|supplied|stored|official|officially)\b\s*/gi, '')
+    .replace(/\s+in this rider['’]s archive\b/gi, '')
+    .replace(/\bsource order\b/gi, 'classification order')
+    .replace(/\bsource ranks?\b/gi, 'rank')
+    .replace(/\s{2,}/g, ' ').trim()
+}
+
+export function categoryTicks(series: ChartSeries[], maximum: number) {
+  const labels = [...new Set(series.filter((line) => line.orientation !== 'h' && line.type !== 'pie').flatMap((line) => line.x).filter((value): value is string => typeof value === 'string'))]
+  if (labels.length <= maximum) return labels
+  return Array.from({ length: maximum }, (_, index) => labels[Math.round(index * (labels.length - 1) / (maximum - 1))])
+}
 
 export const MARC_ID = 'f55b433d-38b8-4d1d-bb3a-a709c82a0260'
 

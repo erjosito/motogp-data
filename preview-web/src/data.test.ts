@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestSectors, cleanLaps, lapTime } from './data'
+import { bestSectors, categoryTicks, cleanLaps, lapTime, statisticText } from './data'
 import type { Lap } from './types'
 
 function lap(rider: string, time: number | null, pit = false): Lap {
@@ -11,6 +11,23 @@ function lap(rider: string, time: number | null, pit = false): Lap {
 }
 
 describe('lap comparison data', () => {
+  it('simplifies statistic qualifiers without changing counts, units, timing or final/to-date scope', () => {
+    expect(statisticText('OFFICIAL TITLES RECORDED')).toBe('TITLES')
+    expect(statisticText('15 recorded titles. One remarkable rider.')).toBe('15 titles. One remarkable rider.')
+    expect(statisticText('13 recorded GP wins in 2014: strongest winning season in this rider’s archive.'))
+      .toBe('13 GP wins in 2014: strongest winning season.')
+    expect(statisticText('Official standings to date · 9.5 supplied points')).toBe('standings to date · 9.5 points')
+    expect(statisticText('Supplied scores, in source order')).toBe('scores, in classification order')
+    expect(statisticText('Elapsed-time difference to P1 (s)')).toBe('Elapsed-time difference to P1 (s)')
+    expect(statisticText('Final standings · GP + Sprint · unavailable')).toBe('Final standings · GP + Sprint · unavailable')
+  })
+  it('reduces categorical labels, retaining endpoints without removing plotted data', () => {
+    const x = Array.from({ length: 20 }, (_, i) => `Round ${i + 1}`)
+    const series = [{ id: 'one', name: 'Rider', x, y: x.map((_, i) => i) }]
+    expect(categoryTicks(series, 4)).toEqual(['Round 1', 'Round 7', 'Round 14', 'Round 20'])
+    expect(series[0].x).toHaveLength(20)
+    expect(categoryTicks([{ ...series[0], orientation: 'h' }], 4)).toEqual([])
+  })
   it('filters slow laps using each rider median and keeps the 115% boundary', () => {
     const laps = [
       lap('fast', 100), lap('fast', 100), lap('fast', 100), lap('fast', 115), lap('fast', 116),

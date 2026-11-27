@@ -111,6 +111,57 @@ class PreviewApiTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(preview_api.app)
 
+    def test_finish_comparison_uses_elapsed_durations_without_reordering_source_ranks(self):
+        rows = [
+            {"position": 1, "time_ms": "41:30.802", "gap_first": "0.000", "total_laps": 25, "status": "INSTND"},
+            {"position": 2, "time_ms": "41:34.647", "gap_first": "3.845", "total_laps": 25, "status": "INSTND"},
+            {"position": 3, "time_ms": "41:34.647", "gap_first": "+3.845", "total_laps": 25, "status": "INSTND"},
+        ]
+        preview_api.add_finish_gaps("RAC", rows)
+        self.assertEqual([row["finish_gap_seconds"] for row in rows], [0, 3.845, 3.845])
+        self.assertEqual([row["position"] for row in rows], [1, 2, 3])
+        rows[1]["time_ms"], rows[1]["gap_first"] = "41:30.802", "0.000"
+        preview_api.add_finish_gaps("SPR", rows)
+        self.assertEqual(rows[1]["finish_gap_seconds"], 0)
+
+    def test_finish_comparison_rejects_missing_lapped_nonfinish_and_conflicting_records(self):
+        winner = {"position": 1, "time_ms": "41:30.802", "gap_first": "0.000", "total_laps": 25, "status": "INSTND"}
+        second = {**winner, "position": 2, "time_ms": "41:34.647", "gap_first": "3.845"}
+        for changes in [
+            {"time_ms": None}, {"time_ms": "nan"}, {"time_ms": "00:00.000"},
+            {"time_ms": "41:60.000"}, {"total_laps": 24, "gap_first": "1 Lap"},
+            {"total_laps": None}, {"status": "DNF"}, {"status": None},
+            {"time_ms": "41:29.802", "gap_first": "-1.000"},
+            {"gap_first": "Penalty"}, {"gap_first": "9.000"}, {"position": None},
+        ]:
+            with self.subTest(changes=changes):
+                rows = [winner.copy(), {**second, **changes}]
+                preview_api.add_finish_gaps("RAC", rows)
+                self.assertIsNone(rows[1]["finish_gap_seconds"])
+                self.assertTrue(rows[1]["finish_gap_reason"])
+        for kind, rows in [
+            ("Q2", [winner.copy(), second.copy()]),
+            ("RAC", [second.copy()]),
+            ("RAC", [winner.copy(), winner.copy(), second.copy()]),
+            ("RAC", [{**winner, "time_ms": None}, second.copy()]),
+            ("RAC", [{**winner, "gap_first": "Penalty"}, second.copy()]),
+        ]:
+            with self.subTest(kind=kind, rows=rows):
+                preview_api.add_finish_gaps(kind, rows)
+                self.assertTrue(all(row["finish_gap_seconds"] is None for row in rows))
+
+    def test_analysis_exposes_comparison_without_changing_original_gap_labels(self):
+        for prefix in ("", "/paddock"):
+            rows = [
+                {"position": 1, "time_ms": "41:30.802", "gap_first": "0.000", "total_laps": 25, "status": "INSTND", "best_lap_time": None},
+                {"position": 2, "time_ms": "41:34.647", "gap_first": "+3.845", "total_laps": 25, "status": "INSTND", "best_lap_time": None},
+            ]
+            with patch("preview_api.query", side_effect=[[{"session_type": "RAC"}], rows, []]):
+                response = self.client.get(f"{prefix}/api/sessions/portugal/analysis")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["results"][1]["finish_gap_seconds"], 3.845)
+            self.assertEqual(response.json()["results"][1]["gap_first"], "+3.845")
+
     def test_circuit_context_uses_only_sourced_current_reference(self):
         with patch("preview_api.query") as query:
             for prefix in ["", "/paddock"]:
@@ -339,6 +390,16 @@ class CategoryApiTests(unittest.TestCase):
         self.assertEqual(data["seasons"][0]["position"], 2)
         self.assertEqual(data["venues"], [])
         self.assertIn("archival", [row["rider_id"] for row in self.client.get("/api/riders").json()])
+
+    def test_title_headline_has_no_recorded_qualifier_on_either_mount(self):
+        self.db.execute("INSERT INTO riders VALUES ('champion','Champion Rider',NULL)")
+        for season in range(1966, 1981):
+            self.db.execute("INSERT INTO championship_standings VALUES (?,'500cc',1,'champion',9,NULL,'https://example.com',1)", (season,))
+        for prefix in ["", "/paddock"]:
+            data = self.client.get(f"{prefix}/api/riders/champion").json()
+            self.assertEqual(data["headline"], "15 titles. One remarkable rider.")
+            self.assertEqual(data["totals"]["titles"], 15)
+            self.assertEqual(data["totals"]["gp_appearances"], 0)
 
     def test_rider_profile_excludes_practice_and_unfinished_sessions_and_counts_dnf_as_appearance(self):
         self.db.execute("UPDATE sessions SET session_type='FP1' WHERE session_id='session-0'")

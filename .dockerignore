@@ -11,11 +11,14 @@
 !rider_profiles.py
 !rider_profiles.reviewed.json
 !rider_media.py
+!rider_numbers.py
 !media_catalog.json
 !assets/
 !assets/riders/
 !assets/riders/marc-marquez-2026-portrait-320.webp
 !assets/riders/marc-marquez-2026-portrait-640.webp
 !assets/riders/LICENSE.txt
+!assets/rider-numbers/
+!assets/rider-numbers/**
 !.streamlit/
 !.streamlit/config.toml
