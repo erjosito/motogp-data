@@ -128,6 +128,34 @@ td small { display: block; font-size: 10px; color: var(--cp-text-soft); padding-
 .rider-directory .section-heading, .marc-chapter .section-heading { flex-wrap: wrap; }
 .rider-chart-grid .panel { height: 100%; }
 .rider-chart-grid { margin-bottom: 24px; }
+.circuit-context { display: grid; grid-template-columns: minmax(160px, 260px) minmax(0, 1fr); align-items: center; gap: 32px; }
+.circuit-context svg { width: 100%; max-height: 220px; }
+.circuit-context polyline { fill: none; stroke: var(--cp-accent); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.visual-facts { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 20px 0; }
+.visual-facts dt { color: var(--cp-text-muted); font-size: 11px; }
+.visual-facts dd { margin: 4px 0 0; font-size: 24px; font-weight: 700; }
+.visual-facts small { font-size: 12px; font-weight: 400; }
+.visual-credit { font-size: 11px; color: var(--cp-text-muted); line-height: 1.7; overflow-wrap: anywhere; }
+.rider-visual-header { padding: 24px 32px; }
+.rider-identity { display: grid; grid-template-columns: minmax(0, 128px) minmax(0, 1fr); gap: 16px 24px; align-items: start; margin: 0; }
+.rider-portrait { margin: 0; min-width: 0; }
+.rider-portrait img, .rider-initials { width: 100%; aspect-ratio: 4 / 5; height: auto; border-radius: .625rem; object-fit: contain; background: var(--cp-accent-soft); }
+.rider-identity figcaption { grid-column: 1 / -1; }
+.rider-identity summary { cursor: pointer; }
+.rider-initials { display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--cp-accent); font-size: 48px; font-weight: 750; }
+.rider-initials small { font: 16px Consolas, monospace; margin-top: 8px; }
+.rider-identity .visual-facts { margin: 16px 0; gap: 16px 24px; }
+.visual-facts .fact-text { font-size: 16px; }
+@media (max-width: 600px) {
+  .circuit-context { grid-template-columns: 1fr; gap: 16px; }
+  .circuit-context svg { max-height: 180px; }
+  .rider-visual-header { padding: 20px 24px; }
+  .rider-identity { grid-template-columns: minmax(0, 108px) minmax(0, 1fr); gap: 16px; }
+  .rider-identity .visual-facts { display: grid; gap: 8px; margin: 8px 0; }
+  .rider-identity .visual-facts dd { font-size: 14px; }
+  .rider-identity .visual-credit { font-size: 10px; }
+  .rider-identity .eyebrow { letter-spacing: 1px; }
+}
 .rider-chip { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--cp-border); padding: 8px 10px; border-radius: .625rem; cursor: pointer; font-size: 11px; opacity: .75; }
 .rider-chip.selected { border-color: var(--cp-border-strong); background: var(--cp-bg-elevated); opacity: 1; }
 .rider-chip input, .lap-options input { accent-color: var(--cp-accent); margin: 0; cursor: pointer; }

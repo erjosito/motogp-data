@@ -111,6 +111,54 @@ class PreviewApiTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(preview_api.app)
 
+    def test_circuit_context_uses_only_sourced_current_reference(self):
+        with patch("preview_api.query") as query:
+            for prefix in ["", "/paddock"]:
+                data = self.client.get(f"{prefix}/api/circuit-context?name=Circuito%20de%20Jerez").json()
+                circuit = data["circuit"]
+                self.assertEqual(circuit["reference_season"], 2026)
+                self.assertEqual(circuit["length_km"], 4.423)
+                self.assertEqual(circuit["turns"], 13)
+                self.assertEqual(circuit["outline"][0], circuit["outline"][-1])
+                self.assertTrue(all(16 <= v <= 304 for point in circuit["outline"] for v in point))
+                self.assertIn("openstreetmap.org", circuit["outline_source"])
+                self.assertNotIn("sectors", circuit)
+                self.assertEqual(self.client.get(f"{prefix}/api/circuit-context?name=Unknown").json(),
+                                 {"status": "not_collected", "circuit": None})
+            query.assert_not_called()
+
+    def test_portrait_api_serves_only_approved_local_same_season_media(self):
+        with patch("preview_api.query") as query:
+            for prefix in ["", "/paddock"]:
+                path = f"{prefix}/api/riders/{preview_api.MARC_ID}/portrait"
+                response = self.client.get(f"{path}?season=2026&category=premier")
+                self.assertEqual(response.status_code, 200)
+                portrait = response.json()["portrait"]
+                self.assertEqual(portrait["license"], "CC-BY-SA-4.0")
+                self.assertIn("Denkmit", portrait["credit"])
+                self.assertTrue(portrait["changes"])
+                for image in portrait["images"]:
+                    data = self.client.get(prefix + image["url"])
+                    self.assertEqual(data.status_code, 200)
+                    self.assertEqual(data.headers["content-type"], "image/webp")
+                    self.assertIn('rel="license"', data.headers["link"])
+                    self.assertLess(len(data.content), 60000)
+                for scope in ["season=2025&category=premier", "season=2026&category=intermediate"]:
+                    self.assertEqual(self.client.get(f"{path}?{scope}").json(),
+                                     {"status": "not_collected", "portrait": None})
+                    self.assertEqual(self.client.get(f"{path}/320?{scope}").status_code, 404)
+                self.assertEqual(self.client.get(f"{path}/999?season=2026").status_code, 404)
+                self.assertEqual(self.client.get(f"{path}?season=2026&category=unsupported").status_code, 422)
+            self.assertEqual(self.client.get("/api/riders/unpictured/portrait?season=2026").json()["status"],
+                             "not_collected")
+            query.assert_not_called()
+
+    def test_corrupt_portrait_fails_explicitly_without_exposing_file_details(self):
+        with patch("preview_api.read_portrait", side_effect=ValueError("private-path/hash mismatch")):
+            response = self.client.get(f"/api/riders/{preview_api.MARC_ID}/portrait?season=2026")
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("private-path", response.text)
+
     def test_rider_enrichment_reads_a_separate_catalog_without_sql(self):
         from rider_profiles import write_json
 

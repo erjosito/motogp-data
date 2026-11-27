@@ -23,9 +23,20 @@ Standings-only riders receive official-rank charts instead of invented race coun
 Share a profile with `?view=riders&rider=<rider_id>`; theme parameters persist.
 The Classic domain root is unchanged.
 
+Career profiles use a reusable visual identity card: individually reviewed
+biography facts where collected, a licensed, season-labeled portrait where
+approved, and initials/plain numbers otherwise. Portrait credits, license links
+and adaptation notices stay next to the image. Unapproved official image
+references and the full local biography catalog are not shipped.
+
 The other views cover category-scoped championships, session results, rider lap
 comparisons, and sector analysis. Explicit season/event/session deep links retain
 their destination rather than being redirected to the new entry page.
+Session pages also show a compact circuit outline when the sourced catalog
+recognizes the venue. These are explicitly **2026 reference layouts**, not
+reconstructions of historical tracks or sector maps; facts and OpenStreetMap
+attribution remain linked. Uncollected venues retain normal analysis without
+invented geometry.
 Every season has an evidence-backed story: dominance,
 consistency, narrow margins or a turnaround, with the actual supporting metric.
 The 2026 championship highlights Marc Marquez's recovery from the verified

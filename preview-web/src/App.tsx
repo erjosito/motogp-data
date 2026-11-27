@@ -11,6 +11,7 @@ import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed } 
 import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Session } from './types'
 import type { PlotChartProps } from './PlotChart'
 import { seasonCharts } from './seasonCharts'
+import { CircuitContext, RiderVisualContext } from './VisualContext'
 import type { SeasonChart } from './seasonCharts'
 import './App.css'
 
@@ -45,6 +46,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
     <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1>{rider.rider}.</h1><p>More than a name on the timing screen.</p></div>
       <span className="quiet-badge">{data.first_season === data.latest_season ? data.first_season : `${data.first_season} — ${data.latest_season}`} · recorded seasons</span></div>
     <section className={`story-card rider-hero ${rider.rider_id === MARC_ID ? 'marc-hero' : ''}`}>
+      <div className="rider-visual-header"><RiderVisualContext rider={rider} /></div>
       <div className="story-intro"><div className="story-copy"><p className="eyebrow accent">{rider.rider_id === MARC_ID ? 'THE PROTAGONIST / 93' : 'A CAREER IN FOCUS'}</p>
         <h2>{data.headline}</h2><p>{data.summary}</p>
         {!!data.titles.length && <p className="eyebrow">OFFICIAL TITLE SEASONS IN THE ARCHIVE</p>}
@@ -445,6 +447,7 @@ function SessionWorkspace({ season, category, params, update, view, theme }: {
     </div>
     {(invalidEvent || invalidSession) && <p className="notice" role="status">The requested {invalidEvent ? 'Grand Prix' : 'session'} is unavailable in this scope. Showing the latest available race.</p>}
     {event && session && <div className="event-strip"><div><strong>{event.circuit_name ?? event.event_name}</strong><span>{event.country_name} · {dateLabel(session.session_date)}</span></div><div>{session.weather && <span>{session.weather}</span>}{session.air_temp && <span>Air {session.air_temp}</span>}{session.ground_temp && <span>Track {session.ground_temp}</span>}</div></div>}
+    {event?.circuit_name && <CircuitContext name={event.circuit_name} season={season} />}
     {analysis.data?.results.some((row) => row.source_kind !== 'official-api') && <p className="notice">This classification includes verified external archive supplementation. Source labels identify supplemented and external-only rows; no missing timing is invented.</p>}
     {failed ? <DataState resource={failed} />
       : eventResource.loading || sessionResource.loading || analysis.loading ? <Loading />

@@ -2974,7 +2974,7 @@ elif viz == "👤 Pilot Profile":
         if filter_year is None:
             detail_years = sorted(races["season_year"].unique(), reverse=True)
             if st.session_state.get("profile_detail_year") not in detail_years:
-                st.session_state.pop("profile_detail_year", None)
+                st.session_state["profile_detail_year"] = detail_years[0]
             detail_year = st.selectbox(t("career_detail_season"), detail_years, key="profile_detail_year")
         else:
             detail_year = filter_year
