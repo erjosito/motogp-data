@@ -8,6 +8,47 @@ Usage:
 """
 
 TRANSLATIONS = {
+    "career_timeline_title": {"en": "Career by season and class", "es": "Trayectoria por temporada y categoría", "it": "Carriera per stagione e categoria"},
+    "career_timeline_method": {
+        "en": "Circles show recorded race entries or an official final standing. Counts refer to imported races; P labels and stars show independently stored official final ranks and titles, never inferred from race points. Each racing class stays separate.",
+        "es": "Los círculos muestran participaciones registradas o una clasificación final oficial. Los recuentos son de carreras importadas; las etiquetas P y estrellas indican posiciones finales y títulos oficiales almacenados por separado, nunca deducidos de los puntos de carrera. Cada categoría se mantiene separada.",
+        "it": "I cerchi mostrano partecipazioni registrate o una classifica finale ufficiale. I conteggi riguardano gare importate; etichette P e stelle indicano posizioni finali e titoli ufficiali memorizzati separatamente, mai dedotti dai punti delle gare. Ogni categoria resta separata.",
+    },
+    "career_recorded_season": {"en": "Recorded season", "es": "Temporada registrada", "it": "Stagione registrata"},
+    "career_official_rank": {"en": "Official final rank", "es": "Posición final oficial", "it": "Posizione finale ufficiale"},
+    "career_official_title": {"en": "Official world title", "es": "Título mundial oficial", "it": "Titolo mondiale ufficiale"},
+    "career_detail_season": {"en": "Race-detail season", "es": "Temporada del detalle de carreras", "it": "Stagione del dettaglio gare"},
+    "no_classified_finishes": {"en": "No classified finishes for this season.", "es": "No hay resultados clasificados en esta temporada.", "it": "Nessun arrivo classificato per questa stagione."},
+    "cross_champions_matrix": {"en": "Champions by year and class", "es": "Campeones por año y categoría", "it": "Campioni per anno e categoria"},
+    "champion_year_rows": {"en": "Years as rows (narrow screens)", "es": "Años en filas (pantallas estrechas)", "it": "Anni sulle righe (schermi stretti)"},
+    "champions_matrix_method": {
+        "en": "Only official final rank-one standings are shown, with actual racing classes kept separate. Select an era and hover for full names; source links are listed below. Blank cells mean no stored official champion, not that no championship took place.",
+        "es": "Solo se muestran primeros puestos finales oficiales, separando las categorías reales. Selecciona una época y pasa el cursor para ver los nombres completos; las fuentes están debajo. Una celda vacía indica que no hay campeón oficial almacenado, no que no hubiera campeonato.",
+        "it": "Sono mostrati solo primi posti finali ufficiali, separando le categorie effettive. Seleziona un'epoca e passa il puntatore per i nomi completi; le fonti sono sotto. Una cella vuota indica l'assenza di un campione ufficiale memorizzato, non l'assenza del campionato.",
+    },
+    "cross_constructor_eras": {"en": "Constructor eras", "es": "Épocas de constructores", "it": "Epoche dei costruttori"},
+    "constructor_eras_method": {
+        "en": "Share of imported race-winner records by decade, separately for each actual class. Unknown constructors remain in the denominator; other constructors are grouped without losing wins. These are recorded victories, not official constructor titles or guaranteed full-calendar totals.",
+        "es": "Proporción de registros importados de ganadores por década, separada por categoría real. Los constructores desconocidos permanecen en el denominador; los demás se agrupan sin perder victorias. Son victorias registradas, no títulos oficiales de constructores ni totales garantizados del calendario.",
+        "it": "Quota dei vincitori di gara importati per decennio, separata per categoria effettiva. I costruttori sconosciuti restano nel denominatore; gli altri sono raggruppati senza perdere vittorie. Sono vittorie registrate, non titoli ufficiali costruttori né totali garantiti dell'intero calendario.",
+    },
+    "constructor_eras_top": {"en": "Leading constructors per class", "es": "Constructores principales por categoría", "it": "Costruttori principali per categoria"},
+    "constructor_unknown": {"en": "Constructor not recorded", "es": "Constructor no registrado", "it": "Costruttore non registrato"},
+    "constructor_other": {"en": "Other constructors", "es": "Otros constructores", "it": "Altri costruttori"},
+    "constructor_win_share": {"en": "Imported victory share (%)", "es": "Proporción de victorias importadas (%)", "it": "Quota delle vittorie importate (%)"},
+    "decade": {"en": "Decade", "es": "Década", "it": "Decennio"},
+    "archive_availability_title": {"en": "Archive availability by year and class", "es": "Disponibilidad del archivo por año y categoría", "it": "Disponibilità dell'archivio per anno e categoria"},
+    "archive_availability_method": {
+        "en": "Availability means stored rows, not completeness. Standings include final and current snapshots; classifications are race results, while laps and complete four-sector rows include all finished session types. Years with imported finished sessions but no selected records are retained. Empty cells do not prove that no race occurred.",
+        "es": "La disponibilidad indica filas almacenadas, no integridad. Las clasificaciones del campeonato incluyen datos finales y actuales; los resultados son de carreras, y las vueltas y registros con cuatro sectores incluyen todo tipo de sesión finalizada. Se conservan años con sesiones finalizadas importadas sin registros del tipo elegido. Una celda vacía no demuestra que no hubiera carrera.",
+        "it": "La disponibilità indica righe memorizzate, non completezza. Le classifiche del campionato includono dati finali e attuali; i risultati sono di gara, mentre giri e righe con quattro settori includono tutti i tipi di sessione conclusa. Restano visibili anni con sessioni concluse importate senza record del tipo scelto. Una cella vuota non prova che non si sia corsa una gara.",
+    },
+    "archive_metric_standings": {"en": "Championship standing rows", "es": "Filas de clasificaciones del campeonato", "it": "Righe di classifiche del campionato"},
+    "archive_metric_classifications": {"en": "Race classification rows", "es": "Filas de resultados de carrera", "it": "Righe di risultati di gara"},
+    "archive_metric_laps": {"en": "Recorded lap rows", "es": "Filas de vueltas registradas", "it": "Righe di giri registrati"},
+    "archive_metric_sectors": {"en": "Complete four-sector rows", "es": "Filas con cuatro sectores completos", "it": "Righe con quattro settori completi"},
+    "archive_no_rows": {"en": "No stored rows", "es": "Sin filas almacenadas", "it": "Nessuna riga memorizzata"},
+    "archive_rows_stored": {"en": "Rows stored", "es": "Filas almacenadas", "it": "Righe memorizzate"},
     "recorded_efficiency_method": {
         "en": "Points efficiency uses only complete recorded race/Sprint entry scores: nominal 25 per race from 1993 and 12 per Sprint from 2023, including recorded DNS entries. It is not calendar-wide championship efficiency; shortened-race maxima are not inferred. Earlier scoring rules, missing scores and unsupported totals remain unavailable.",
         "es": "La eficiencia usa solo puntuaciones completas de las participaciones registradas: máximo nominal de 25 por carrera desde 1993 y 12 por Sprint desde 2023, incluidas las no salidas registradas. No mide todo el calendario ni deduce máximos de carreras acortadas. Las reglas anteriores, puntuaciones ausentes y totales no compatibles quedan sin valor.",

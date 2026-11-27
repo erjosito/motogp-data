@@ -432,6 +432,29 @@ python -m unittest test_dashboard test_motogp_results
 
 ### Archive analytics contracts
 
+The expanded-history views are available in Classic:
+
+- **Riders → Pilot Profile** starts with a class-lane career timeline. Circles
+  combine recorded race participation with independently stored official final
+  standings; stars indicate official world titles. Standings-only seasons are
+  retained, and linked sources remain available. Race-result detail selects one
+  season rather than overlaying every career season.
+- **History → Cross-Year → Champions by year and class** shows official final
+  rank-one records only, with an adjustable era, actual classes, joint winners,
+  source links and a years-as-rows option for narrow screens.
+  Empty cells mean no stored official champion, not that no
+  championship took place; provisional standings never establish titles.
+- **History → Cross-Year → Constructor eras** shows imported race-winner shares
+  by actual class and decade. Unknown constructors remain in the denominator,
+  and grouping smaller constructors preserves every recorded victory. These
+  shares are not official constructor titles or guaranteed full-calendar totals.
+- **Overview → Data coverage → Data Quality & Coverage** contains the archive
+  availability heatmap only. Select standings, race classifications, laps or
+  complete four-sector rows. Independent source aggregates prevent join
+  multiplication; finished imported sessions seed otherwise empty cells and
+  missing calendar years stay visible. Standings include final/current rows;
+  timing counts cover all finished session types. Availability is not completeness.
+
 Historical constructors come from the classification when available, falling
 back to the team record, never the other way round. Unknown teams do not remove
 known historical constructors from the charts.
