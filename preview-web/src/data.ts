@@ -1,4 +1,11 @@
 import type { Lap } from './types'
+import type { ChartSeries } from './PlotChart'
+
+export function categoryTicks(series: ChartSeries[], maximum: number) {
+  const labels = [...new Set(series.filter((line) => line.orientation !== 'h' && line.type !== 'pie').flatMap((line) => line.x).filter((value): value is string => typeof value === 'string'))]
+  if (labels.length <= maximum) return labels
+  return Array.from({ length: maximum }, (_, index) => labels[Math.round(index * (labels.length - 1) / (maximum - 1))])
+}
 
 export const MARC_ID = 'f55b433d-38b8-4d1d-bb3a-a709c82a0260'
 

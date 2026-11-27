@@ -24,6 +24,7 @@ Share a profile with `?view=riders&rider=<rider_id>`; theme parameters persist.
 The Classic domain root is unchanged.
 Classic's sidebar includes an **Open Paddock (React)** link with an external-link
 icon; it opens the new app in a separate tab without replacing the current analysis.
+Paddock's always-visible **Data analysis** shortcut opens Classic in a new tab.
 
 Career profiles use a reusable visual identity card: individually reviewed
 biography facts where collected, a licensed, season-labeled portrait where
@@ -39,6 +40,23 @@ recognizes the venue. These are explicitly **2026 reference layouts**, not
 reconstructions of historical tracks or sector maps; facts and OpenStreetMap
 attribution remain linked. Uncollected venues retain normal analysis without
 invented geometry.
+Race and Sprint results lead with recorded podium positions and a directly
+labeled **elapsed-time difference to P1 (s)** graphic. The comparison uses
+validated positive elapsed durations for same-lap classified finishers with a
+unique P1, never parsed lap/penalty gap text or a recalculated race order.
+Conflicting source gap labels, non-finishers and missing timings remain
+explicitly unscaled. These are elapsed-time differences, not official adjusted
+winning margins; original times, gaps, statuses and source labels stay accessible.
+Practice and qualifying use session-classification language without race podiums.
+
+On mobile, championship headlines stay with the main graphic and recovery
+bridges precede standings. Long classifications, standings, career records and
+comparison controls have explicit Show/Hide disclosures (open initially on
+desktop). Collapsing them does not unmount searches or filter selections.
+Source/timing qualifications outside advanced controls stay visible. Narrow
+charts reduce axis-label density without removing data; hover/tap retains full
+labels.
+
 Every season has an evidence-backed story: dominance,
 consistency, narrow margins or a turnaround, with the actual supporting metric.
 The 2026 championship highlights Marc Marquez's recovery from the verified

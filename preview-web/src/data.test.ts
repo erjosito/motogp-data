@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestSectors, cleanLaps, lapTime } from './data'
+import { bestSectors, categoryTicks, cleanLaps, lapTime } from './data'
 import type { Lap } from './types'
 
 function lap(rider: string, time: number | null, pit = false): Lap {
@@ -11,6 +11,13 @@ function lap(rider: string, time: number | null, pit = false): Lap {
 }
 
 describe('lap comparison data', () => {
+  it('reduces categorical labels, retaining endpoints without removing plotted data', () => {
+    const x = Array.from({ length: 20 }, (_, i) => `Round ${i + 1}`)
+    const series = [{ id: 'one', name: 'Rider', x, y: x.map((_, i) => i) }]
+    expect(categoryTicks(series, 4)).toEqual(['Round 1', 'Round 7', 'Round 14', 'Round 20'])
+    expect(series[0].x).toHaveLength(20)
+    expect(categoryTicks([{ ...series[0], orientation: 'h' }], 4)).toEqual([])
+  })
   it('filters slow laps using each rider median and keeps the 115% boundary', () => {
     const laps = [
       lap('fast', 100), lap('fast', 100), lap('fast', 100), lap('fast', 115), lap('fast', 116),

@@ -1,7 +1,7 @@
 import Plotly from 'plotly.js-basic-dist-min'
 import { useEffect, useRef, useState } from 'react'
 import type { Data, Layout } from 'plotly.js'
-import { riderStyle } from './data'
+import { categoryTicks, riderStyle } from './data'
 
 export interface ChartSeries {
   id: string
@@ -33,6 +33,16 @@ export interface PlotChartProps {
 export default function PlotChart({ series, yTitle, xTitle, height = 340, baseline = false, theme, timing = false, valueUnit = 'points', stacked = false, rank = false }: PlotChartProps) {
   const container = useRef<HTMLDivElement>(null)
   const [error, setError] = useState(false)
+  const [compact, setCompact] = useState(false)
+  useEffect(() => {
+    const element = container.current
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setCompact(entry.contentRect.width < 560)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     const element = container.current
     if (!element) return
@@ -70,11 +80,14 @@ export default function PlotChart({ series, yTitle, xTitle, height = 340, baseli
         hovertemplate: line.hovertemplate ?? `%{x}<br>${timing ? '%{text}' : `%{y:,.3~f} ${valueUnit}`}<extra>%{fullData.name}</extra>`,
       }
     })
+    const ticks = categoryTicks(series, compact ? 4 : 8)
     const layout: Partial<Layout> = {
       height, autosize: true, margin: { t: 20, r: 16, b: series.length > 3 ? 140 : series.some((line) => line.type === 'pie') ? 110 : 76, l: 56 },
       paper_bgcolor: color('--cp-surface'), plot_bgcolor: color('--cp-surface'),
       font: { family: 'Segoe UI, Aptos, Calibri, sans-serif', color: color('--cp-text-muted'), size: 12 },
-      xaxis: { title: xTitle ? { text: xTitle, standoff: 12 } : undefined, showgrid: false, zeroline: false, nticks: 8, automargin: true, fixedrange: false },
+      xaxis: { title: xTitle ? { text: xTitle, standoff: 12 } : undefined, showgrid: false, zeroline: false, nticks: compact ? 4 : 8, automargin: true, fixedrange: false,
+        ...(ticks.length ? { tickmode: 'array', tickvals: ticks, ticktext: ticks.map((label) => compact && label.length > 22 ? `${label.slice(0, 20)}…` : label), tickangle: compact ? -25 : 'auto' } : {}),
+      },
       yaxis: {
         title: { text: yTitle, standoff: 14 }, gridcolor: color('--cp-border'),
         zeroline: false, automargin: true, rangemode: timing || baseline || rank ? 'normal' : 'tozero',
@@ -105,9 +118,10 @@ export default function PlotChart({ series, yTitle, xTitle, height = 340, baseli
       active = false
       Plotly.purge(element)
     }
-  }, [series, yTitle, xTitle, height, baseline, theme, timing, valueUnit, stacked, rank])
+  }, [series, yTitle, xTitle, height, baseline, theme, timing, valueUnit, stacked, rank, compact])
   return <>
     {error && <p role="alert">This chart could not be rendered. The recorded values remain available in the tables.</p>}
     <div ref={container} style={{ width: '100%', height }} />
+    {compact && <p className="chart-density-note">Axis labels are reduced on narrow charts; every recorded point remains plotted. Full labels are available on hover or tap.</p>}
   </>
 }

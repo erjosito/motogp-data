@@ -12,6 +12,8 @@ import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Sessi
 import type { PlotChartProps } from './PlotChart'
 import { seasonCharts } from './seasonCharts'
 import { CircuitContext, RiderVisualContext } from './VisualContext'
+import DetailSection from './DetailSection'
+import ResultStory from './ResultStory'
 import type { SeasonChart } from './seasonCharts'
 import './App.css'
 
@@ -87,7 +89,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
         }]} />
       </section>
     </div>
-    <section className="panel"><div className="section-heading"><div><p className="eyebrow">CHAPTER BY CHAPTER</p><h2>The season record</h2><p>Open any season to explore the title fight.</p></div></div>
+    <DetailSection title="season-by-season record" note={`${data.seasons.length} season/class records`}><div className="section-heading"><div><p className="eyebrow">CHAPTER BY CHAPTER</p><h2>The season record</h2><p>Open any season to explore the title fight.</p></div></div>
       <div className="table-scroll"><table><thead><tr><th>Season / class</th><th>Official rank</th><th>GP wins</th><th>GP podiums</th><th>Standings</th></tr></thead>
         <tbody>{[...data.seasons].reverse().map((row) => <tr key={`${row.season}-${row.category}`}>
           <td><a href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>{seasonLabel(row)} <ArrowUpRight size={12} /></a></td>
@@ -96,7 +98,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
           <td>{row.source_url ? <a href={row.source_url} target="_blank" rel="noreferrer">Official source <ArrowUpRight size={12} /></a> : '\u2014'}</td>
         </tr>)}</tbody></table></div>
       <p className="panel-note">Titles use official final season/class ranks only. Race statistics describe stored classifications across supported classes, not certified complete-career totals. From 1990, only sessions awarding points are counted. Grand Prix and Sprint records remain separate.</p>
-    </section>
+    </DetailSection>
   </>
 }
 
@@ -232,7 +234,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
       <p>Not just the standings. The story behind them.</p></div>
       <span className="quiet-badge"><span className="status-dot" />{official ? `${season} · ${officialLabel}` : `Through ${last?.event} · ${dateLabel(last?.date)}`}</span>
     </div>
-    <section className="story-card" aria-labelledby="season-story-title">
+    <section className="story-card championship-story" aria-labelledby="season-story-title">
       <div className="story-intro">
         <div className="story-copy">
           <p className="eyebrow accent">{season} / SEASON STORY</p>
@@ -281,7 +283,8 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
       <SeasonChartPanel key={`${season}-${category}-${chart.id}`} chart={chart} theme={theme} />)}</div>}
 
     <div className={featured ? 'championship-grid' : 'standings-section'} data-story-layout={visual.layout}>
-      <section className="panel"><div className="section-heading"><div><p className="eyebrow">THE ORDER</p><h2>Championship standings</h2></div><span className="quiet-badge">{season}</span></div>
+      {featured && <SeasonChartPanel chart={visual.charts[1]} theme={theme} />}
+      <DetailSection title="championship standings" note={`${data.standings.length} riders · ${season}`}><div className="section-heading"><div><p className="eyebrow">THE ORDER</p><h2>Championship standings</h2></div><span className="quiet-badge">{season}</span></div>
         <div className="table-scroll"><table className="standings-table">
           <thead><tr><th>Pos</th><th>Rider</th><th>Pts</th><th>Gap</th><th>{official ? 'Imported GP wins' : 'Wins'}</th></tr></thead>
           <tbody>{data.standings.map((rider) => <tr key={rider.rider_id} className={featured && rider.rider_id === MARC_ID ? 'featured-row' : ''}>
@@ -290,8 +293,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
             <td className="strong numeric">{rider.points}</td><td className="muted numeric">{pointsWarning || rider.gap == null || rider.gap === 0 ? '—' : `−${rider.gap}`}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
         <p className="panel-note">{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
-      </section>
-      {featured && <SeasonChartPanel chart={visual.charts[1]} theme={theme} />}
+      </DetailSection>
     </div>
     {official && leader.source_url && <a className="classic-link" href={leader.source_url} target="_blank" rel="noreferrer">Official championship source<ArrowUpRight size={16} /></a>}
   </>
@@ -304,14 +306,16 @@ function ResultTable({ data }: { data: Analysis }) {
   const classificationTimes = data.results.flatMap((result) => result.best_lap_seconds == null ? [] : [result.best_lap_seconds])
   const recordedTimes = [...times, ...classificationTimes]
   const fastest = recordedTimes.length ? Math.min(...recordedTimes) : null
-  const winner = data.results.find((result) => result.position === 1)
+  const first = data.results.filter((result) => result.position === 1)
+  const winner = first.length === 1 ? first[0] : null
   return <>
+    <ResultStory data={data} />
     <div className="stats-grid">
-      <Stat label="TOP CLASSIFIED" value={winner?.rider ?? 'Not recorded'} note={winner?.constructor ?? data.session.session_label} />
+      <Stat label={first.length > 1 ? 'SHARED SOURCE RANK P1' : 'TOP CLASSIFIED'} value={first.length > 1 ? first.map((row) => row.rider).join(' / ') : winner?.rider ?? 'Not recorded'} note={winner?.constructor ?? data.session.session_label} />
       <Stat label="FASTEST RECORDED LAP" value={lapTime(fastest)} note="From classification and non-pit timing data" />
-      <Stat label="RIDERS CLASSIFIED" value={data.results.length} note={`${data.laps.length.toLocaleString()} lap records available`} />
+      <Stat label="CLASSIFICATION ROWS" value={data.results.length} note={`${data.laps.length.toLocaleString()} lap records available`} />
     </div>
-    <section className="panel"><div className="section-heading"><div><p className="eyebrow">THE RESULT</p><h2>Classification</h2></div>
+    <DetailSection title="full classification" note={`${data.results.length} source rows · search and all recorded times`}><div className="section-heading"><div><p className="eyebrow">THE RESULT</p><h2>Classification</h2></div>
       <label className="search-label"><span className="sr-only">Search riders or teams</span><input type="search" placeholder="Find rider or team…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
     </div>
       {!data.results.length ? <DataState resource={{ error: null, retry: () => {} }} empty="No classification has been recorded for this session." /> : <div className="table-scroll">
@@ -326,7 +330,7 @@ function ResultTable({ data }: { data: Analysis }) {
         {!results.length && <p className="panel-note" role="status">No riders match “{search}”.</p>}
       </div>}
       <p className="panel-note">Speed in km/h. A dash means the source does not contain that value; no timing is inferred.</p>
-    </section>
+    </DetailSection>
   </>
 }
 
@@ -400,7 +404,7 @@ function AnalysisPanel({ data, view, theme }: { data: Analysis; view: View; them
   const laps = allLaps.filter((lap) => selected.includes(lap.rider_id))
   const riders = ordered.filter((rider) => selected.includes(rider.rider_id))
   return <>
-    <section className="rider-picker panel">
+    <DetailSection title="comparison controls" note={`${selected.length} riders selected · pit laps ${excludePit ? 'excluded' : 'included'} · slow laps ${excludeSlow ? 'hidden' : 'included'}`} className="rider-picker">
       <div className="section-heading"><div><h2>Choose your comparison</h2><p>{selected.length} selected · rider colors stay consistent across charts</p></div>
         <button className="text-button" onClick={() => setSelected(selected.length === ordered.length ? [] : ordered.map((rider) => rider.rider_id))}>{selected.length === ordered.length ? 'Clear selection' : 'Select all'}</button>
       </div>
@@ -413,7 +417,7 @@ function AnalysisPanel({ data, view, theme }: { data: Analysis; view: View; them
         <label><input type="checkbox" checked={excludeSlow} onChange={(event) => setExcludeSlow(event.target.checked)} />Hide laps slower than 115% of each rider’s median</label>
         <span>{laps.length.toLocaleString()} laps included</span>
       </div>
-    </section>
+    </DetailSection>
     {!riders.length ? <p className="selection-message" role="status">Select at least one rider to begin the comparison.</p>
       : view === 'laps' ? <LapComparison laps={laps} riders={riders} theme={theme} />
         : <SectorAnalysis laps={laps} allLaps={allLaps} riders={riders} />}
@@ -516,7 +520,7 @@ export default function App() {
     <div className="main-shell">
       <header className="topbar"><div className="breadcrumb"><span>{view === 'riders' ? 'The paddock' : category ? categories[category] : 'Unknown category'}</span><ChevronRight size={13} /><strong>{view === 'riders' ? 'Rider stories' : season ?? 'Season'}</strong></div>
         <div className="topbar-actions">
-          <a className="streamlit-link" href={classicUrl} target="_blank" rel="noreferrer" title="Open the Classic Streamlit app in a new tab">Streamlit app<ArrowUpRight size={16} aria-hidden="true" /></a>
+          <a className="streamlit-link" href={classicUrl} target="_blank" rel="noreferrer" title="Open Data analysis in a new tab">Data analysis<ArrowUpRight size={16} aria-hidden="true" /></a>
           {view !== 'riders' && <><label className="season-select category-select"><span>CATEGORY</span><select aria-label="Category" value={category ?? ''} onChange={(event) => update({ category: event.target.value })}>
             {!category && <option value="" disabled>Unsupported category</option>}
             {Object.entries(categories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
