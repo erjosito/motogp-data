@@ -1,4 +1,5 @@
 import ast
+import json
 import sqlite3
 import unittest
 from pathlib import Path
@@ -191,6 +192,31 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(app.radio(key="view_nav_season").value, "viz_championship")
         self.assertEqual(app.selectbox(key="sb_year").value, 2026)
         self.assertEqual(app.dataframe[0].value["Points"].tolist(), [66, 61, 46, 11])
+
+    def test_charts_and_cards_defer_appearance_to_the_browser(self):
+        app = self.start_app()
+        for view in ["home_championship", "home_coverage"]:
+            app.radio(key="home_view").set_value(view).run()
+            self.assertFalse(app.exception)
+            for chart in app.get("plotly_chart"):
+                self.assertEqual(chart.proto.theme, "streamlit")
+                layout = json.loads(chart.proto.spec)["layout"]
+                self.assertNotIn("paper_bgcolor", layout)
+                self.assertNotIn("plot_bgcolor", layout)
+                self.assertNotIn("color", layout.get("font", {}))
+                template = layout["template"]["layout"]
+                self.assertNotEqual(template.get("paper_bgcolor"), "#ffffff")
+                self.assertNotEqual(template.get("font", {}).get("color"), "#172033")
+        styles = "\n".join(markdown.value for markdown in app.markdown)
+        self.assertIn("background: color-mix(in srgb, currentColor 5%, transparent)", styles)
+        for label, language in [
+            ("🇬🇧 English", "en"), ("🇪🇸 Español", "es"), ("🇮🇹 Italiano", "it")
+        ]:
+            app.selectbox(key="language").select(label).run()
+            self.assertIn(
+                get_translator(language)("appearance_help"),
+                [caption.value for caption in app.sidebar.caption],
+            )
 
     def test_historical_championship_uses_official_order_and_fractional_points(self):
         def historical_query(sql, conn=None, params=None):
