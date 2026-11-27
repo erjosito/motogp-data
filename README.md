@@ -108,6 +108,11 @@ ingress is used: no Front Door, Application Gateway or premium ingress is added.
 Build/storage usage and traffic-driven compute, requests, bandwidth and logs
 can still affect the bill; this is not a guarantee of zero incremental cost.
 
+`infra/main.bicep` validates the same route rules. Its `customDomains` parameter
+is deliberately required: supply `[]` only before hostname migration, or the
+actual existing bindings afterward. Never apply an empty domain list to an
+already-bound route. The deployment script preserves the live bindings.
+
 The script prints the label URL after checking revision health and the unchanged
 production traffic allocation. A prebuilt image can be deployed with
 `.\scripts\deploy-preview.ps1 -Tag <existing-tag> -SkipBuild`.
