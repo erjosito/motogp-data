@@ -596,6 +596,12 @@ encoding, consumption and restoration instructions, and
 The combined dataset has **no blanket redistribution license**; archives remain
 local and Git-ignored pending permission review.
 
+The 2026-11-27 snapshot contains 13 base tables / 526,662 rows, plus 107,714
+effective results in the convenience CSV. Its payload is 180,230,185 bytes,
+compressed to **12,478,976 bytes (12.48 MB)**. The versioned
+[manifest](exports/motogp-data-2026-11-27.manifest.json) records per-file counts,
+hashes, source revision and encoding; the data archive itself is local only.
+
 ## API Reference
 
 The script uses these endpoints (all free, no auth required):
