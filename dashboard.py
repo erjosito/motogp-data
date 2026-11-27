@@ -17,6 +17,7 @@ from azure.core.exceptions import ClientAuthenticationError
 
 from sql_connection import connect_to_sql
 from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category
+from circuit_catalog import circuit_details, circuit_key, projected_outline
 
 warnings.filterwarnings("ignore", message=".*pandas only supports SQLAlchemy.*")
 
@@ -2161,8 +2162,33 @@ elif viz == "🏁 Grid Advantage":
 elif viz == "🏟 Circuits":
     st.header(t("circuit_analysis_header"))
 
-    # Load all circuit + race data
-    circuit_data = premier_q("""
+    circuit_events = q("""
+        SELECT event_id, circuit_name, circuit_place, country_name
+        FROM events WHERE circuit_name IS NOT NULL AND circuit_place IS NOT NULL
+    """)
+    if circuit_events.empty:
+        st.info(t("no_data")); st.stop()
+
+    circuit_events["circuit_key"] = [
+        circuit_key(row.circuit_name, row.circuit_place)
+        for row in circuit_events.itertuples()
+    ]
+    circuits = circuit_events.drop_duplicates("circuit_key").sort_values("circuit_name")
+    circuit_labels = {r.circuit_key: f"{r.circuit_name}, {r.circuit_place}"
+                      for _, r in circuits.iterrows()}
+    circuit_list = list(circuit_labels.keys())
+
+    if st.session_state.get("circuit_selection") not in circuit_list:
+        st.session_state["circuit_selection"] = circuit_list[0]
+    sel_circuit = st.sidebar.selectbox(t("circuit_label"), circuit_list, key="circuit_selection",
+                                       format_func=lambda x: circuit_labels[x])
+
+    circuit_info = circuits[circuits["circuit_key"] == sel_circuit].iloc[0]
+    circuit_event_ids = sorted(circuit_events.loc[
+        circuit_events["circuit_key"] == sel_circuit, "event_id"
+    ].unique())
+    circuit_placeholders = ", ".join("?" for _ in circuit_event_ids)
+    cd = premier_q(f"""
         SELECT e.circuit_name, e.short_name, e.circuit_place, e.country_name,
             e.season_year, r.full_name AS rider, t.constructor,
             COALESCE(ta.canonical_name, t.team_name) AS team_name,
@@ -2173,25 +2199,61 @@ elif viz == "🏟 Circuits":
         JOIN riders r ON c.rider_id = r.rider_id
         LEFT JOIN teams t ON c.team_id = t.team_id AND t.season_year = e.season_year
         LEFT JOIN team_aliases ta ON t.team_name = ta.team_name
-        WHERE s.session_type = 'RAC'
-    """)
-    if circuit_data.empty:
-        st.info(t("no_race_data")); st.stop()
-
-    circuits = circuit_data.drop_duplicates("short_name").sort_values("circuit_name")
-    circuit_labels = {r.short_name: f"{r.short_name} — {r.circuit_name}, {r.circuit_place}"
-                      for _, r in circuits.iterrows()}
-    circuit_list = list(circuit_labels.keys())
-
-    sel_circuit = st.sidebar.selectbox(t("circuit_label"), circuit_list,
-                                       format_func=lambda x: circuit_labels[x])
-
-    cd = circuit_data[circuit_data["short_name"] == sel_circuit]
-    circuit_info = circuits[circuits["short_name"] == sel_circuit].iloc[0]
+        WHERE s.session_type = 'RAC' AND e.event_id IN ({circuit_placeholders})
+    """, circuit_event_ids)
 
     st.subheader(f"📍 {circuit_info.circuit_name}")
-    st.caption(f"{circuit_info.circuit_place}, {circuit_info.country_name} · "
-               f"{t('seasons_in_db', seasons=', '.join(str(int(y)) for y in sorted(cd['season_year'].unique())))}")
+    st.caption(str(circuit_info.circuit_place))
+    if not cd.empty:
+        st.caption(t("seasons_in_db", seasons=", ".join(
+            str(int(y)) for y in sorted(cd["season_year"].unique())
+        )))
+
+    details = circuit_details(circuit_info.circuit_name)
+    st.caption(t("circuit_layout_help"))
+    if details is None:
+        st.info(t("circuit_facts_unavailable"))
+        st.info(t("circuit_diagram_unavailable"))
+    else:
+        distance, turns, attendance = st.columns(3)
+        distance.metric(t("circuit_distance"), f"{details['length_km']:.3f} km")
+        turns.metric(t("circuit_turns"), details["turns"])
+        record = details.get("attendance_record")
+        attendance.metric(
+            t("circuit_record_attendance"),
+            f"{record['count']:,}" if record else t("circuit_not_available"),
+        )
+        st.caption(f"[{t('circuit_facts_source')}]({details['facts_source']})")
+        if details.get("facts_verified"):
+            st.caption(t("circuit_facts_verified", date=details["facts_verified"]))
+        if record:
+            st.caption(t("circuit_attendance_scope", year=record["year"],
+                         scope=t(f"attendance_{record['scope']}")))
+            st.caption(f"[{t('circuit_attendance_source')}]({record['source']})")
+        else:
+            st.caption(t("circuit_attendance_unavailable"))
+        if details.get("outline"):
+            x, y = projected_outline(details["outline"])
+            diagram = go.Figure(go.Scatter(
+                x=x, y=y, mode="lines", line=dict(color="#E76F51", width=6),
+                hoverinfo="skip", showlegend=False,
+            ))
+            diagram.update_layout(
+                title=t("circuit_diagram"), height=320, dragmode=False,
+                margin=dict(l=15, r=15, t=50, b=15),
+                xaxis=dict(visible=False, fixedrange=True),
+                yaxis=dict(visible=False, scaleanchor="x", scaleratio=1, fixedrange=True),
+            )
+            st.plotly_chart(diagram, width="stretch", config={"displayModeBar": False})
+            st.caption(f"[{t('circuit_outline_source')}]({details['outline_source']}) · "
+                       "[OpenStreetMap contributors](https://www.openstreetmap.org/copyright) · "
+                       f"[{details['outline_license']}]({details['outline_license_url']})")
+        else:
+            st.info(t("circuit_diagram_unavailable"))
+    st.divider()
+
+    if cd.empty:
+        st.info(t("no_race_data")); st.stop()
 
     # --- Key stats ---
     n_races = cd[cd["position"] == 1].shape[0]
@@ -2267,18 +2329,18 @@ elif viz == "🏟 Circuits":
 
     # --- Lap time evolution (from laps table, not classification) ---
     st.subheader(t("winning_pace_evolution"))
-    bl = premier_q("""
+    bl = premier_q(f"""
         SELECT e.season_year, r.full_name AS rider, MIN(l.lap_time) AS best_lap
         FROM laps l
         JOIN sessions s ON l.session_id = s.session_id
         JOIN events e ON s.event_id = e.event_id
         JOIN riders r ON l.rider_id = r.rider_id
         JOIN classifications c ON c.session_id = s.session_id AND c.rider_id = l.rider_id
-        WHERE s.session_type = 'RAC' AND e.short_name = ? AND c.position = 1
+        WHERE s.session_type = 'RAC' AND e.event_id IN ({circuit_placeholders}) AND c.position = 1
             AND l.is_pit = 0
         GROUP BY e.season_year, r.full_name
         ORDER BY e.season_year
-    """, [sel_circuit])
+    """, circuit_event_ids)
     if not bl.empty:
         bl["sec"] = bl["best_lap"].apply(lap_to_sec)
         bl = bl.dropna(subset=["sec"])
@@ -2295,16 +2357,16 @@ elif viz == "🏟 Circuits":
 
     # --- Top speed evolution (from laps table) ---
     st.subheader(t("top_speed_circuit"))
-    ts = premier_q("""
+    ts = premier_q(f"""
         SELECT e.season_year, MAX(l.speed_kmh) AS max_speed, AVG(l.speed_kmh) AS avg_speed
         FROM laps l
         JOIN sessions s ON l.session_id = s.session_id
         JOIN events e ON s.event_id = e.event_id
-        WHERE s.session_type = 'RAC' AND e.short_name = ?
+        WHERE s.session_type = 'RAC' AND e.event_id IN ({circuit_placeholders})
             AND l.speed_kmh IS NOT NULL AND l.speed_kmh > 0
         GROUP BY e.season_year
         ORDER BY e.season_year
-    """, [sel_circuit])
+    """, circuit_event_ids)
     if not ts.empty:
         ts["Year"] = ts["season_year"].astype(str)
         fig = go.Figure()
