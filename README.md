@@ -33,6 +33,11 @@ Profile/directory race numbers fall back to the latest positive classification
 number when the rider record is empty; Valentino Rossi's identity uses #46.
 This read-only presentation fallback does not rewrite historical session numbers.
 Riders with no known number remain unassigned; number artwork availability is separate.
+Rider season tables include **Q2 poles** (available first-place Q2 finishes, not
+complete historical or penalty-adjusted grid poles). Supported coverage begins in
+2013 for MotoGP and 2019 for Moto2/Moto3. Zero requires classified Q2 evidence;
+missing evidence displays an em dash. Cell tooltips identify the rider's available
+Q2 event count, and the page-bottom methodology explains partial coverage.
 
 Career profiles use a reusable identity card with individually reviewed
 biography facts where collected. Face portraits are omitted for every rider,
