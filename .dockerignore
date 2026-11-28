@@ -5,6 +5,7 @@
 !translations.py
 !sql_connection.py
 !category_scope.py
+!standings_corrections.py
 !archive_analytics.py
 !circuit_catalog.py
 !circuit_catalog.json
