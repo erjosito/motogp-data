@@ -55,12 +55,14 @@ def sample_query(sql, conn=None, params=None):
         return pd.DataFrame({"rider_id": ["sample-rider", "sample-rider-2"],
                              "full_name": ["Sample Rider 1", "Sample Rider 2"]})
     if "SELECT DISTINCT full_name" in sql:
-        return pd.DataFrame({"full_name": ["Sample Rider 1", "Sample Rider 2"]})
+        return pd.DataFrame({"full_name": [name for name in ["Sample Rider 1", "Sample Rider 2"]
+                                          if not params or name != params[0]]})
     if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
         return pd.DataFrame([
             dict(season_year=year, short_name="QAT", date_end=f"{year}-11-08",
                  session_type="RAC", session_label="Race", session_id=f"{year}-{category}",
-                 category=category, rider_id="sample-rider", position=position, points=points, best_lap_time=None,
+                 category=category, rider_id="sample-rider", event_id=f"{year}-qat",
+                 session_number=None, session_status="FINISHED", position=position, points=points, best_lap_time=None,
                  top_speed=None, status="INSTND", team_name="Sample Team",
                  constructor="Sample Bike", circuit_name="Sample Circuit")
             for year, category, position, points in [
@@ -73,6 +75,7 @@ def sample_query(sql, conn=None, params=None):
             "season_year": [2025, 2026, 2026], "short_name": ["QAT"] * 3,
             "date_end": ["2025-11-08", "2026-11-08", "2026-11-08"],
             "position": [2, 1, 4],
+            "rider_id": ["sample-rider" if params == ["Sample Rider 1"] else "sample-rider-2"] * 3,
         })
     if "COUNT(*) AS standings" in sql:
         return pd.DataFrame([
@@ -88,7 +91,8 @@ def sample_query(sql, conn=None, params=None):
         return pd.DataFrame(columns=["position", "rider", "points", "constructor", "is_final", "source_url"])
     if "SUM(cl.points) AS race_pts" in sql:
         return pd.DataFrame([
-            {"short_name": gp, "date_end": date, "rider": f"Sample Rider {rider}", "race_pts": points}
+            {"short_name": gp, "date_end": date, "rider": f"Sample Rider {rider}", "race_pts": points,
+             "rider_id": "sample-rider" if rider == 1 else f"sample-rider-{rider}"}
             for gp, date, rider, points in [
                 ("QAT", "2026-11-08", 1, 37), ("QAT", "2026-11-08", 2, 29),
                 ("QAT", "2026-11-08", 3, 23), ("POR", "2026-11-22", 1, 29),
@@ -398,7 +402,7 @@ class DashboardTests(unittest.TestCase):
             self.assertIn("Sample Rider 1", [header.value for header in facts.get("subheader")])
             self.assertIn("Number design reference: 2026 · MotoGP · #12",
                           " ".join(c.value for c in facts.get("caption")))
-            self.assertEqual(len(app.get("image")), 3)  # Title plus the existing two-design gallery.
+            self.assertEqual(len(app.get("image")), 6)  # Identity, three chart titles and the two-design gallery.
             app.selectbox(key="pp_yr").set_value(2025).run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
@@ -410,7 +414,8 @@ class DashboardTests(unittest.TestCase):
             self.assertFalse(app.exception)
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
             app.selectbox(key="profile_rider").set_value("sample-rider-2").run()
-            self.assertFalse(app.get("image"))
+            self.assertFalse(app.get("column")[1].get("image"))
+            self.assertEqual(len(app.get("image")), 1)  # The pictured rival remains in the comparison title.
 
     def test_number_identity_does_not_require_a_classification_or_registered_number(self):
         image = io.BytesIO()
@@ -443,7 +448,93 @@ class DashboardTests(unittest.TestCase):
             app.selectbox(key="pp_yr").set_value(2026).run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            self.assertEqual(len(app.get("image")), 4)
+
+    def test_home_titles_use_latest_artwork_with_plain_missing_and_ambiguous_names(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        asset = {"season": 2024, "category": "MotoGP", "number": 93,
+                 "source_url": "https://example.test/number.png"}
+        with patch("rider_numbers.read_identity_number", side_effect=lambda identity:
+                   (asset, image.getvalue()) if identity == "sample-rider" else None) as reader:
+            app = self.start_app()
+            card = next(column for column in app.get("column")
+                        if "Sample Rider 1" in [heading.value for heading in column.get("subheader")])
+            self.assertEqual(len(card.get("image")), 1)
+            self.assertIn("2024 · MotoGP · #93", " ".join(c.value for c in card.get("caption")))
             self.assertEqual(len(app.get("image")), 1)
+            reader.assert_any_call("sample-rider")
+            self.assertIn("Sample Rider 3", [heading.value for heading in app.subheader])
+
+            def ambiguous(sql, conn=None, params=None):
+                rows = sample_query(sql, conn, params)
+                if "SUM(cl.points) AS race_pts" in sql:
+                    rows.loc[rows["rider"].eq("Sample Rider 1") & rows["short_name"].eq("POR"),
+                             "rider_id"] = "unrelated-rider"
+                return rows
+
+            self.read_sql.side_effect = ambiguous
+            st.cache_data.clear()
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.get("image"))
+            self.assertIn("Sample Rider 1", [heading.value for heading in app.subheader])
+
+    def test_home_artwork_uses_official_rider_id_not_a_matching_race_name(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        asset = {"season": 2024, "category": "MotoGP", "number": 89,
+                 "source_url": "https://example.test/number.png"}
+
+        def official(sql, conn=None, params=None):
+            if "SELECT cs.position, cs.rider_id" in sql:
+                return pd.DataFrame([dict(position=1, rider_id="official-rider", rider="Sample Rider 1",
+                                          points=66, constructor="Bike", is_final=True,
+                                          source_url="https://example.test/final")])
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = official
+        with patch("rider_numbers.read_identity_number", side_effect=lambda identity:
+                   (asset, image.getvalue()) if identity == "official-rider" else None) as reader:
+            app = self.start_app()
+            self.assertEqual(len(app.get("image")), 1)
+            reader.assert_called_once_with("official-rider")
+
+    def test_artwork_decorates_all_rider_named_charts_and_both_comparison_riders(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        asset = {"season": 2024, "category": "MotoGP", "number": 93,
+                 "source_url": "https://example.test/number.png"}
+
+        def timing(sql, conn=None, params=None):
+            rows = sample_query(sql, conn, params)
+            if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+                rows["best_lap_time"] = "1:40.000"
+                rows["top_speed"] = 330.0
+            return rows
+
+        self.read_sql.side_effect = timing
+        with patch("rider_numbers.read_identity_number", side_effect=lambda identity:
+                   (asset, image.getvalue()) if identity in ("sample-rider", "sample-rider-2") else None):
+            app = self.start_app()
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+            self.assertFalse(app.exception)
+            labels = [heading.value for heading in app.subheader]
+            translate = get_translator("en")
+            for key in ["race_results_title", "season_points_title", "race_best_laps_title",
+                        "race_top_speeds_title", "pilot_vs_rival_title"]:
+                self.assertIn(translate(key, pilot="Sample Rider 1", rival="Sample Rider 2"), labels)
+            self.assertEqual(len(app.get("image")), 7)
+            self.assertEqual(sum("Number design reference" in c.value for c in app.caption), 2)
+            chart_titles = [json.loads(chart.proto.spec)["layout"].get("title", {}).get("text", "")
+                            for chart in app.get("plotly_chart")]
+            self.assertFalse(any("Sample Rider" in title for title in chart_titles))
+
+    def test_invalid_title_artwork_reports_an_error_instead_of_plain_success(self):
+        with patch("rider_numbers.read_identity_number", side_effect=ValueError("Invalid artwork hash")):
+            app = self.start_app()
+            self.assertIn("Invalid artwork hash", " ".join(error.value for error in app.error))
+            self.assertFalse(app.get("image"))
 
     def test_legacy_named_rider_preference_preserves_unique_identity_filters(self):
         app = self.start_app()
