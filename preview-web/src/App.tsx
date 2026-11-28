@@ -246,7 +246,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
           <p>{featured && story ? `${story.recovered} points recovered from the lowest margin to the latest result.` : `${leader.rider} · ${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} Grand Prix wins`}.`}</p>
           <SourceNote><p>{season} championship: {narrative.summary}</p>
             {narrative.context_url && <p><a href={narrative.context_url} target="_blank" rel="noreferrer">The injury-recovery story · MotoGP</a></p>}
-            <p>{featured ? '102-point deficit verified in race results' : official ? `Based on official ${officialLabel.toLowerCase()}` : 'Based on imported race results'}</p>
+            <p>{featured ? '102-point deficit verified in race results' : data.points_correction ? 'Official ranks with independently sourced points' : official ? `Based on official ${officialLabel.toLowerCase()}` : 'Based on imported race results'}</p>
           </SourceNote>
         </div>
         <div className="comeback-score">
@@ -276,7 +276,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
     </section>
 
     <div className="stats-grid">
-      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} supplied points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
+      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
       {pointsWarning ? <Stat label="OFFICIAL RANK" value={`P${leader.position}`} note="Position in the official standings" /> : <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : data.standings[1]?.gap == null ? '—' : `${data.standings[1].gap} pts`} note={featured ? 'Relative to the closest title rival' : official ? `From ${officialLabel.toLowerCase()}` : 'Calculated from imported results'} />}
       <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'final' : 'current'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
@@ -294,7 +294,9 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
             <td><RiderName rider={rider} linked /><small>{rider.constructor || rider.team || 'Team unavailable'}</small></td>
             <td className="strong numeric">{rider.points}</td><td className="muted numeric">{pointsWarning || rider.gap == null || rider.gap === 0 ? '—' : `−${rider.gap}`}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
-        <SourceNote><p>{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p></SourceNote>
+        <SourceNote><p>{data.points_correction ? data.points_correction.note : official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
+          {data.points_correction && <p>Independent sources: <a href={data.points_correction.source_url} target="_blank" rel="noreferrer">Historical standings</a> · <a href={data.points_correction.corroborating_url} target="_blank" rel="noreferrer">L'Équipe</a></p>}
+        </SourceNote>
       </DetailSection>
     </div>
     {official && leader.source_url && <SourceNote><p><a href={leader.source_url} target="_blank" rel="noreferrer">{season} · official championship source</a></p></SourceNote>}

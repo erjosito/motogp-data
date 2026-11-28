@@ -18,6 +18,7 @@ COPY translations.py .
 COPY .streamlit/config.toml .streamlit/config.toml
 COPY sql_connection.py .
 COPY category_scope.py .
+COPY standings_corrections.py .
 COPY archive_analytics.py .
 COPY circuit_catalog.py circuit_catalog.json ./
 COPY rider_profiles.py rider_profiles.reviewed.json rider_media.py rider_numbers.py media_catalog.json ./

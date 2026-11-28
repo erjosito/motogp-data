@@ -699,6 +699,16 @@ There are still **450 finished historical sessions without official
 classifications**, **19 season/class tables without official final standings**
 and **18 non-monotonic official point tables** requiring the source warning.
 These are source gaps, not evidence that the races or titles never happened.
+
+For 1970 350cc, the official source reports Agostini and Carruthers with 9 and
+28 points, but the independently sourced [historical standings](https://en.wikipedia.org/wiki/1970_Grand_Prix_motorcycle_racing_season#350cc_final_standings)
+and [L'Équipe](https://www.lequipe.fr/Moto/1970/moto-350cc-classement.html)
+report 90 and 58. The former describes the best-six-results rule; its 90 is
+counted championship points, not Agostini's gross 135 points from nine wins.
+Both championship displays apply these two explicitly sourced corrections only
+when the exact final official rider IDs, ranks and original values match.
+The SQL standings and exports retain the original official values; the rest of
+the table remains unverified and derived championship gaps stay suppressed.
 All seven Agostini 350cc title rankings are now
 represented alongside his eight 500cc titles, but this does not validate every
 supplied point total. Nieto's six 50cc and four 125cc title rankings are available;

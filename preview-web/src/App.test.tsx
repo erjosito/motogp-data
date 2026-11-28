@@ -158,4 +158,31 @@ describe('category selector and navigation', () => {
     expect(markup).toContain('data-chart-kind="scatter"')
     expect(markup).not.toContain('data-chart-kind="lollipop"')
   })
+
+  it('identifies independently corrected points and preserves the no-margin guard', () => {
+    const data: Championship = {
+      season: 1970, category: '350cc', standings_source: 'official', is_final: true,
+      official_points_inconsistent: true, points_warning: 'Unresolved official source discrepancy',
+      points_correction: { note: 'Two independently sourced corrections; other totals remain unverified.',
+        source_url: 'https://en.wikipedia.org/wiki/1970_Grand_Prix_motorcycle_racing_season',
+        corroborating_url: 'https://www.lequipe.fr/Moto/1970/moto-350cc-classement.html' },
+      external_sources_used: false, rounds: [], gp_results: 0, weekends: 0,
+      scoring_sessions: 0, comeback: null,
+      standings: ['Agostini', 'Carruthers', 'Pasolini'].map((rider, index) => ({
+        rider, rider_id: rider, number: null, position: index + 1,
+        points: [90, 58, 46][index], gap: null, wins: null, podiums: null,
+        team: null, constructor: 'Bike', series: [],
+      })),
+      story: { kind: 'standings', headline: 'Champion', accent: 'Official rank',
+        summary: 'Official ranks with corrections.', metric_label: 'OFFICIAL RANK',
+        metric: 1, metric_note: 'Official champion rank', context_url: null },
+    }
+    const markup = renderToStaticMarkup(<ChampionshipContent data={data} category="350cc" theme="dark" />)
+    for (const points of [90, 58, 46]) expect(markup).toContain(`class="strong numeric">${points}</td>`)
+    expect(markup).toContain('Two independently sourced corrections')
+    expect(markup).toContain('L&#x27;Équipe')
+    expect(markup).not.toContain('historical source points')
+    expect(markup).not.toContain('LEAD OVER SECOND')
+    expect(markup.match(/class="muted numeric">—<\/td>/g)).toHaveLength(3)
+  })
 })
