@@ -402,7 +402,7 @@ class DashboardTests(unittest.TestCase):
             self.assertIn("Sample Rider 1", [header.value for header in facts.get("subheader")])
             self.assertIn("Number design reference: 2026 · MotoGP · #12",
                           " ".join(c.value for c in facts.get("caption")))
-            self.assertEqual(len(app.get("image")), 6)  # Identity, three chart titles and the two-design gallery.
+            self.assertEqual(len(app.get("image")), 7)  # Identity, chart/counter titles and the two-design gallery.
             app.selectbox(key="pp_yr").set_value(2025).run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
@@ -415,7 +415,7 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
             app.selectbox(key="profile_rider").set_value("sample-rider-2").run()
             self.assertFalse(app.get("column")[1].get("image"))
-            self.assertEqual(len(app.get("image")), 1)  # The pictured rival remains in the comparison title.
+            self.assertEqual(len(app.get("image")), 2)  # The pictured rival remains in comparison chart and counter titles.
 
     def test_number_identity_does_not_require_a_classification_or_registered_number(self):
         image = io.BytesIO()
@@ -448,7 +448,7 @@ class DashboardTests(unittest.TestCase):
             app.selectbox(key="pp_yr").set_value(2026).run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
-            self.assertEqual(len(app.get("image")), 4)
+            self.assertEqual(len(app.get("image")), 5)
 
     def test_home_titles_use_latest_artwork_with_plain_missing_and_ambiguous_names(self):
         image = io.BytesIO()
@@ -524,7 +524,8 @@ class DashboardTests(unittest.TestCase):
             for key in ["race_results_title", "season_points_title", "race_best_laps_title",
                         "race_top_speeds_title", "pilot_vs_rival_title"]:
                 self.assertIn(translate(key, pilot="Sample Rider 1", rival="Sample Rider 2"), labels)
-            self.assertEqual(len(app.get("image")), 7)
+            self.assertEqual(len(app.get("image")), 9)
+            self.assertEqual(sum(metric.label == "Finishes ahead" for metric in app.metric), 2)
             self.assertEqual(sum("Number design reference" in c.value for c in app.caption), 2)
             chart_titles = [json.loads(chart.proto.spec)["layout"].get("title", {}).get("text", "")
                             for chart in app.get("plotly_chart")]
