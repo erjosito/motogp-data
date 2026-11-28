@@ -58,6 +58,11 @@ number (or initials when the race number is unknown).
 The additive `/api/riders/{rider_id}/number-identity` metadata and `/image`
 endpoint use the shared verified identity selector. Existing season-scoped
 `number-art` endpoints retain their original contract; portrait matching is unchanged.
+Classic uses the same verified artwork beside Home championship rider-card
+headings and every rider-named profile chart or comparison-counter title,
+including both riders in head-to-head comparisons. Plain headings remain when artwork or an unambiguous
+results rider ID is unavailable. Source/design references appear once per rider
+per view; profile portrait gating and the scoped artwork gallery are unchanged.
 
 The other views cover category-scoped championships, session results, rider lap
 comparisons, and sector analysis. Explicit season/event/session deep links retain

@@ -685,14 +685,14 @@ def load_championship(year, family="premier"):
     if year < 1990:
         return pd.DataFrame()
     return premier_q("""
-        SELECT e.short_name, e.date_end, r.full_name AS rider,
+        SELECT e.short_name, e.date_end, r.full_name AS rider, cl.rider_id,
             SUM(cl.points) AS race_pts
         FROM classifications cl
         JOIN sessions s ON cl.session_id = s.session_id
         JOIN events e ON s.event_id = e.event_id
         JOIN riders r ON cl.rider_id = r.rider_id
         WHERE e.season_year = ? AND s.session_type IN ('RAC', 'SPR')
-        GROUP BY e.short_name, e.date_end, r.full_name
+        GROUP BY e.short_name, e.date_end, r.full_name, cl.rider_id
         HAVING COUNT(cl.points) = COUNT(*)
         ORDER BY e.date_end
     """, [year], family=family)
@@ -738,6 +738,57 @@ def load_archive_finals(families, rider_id=None):
     return rows
 
 
+_title_artwork = {}
+_title_artwork_credits = set()
+
+
+def unique_rider_id(rows):
+    if rows.empty or "rider_id" not in rows or rows["rider_id"].isna().any():
+        return None
+    identities = rows["rider_id"].astype(str).unique()
+    return identities[0] if len(identities) == 1 and identities[0] else None
+
+
+def title_number_artwork(rider_id):
+    if rider_id is None:
+        return None
+    identity = str(rider_id)
+    if identity not in _title_artwork:
+        try:
+            _title_artwork[identity] = read_identity_number(identity)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            st.error(t("rider_context_error", reason=str(error)))
+            st.stop()
+    return _title_artwork[identity]
+
+
+def render_rider_heading(label, *rider_ids):
+    artwork = [(identity, title_number_artwork(identity)) for identity in dict.fromkeys(rider_ids)]
+    artwork = [(identity, result) for identity, result in artwork if result is not None]
+    if not artwork:
+        st.subheader(label)
+        return
+    with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+        for _, (_, image) in artwork:
+            st.image(image, width=72)
+        with st.container():
+            st.subheader(label)
+    for identity, (asset, _) in artwork:
+        if identity not in _title_artwork_credits:
+            st.caption(
+                f'{t("rider_number_reference")}: {asset["season"]} · {asset["category"]} · '
+                f'#{asset["number"]} · [{t("rider_number_source")}]({asset["source_url"]})'
+            )
+            _title_artwork_credits.add(identity)
+
+
+def render_rider_chart(figure, *rider_ids):
+    if figure.layout.title.text and any(title_number_artwork(identity) for identity in rider_ids):
+        render_rider_heading(figure.layout.title.text, *rider_ids)
+        figure.update_layout(title=None, margin=dict(t=30))
+    st.plotly_chart(figure, width="stretch")
+
+
 def render_rider_identity(rider_id, name, year, categories):
     try:
         profile = read_enrichment(rider_id)["profile"]
@@ -748,7 +799,6 @@ def render_rider_identity(rider_id, name, year, categories):
             raise ValueError("Rider enrichment has no verified results-ID link.")
         portrait = read_portrait(rider_id, year, categories)
         numbers = list_numbers(rider_id, year, categories)
-        title_artwork = read_identity_number(rider_id)
     except (OSError, ValueError, KeyError, TypeError) as error:
         st.error(t("rider_context_error", reason=str(error)))
         st.stop()
@@ -762,17 +812,7 @@ def render_rider_identity(rider_id, name, year, categories):
                 initials = "".join(part[0] for part in name.split()[:2]).upper()
                 st.subheader(initials)
         with facts_column:
-            if title_artwork:
-                asset, image = title_artwork
-                with st.container(horizontal=True, vertical_alignment="center", gap="small"):
-                    st.image(image, width=72)
-                    st.subheader(name, width="content")
-                st.caption(
-                    f'{t("rider_number_reference")}: {asset["season"]} · {asset["category"]} · '
-                    f'#{asset["number"]} · [{t("rider_number_source")}]({asset["source_url"]})'
-                )
-            else:
-                st.subheader(name)
+            render_rider_heading(name, rider_id)
             st.caption(t(
                 "rider_identity_scope", season=year if year is not None else t("rider_all_seasons"),
                 categories=", ".join(categories),
@@ -1032,7 +1072,8 @@ if viz == "🏠 Home":
             with column:
                 with st.container(border=True):
                     st.caption(f"P{ranks[rider]}")
-                    st.subheader(rider)
+                    identity_rows = official if not official.empty else champ
+                    render_rider_heading(rider, unique_rider_id(identity_rows[identity_rows["rider"].eq(rider)]))
                     st.metric(t("points"), f"{points:g}")
                     st.caption(t("home_points_behind", points=f"{totals.iloc[0] - points:g}"))
 
@@ -3038,7 +3079,7 @@ elif viz == "👤 Pilot Profile":
                            range=[max_pos + 0.5, 0.5], tick0=1),
                 xaxis=dict(title="", tickangle=-60, categoryorder="array", categoryarray=label_order),
             )
-            st.plotly_chart(fig, width="stretch")
+            render_rider_chart(fig, pilot_id)
         else:
             st.info(t("no_classified_finishes"))
 
@@ -3053,7 +3094,7 @@ elif viz == "👤 Pilot Profile":
                      labels={"Category": t("category")})
         fig.update_layout(height=350, xaxis_type="category")
         fig.update_traces(textposition="outside")
-        st.plotly_chart(fig, width="stretch")
+        render_rider_chart(fig, pilot_id)
     else:
         st.info(t("no_recorded_points"))
 
@@ -3115,7 +3156,7 @@ elif viz == "👤 Pilot Profile":
                          category_orders={"label": bl["label"].tolist()})
         fig.update_traces(marker=dict(size=8))
         fig.update_layout(height=400, xaxis_tickangle=-60)
-        st.plotly_chart(fig, width="stretch")
+        render_rider_chart(fig, pilot_id)
 
     # --- Top speed trend ---
     st.subheader(t("top_speed_trend"))
@@ -3126,7 +3167,7 @@ elif viz == "👤 Pilot Profile":
                       title=t("race_top_speeds_title", pilot=pilot), labels={"label": "", "top_speed": t("kmh")},
                       category_orders={"label": ts["label"].tolist()})
         fig.update_layout(height=350, xaxis_tickangle=-60)
-        st.plotly_chart(fig, width="stretch")
+        render_rider_chart(fig, pilot_id)
 
     st.divider()
 
@@ -3140,7 +3181,7 @@ elif viz == "👤 Pilot Profile":
     if not others.empty:
         rival = st.selectbox(t("compare_with"), others["full_name"].tolist(), key="profile_rival")
         rival_races = premier_q("""
-            SELECT s.session_id, e.season_year, e.short_name, e.date_end, c.position
+            SELECT s.session_id, e.season_year, e.short_name, e.date_end, c.position, c.rider_id
             FROM classifications c JOIN sessions s ON c.session_id = s.session_id
             JOIN events e ON s.event_id = e.event_id
             JOIN riders r ON c.rider_id = r.rider_id
@@ -3154,10 +3195,14 @@ elif viz == "👤 Pilot Profile":
             label_order = mg["label"].tolist()
             mg["winner"] = mg.apply(lambda r: pilot if r.pos1 < r.pos2 else rival if r.pos2 < r.pos1 else "Tie", axis=1)
             wc = mg["winner"].value_counts()
-            c1, c2, c3 = st.columns(3)
-            c1.metric(pilot, wc.get(pilot, 0))
+            c1, c2, c3 = st.columns(3, vertical_alignment="bottom")
+            with c1:
+                render_rider_heading(pilot, pilot_id)
+                st.metric(t("comparison_finishes_ahead"), wc.get(pilot, 0))
             c2.metric(t("ties"), wc.get("Tie", 0))
-            c3.metric(rival, wc.get(rival, 0))
+            with c3:
+                render_rider_heading(rival, unique_rider_id(rival_races))
+                st.metric(t("comparison_finishes_ahead"), wc.get(rival, 0))
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=mg["label"], y=mg["pos1"], mode="lines+markers", name=pilot))
             fig.add_trace(go.Scatter(x=mg["label"], y=mg["pos2"], mode="lines+markers", name=rival))
@@ -3166,7 +3211,7 @@ elif viz == "👤 Pilot Profile":
                               yaxis=dict(autorange=False, title=t("position"), dtick=1, range=[max_p + 0.5, 0.5], tick0=1),
                               xaxis=dict(tickangle=-60, categoryorder="array", categoryarray=label_order),
                               height=400, hovermode="x unified")
-            st.plotly_chart(fig, width="stretch")
+            render_rider_chart(fig, pilot_id, unique_rider_id(rival_races))
 
 
 # =====================================================================

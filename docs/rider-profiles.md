@@ -305,8 +305,16 @@ and biography source. The photo appears only for the selected 2026 season when
 the filtered records include MotoGP; All-career, older-year, other-class and
 unpictured views use initials without changing the existing career analytics.
 Creator/source/license/adaptation credits remain visible below the photo.
-Number artwork can also sit beside the profile name, without removing the
-existing scoped gallery. It is rider identity, not season-specific evidence:
+Number artwork also sits beside the profile name, Home championship rider-card
+names and rider-named profile chart/counter titles, including both comparison riders.
+Charts use a native inline artwork/title row above the plot instead of
+duplicating the name in Plotly's title. Existing plain chart titles remain
+when artwork is unavailable. Championship cards use the official standing's
+rider ID when available, otherwise an unambiguous ID from the scoped race rows;
+ambiguous/missing IDs never match artwork by name or number.
+Artwork is read/verified once per rider per app run and reference credits are
+shown once per rider in the view, without removing the existing scoped gallery.
+It is rider identity, not season-specific evidence:
 `read_identity_number(results_rider_id)` uses the latest available design for
 that stable rider ID, independently of the selected year/class or absent race
 numbers. Multiple latest designs have a deterministic category/number/hash
