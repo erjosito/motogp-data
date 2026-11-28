@@ -182,7 +182,15 @@ describe('evidence-led season chart pairs', () => {
     expect(html).toContain('class="score-comparison"')
     expect(html).toContain('<h3>Angel Nieto</h3><strong>76</strong>')
     expect(data).toEqual(before)
-    expect(seasonCharts({ ...data, season: 2015 }).charts[0].kind).toBe('scatter')
+    const modern = seasonCharts({ ...data, season: 2015 }).charts
+    expect(modern[0].kind).toBe('scatter')
+    expect(modern[1].kind).toBe('lollipop')
+    expect(modern[1].series[1].x).toEqual([0, 1])
+    const singular = renderToStaticMarkup(createElement(ChampionshipContent, {
+      data: championship([standing('leader', 2, 1), standing('runner-up', 1, 2)]),
+      category: '50cc', theme: 'dark',
+    }))
+    expect(singular).toContain('<strong>1</strong><span>point</span>')
   })
 })
 

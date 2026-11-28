@@ -214,7 +214,7 @@ function SeasonChartPanel({ chart, theme }: { chart: SeasonChart; theme: string 
       <span className="quiet-badge chart-type">{chart.kind === 'bridge' ? 'Recovery bridge' : chart.kind}</span></div>
     {chart.kind === 'comparison' ? <div className="score-comparison">{chart.series.map((series) =>
       <div key={series.id} style={{ borderLeftColor: `var(${riderStyle(series.id).token})` }}>
-        <span className="eyebrow">P{series.y[0]}</span><h3>{series.name}</h3><strong>{series.x[0]}</strong><span>points</span>
+        <span className="eyebrow">P{series.y[0]}</span><h3>{series.name}</h3><strong>{series.x[0]}</strong><span>{series.x[0] === 1 ? 'point' : 'points'}</span>
       </div>)}</div> : <Plot series={chart.series} yTitle={chart.yTitle} xTitle={chart.xTitle} baseline={chart.baseline}
       valueUnit={chart.valueUnit} rank={chart.rank} stacked={chart.stacked} theme={theme} height={420} />}
     <SourceNote><p><strong>{statisticText(chart.title)}.</strong> {chart.description} {chart.note}</p></SourceNote>
