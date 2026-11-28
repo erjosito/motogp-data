@@ -437,7 +437,45 @@ class CategoryApiTests(unittest.TestCase):
         self.assertIsNone(data["best_season"])
         self.assertEqual(data["seasons"][0]["position"], 2)
         self.assertEqual(data["venues"], [])
+        self.assertIsNone(data["seasons"][0]["gp_poles"])
+        self.assertEqual(data["seasons"][0]["gp_poles_q2_events"], 0)
         self.assertIn("archival", [row["rider_id"] for row in self.client.get("/api/riders").json()])
+
+    def test_rider_season_poles_use_classified_supported_q2_on_both_mounts(self):
+        for index, (category, position, status, stage) in enumerate([
+            ("MotoGP", 1, "FINISHED", 2), (" MotoGP\u2122 ", 1, "FINISHED", 2),
+            ("Moto2", 3, "FINISHED", 2), ("Moto3", None, "FINISHED", 2),
+            ("350cc", 1, "FINISHED", 2), ("MotoGP", 1, "NOTSTARTED", 2),
+            ("Moto3", 1, "FINISHED", 1),
+        ]):
+            self.db.execute(
+                "INSERT INTO sessions(session_id,event_id,category,session_type,session_number,status) "
+                "VALUES (?, 'gp', ?, 'Q', ?, ?)", (f"q-{index}", category, stage, status),
+            )
+            self.db.execute(
+                "INSERT INTO dbo.vw_effective_classifications(session_id,rider_id,position) "
+                "VALUES (?, 'rider', ?)", (f"q-{index}", position),
+            )
+        self.db.execute("INSERT INTO events(event_id,season_year) VALUES ('old',2012)")
+        self.db.execute("INSERT INTO sessions(session_id,event_id,category,session_type,session_number,status) "
+                        "VALUES ('old-q','old','MotoGP','Q',2,'FINISHED')")
+        self.db.execute("INSERT INTO dbo.vw_effective_classifications(session_id,rider_id,position) "
+                        "VALUES ('old-q','rider',1)")
+        self.db.execute("INSERT INTO championship_standings VALUES "
+                        "(2012,'MotoGP',2,'rider',10,NULL,'https://example.test',1)")
+        for prefix in ["", "/paddock"]:
+            data = self.client.get(f"{prefix}/api/riders/rider").json()
+            seasons = {(row["season"], row["category"]): row for row in data["seasons"]}
+            self.assertEqual(seasons[(2026, "premier")]["gp_poles"], 1)
+            self.assertEqual(seasons[(2026, "premier")]["gp_poles_q2_events"], 1)
+            self.assertEqual(seasons[(2026, "intermediate")]["gp_poles"], 0)
+            self.assertEqual(seasons[(2026, "intermediate")]["gp_poles_q2_events"], 1)
+            for key in [(2026, "lightweight"), (2026, "350cc"), (2012, "premier")]:
+                self.assertIsNone(seasons[key]["gp_poles"])
+                self.assertEqual(seasons[key]["gp_poles_q2_events"], 0)
+            self.assertTrue(all(row["gp_poles_method"] == "recorded_q2_wins" for row in data["seasons"]))
+            self.assertEqual(data["totals"]["gp_appearances"], 6)
+            self.assertEqual(data["totals"]["gp_wins"], 6)
 
     def test_title_headline_has_no_recorded_qualifier_on_either_mount(self):
         self.db.execute("INSERT INTO riders VALUES ('champion','Champion Rider',NULL)")

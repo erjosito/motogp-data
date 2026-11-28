@@ -20,6 +20,13 @@ TRANSLATIONS = {
     "rider_number_artwork": {"en": "Rider number artwork", "es": "Diseños de dorsales", "it": "Grafica dei numeri di gara"},
     "rider_number_source": {"en": "Artwork source", "es": "Fuente del diseño", "it": "Fonte della grafica"},
     "rider_number_reference": {"en": "Number design reference", "es": "Diseño de dorsal de referencia", "it": "Grafica del numero di riferimento"},
+    "profile_poles": {"en": "Q2 poles", "es": "Poles Q2", "it": "Pole Q2"},
+    "profile_poles_events": {"en": "Q2 events", "es": "Q2", "it": "Q2"},
+    "profile_poles_method": {
+        "en": "Poles count recorded P1 finishes in completed Q2: MotoGP from 2013; Moto2/Moto3 from 2019. Q2 events count this rider's recorded classified Q2 results, not all race weekends. Blank poles mean unavailable evidence, not zero. These partial-import counts are not complete historical or penalty-adjusted starting-grid pole totals.",
+        "es": "Las poles cuentan P1 registradas en Q2 finalizadas: MotoGP desde 2013; Moto2/Moto3 desde 2019. Las Q2 cuentan resultados clasificados registrados de este piloto, no todos los fines de semana. Una pole en blanco indica datos no disponibles, no cero. Estos recuentos parciales no son totales históricos completos ni poles de parrilla ajustadas por sanciones.",
+        "it": "Le pole contano P1 registrate in Q2 concluse: MotoGP dal 2013; Moto2/Moto3 dal 2019. Le Q2 contano risultati classificati registrati di questo pilota, non tutti i fine settimana. Le pole vuote indicano dati non disponibili, non zero. Questi conteggi parziali non sono totali storici completi né pole di griglia corrette per penalità.",
+    },
     "rider_portrait_credit": {
         "en": "Photo: {creator} / Wikimedia Commons · [Source]({source}) · [CC BY-SA 4.0]({license}). EXIF-corrected, cropped, resized and converted to WebP; adapted image contributions are also CC BY-SA 4.0. No endorsement implied.",
         "es": "Foto: {creator} / Wikimedia Commons · [Fuente]({source}) · [CC BY-SA 4.0]({license}). Orientación EXIF corregida, recorte, cambio de tamaño y conversión a WebP; la imagen adaptada también es CC BY-SA 4.0. No implica patrocinio.",

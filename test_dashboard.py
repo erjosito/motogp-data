@@ -277,6 +277,37 @@ class DashboardTests(unittest.TestCase):
                             if "Year" in table.value and "Pts %" in table.value)
         self.assertTrue(season_table["Pts %"].isna().all())
 
+    def test_profile_season_poles_count_recorded_q2_without_inflating_races(self):
+        def qualifying_query(sql, conn=None, params=None):
+            rows = sample_query(sql, conn, params)
+            if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+                qualifiers = []
+                for category, position, stage in [("MotoGP", 1, 2), ("MotoGP", 1, 2),
+                                                   ("Moto2", 3, 2), ("Moto3", 1, 1)]:
+                    source = rows.loc[rows["category"].eq(category)].iloc[0].to_dict()
+                    qualifiers.append({**source, "session_type": "Q", "session_number": stage,
+                                       "event_id": f"{category}-event", "session_status": "FINISHED",
+                                       "session_id": f"{category}-q{stage}", "position": position})
+                rows = pd.concat([rows, pd.DataFrame(qualifiers)], ignore_index=True)
+            return rows
+
+        self.read_sql.side_effect = qualifying_query
+        app = self.start_app()
+        app.selectbox(key="nav_group").set_value("nav_riders").run()
+        self.assertFalse(app.exception)
+        table = next(frame.value for frame in app.dataframe if "Q2 poles" in frame.value)
+        table = table.set_index(["Year", "Category"])
+        self.assertEqual(table.loc[(2026, "MotoGP"), "Q2 poles"], 1)
+        self.assertEqual(table.loc[(2026, "MotoGP"), "Q2 events"], 1)
+        self.assertEqual(table.loc[(2026, "Moto2"), "Q2 poles"], 0)
+        self.assertTrue(pd.isna(table.loc[(2025, "Moto3"), "Q2 poles"]))
+        self.assertEqual(table["Races"].sum(), 3)
+        self.assertEqual(app.metric[1].value, "3")
+        app.selectbox(key="pp_yr").set_value(2025).run()
+        self.assertFalse(app.exception)
+        table = next(frame.value for frame in app.dataframe if "Q2 poles" in frame.value)
+        self.assertTrue(table["Q2 poles"].isna().all())
+
     def test_reviewed_rider_identity_uses_ids_and_season_class_gated_portrait(self):
         marc = "f55b433d-38b8-4d1d-bb3a-a709c82a0260"
 
