@@ -7,7 +7,7 @@ import sqlite3
 import unittest
 from contextlib import closing
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pandas as pd
 import numpy as np
@@ -1185,6 +1185,8 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(supplied["points"].tolist(), [9, 28, 46])
 
     def test_1970_350cc_uses_sourced_corrections_without_mutating_official_data(self):
+        from season_lifecycle import standings_digest
+
         supplied = pd.DataFrame({
             "position": [1, 2, 3], "rider": ["Agostini", "Carruthers", "Pasolini"],
             "rider_id": ["ea0101ee-6b38-4d39-a466-fa83d2e1b36f",
@@ -1192,6 +1194,15 @@ class DashboardTests(unittest.TestCase):
             "points": [9, 28, 46], "constructor": ["Bike"] * 3,
             "is_final": [True] * 3, "source_url": [None] * 3,
         })
+        supplied["category"] = "350cc"
+        supplied["constructor_id"] = None
+        supplied["constructor_name"] = supplied["constructor"]
+        supplied["source_url"] = "https://resources.motogp.com/1970/350cc/standings"
+        supplied["source_json"] = [json.dumps({"position": position, "points": points})
+                                  for position, points in zip(supplied["position"], supplied["points"])]
+        fields = ["rider_id", "position", "points", "constructor_id", "constructor_name",
+                  "source_url", "source_json"]
+        digest = standings_digest(list(supplied[fields].itertuples(index=False, name=None)))
 
         def historical_query(sql, conn=None, params=None):
             if "SELECT DISTINCT season_year" in sql:
@@ -1201,9 +1212,14 @@ class DashboardTests(unittest.TestCase):
             return sample_query(sql, conn, params)
 
         self.read_sql.side_effect = historical_query
-        app = self.start_app()
-        app.selectbox(key="sb_category").set_value("350cc").run()
+        with patch("season_lifecycle.read_season_status", return_value={
+            "status": "official_final", "evidence": {"standings_sha256": digest},
+        }) as reader:
+            app = self.start_app()
+            app.selectbox(key="sb_category").set_value("350cc").run()
+            self.assertEqual(reader.call_args.args[1:], (1970, "350cc"))
         self.assertFalse(app.exception)
+        self.assertIn("Official final standings", [h.value for h in app.subheader])
         self.assertEqual(app.dataframe[0].value["Points"].tolist(), [90, 58, 46])
         self.assertIn("best six", " ".join(c.value for c in app.caption))
         self.assertIn("wikipedia.org", " ".join(c.value for c in app.caption))
@@ -1466,11 +1482,146 @@ class DashboardTests(unittest.TestCase):
         app.selectbox(key="sb_category").set_value("intermediate").run()
         self.assertFalse(app.exception)
         self.assertEqual(app.dataframe[0].value["Points"].tolist(), [200.5, 190])
-        self.assertIn("Official current standings (not final)", [h.value for h in app.subheader])
+        self.assertIn("Official standings (finality unconfirmed)", [h.value for h in app.subheader])
         self.assertEqual(app.metric[0].value, "200.5")
         app.button[0].click().run()
         self.assertFalse(app.exception)
         self.assertEqual(app.dataframe[0].value["Rider"].tolist(), ["Sample Rider 2", "Sample Rider 1"])
+
+    def test_standings_finality_wording_uses_explicit_status_not_legacy_flags(self):
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        render = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "show_official_standings")
+        for language in ("en", "es", "it"):
+            translator = get_translator(language)
+            for year, legacy_final, status in [(2027, False, "official_final"),
+                                                (2027, True, "unknown"), (1969, True, "unknown")]:
+                with self.subTest(language=language, year=year, status=status):
+                    display = Mock()
+                    namespace = {"st": display, "t": translator,
+                                 "final_points_need_verification": lambda rows: False}
+                    exec(compile(ast.Module(body=[render], type_ignores=[]), str(DASHBOARD), "exec"), namespace)
+                    standings = pd.DataFrame([dict(
+                        position=1, rider="Rider", points=90, constructor="Bike",
+                        is_final=legacy_final, source_url="https://example.test/standings",
+                    )])
+                    namespace["show_official_standings"](standings, year, lifecycle_status=status)
+                    expected = "official_final_standings" if status == "official_final" else "official_unconfirmed_standings"
+                    display.subheader.assert_called_once_with(translator(expected))
+                    method = "season_finality_confirmed" if status == "official_final" else "season_finality_unknown"
+                    self.assertIn(translator(method), [call.args[0] for call in display.caption.call_args_list])
+                    self.assertEqual(display.dataframe.call_args.args[0][translator("points")].tolist(), [90])
+
+    def test_lifecycle_binds_confirmation_to_exact_displayed_source_snapshot(self):
+        from season_lifecycle import standings_digest
+
+        tree = ast.parse(DASHBOARD.read_text(encoding="utf-8"))
+        helper = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "official_standings_lifecycle")
+        connection = object()
+        display = Mock()
+        namespace = {"st": display, "t": get_translator("en"), "pd": pd,
+                     "pyodbc": __import__("pyodbc"), "get_conn": lambda: connection}
+        exec(compile(ast.Module(body=[helper], type_ignores=[]), str(DASHBOARD), "exec"), namespace)
+        check = namespace["official_standings_lifecycle"]
+        fields = ["rider_id", "position", "points", "constructor_id", "constructor_name",
+                  "source_url", "source_json"]
+        rows = pd.DataFrame([dict(
+            rider_id="f55b433d-38b8-4d1d-bb3a-a709c82a0260", position=1, points=90,
+            constructor_id=None, constructor_name="Bike", source_url="https://example.test/standings",
+            source_json='{"position": 1, "points": 90}', category="MotoGP™", is_final=False,
+        )])
+        confirmation = {"status": "official_final", "evidence": {
+            "standings_sha256": standings_digest(list(rows[fields].itertuples(index=False, name=None))),
+        }}
+        with patch("season_lifecycle.read_season_status", return_value=confirmation) as reader:
+            self.assertEqual(check(rows, 2027), "official_final")
+            reader.assert_called_once_with(connection, 2027, "MotoGP™")
+            changed = rows.copy()
+            changed["points"] = 91
+            self.assertEqual(check(changed, 2027), "unknown")
+            mixed = pd.concat([rows, rows.assign(category="MotoGP")], ignore_index=True)
+            reader.reset_mock()
+            for incomplete in (mixed, rows.drop(columns="source_json"), rows.assign(source_json=None),
+                               rows.assign(category=None)):
+                self.assertEqual(check(incomplete, 2027), "unknown")
+            reader.assert_not_called()
+        with patch("season_lifecycle.read_season_status", return_value={"status": "unknown"}):
+            self.assertEqual(check(rows.assign(is_final=True), 2027), "unknown")
+        with patch("season_lifecycle.read_season_status",
+                   side_effect=namespace["pyodbc"].Error("Permission denied")):
+            self.assertIsNone(check(rows, 2027))
+            display.stop.assert_called_once()
+            self.assertIn("Permission denied", display.error.call_args.args[0])
+
+    def test_lifecycle_labels_follow_confirmation_without_changing_archive_coverage(self):
+        from datetime import datetime
+        import season_lifecycle as lifecycle
+        from test_import_standings import fixture
+        from test_season_lifecycle import standing_rows
+
+        data = fixture(2026)
+        current_rows = standing_rows(data)
+        supplied = pd.DataFrame([dict(
+            rider_id=row[0], position=row[1], points=float(row[2]), constructor_id=row[3],
+            constructor_name=row[4], source_url=row[5], source_json=row[6],
+            constructor=row[4], rider="Marc Marquez", category=data["category"], is_final=False,
+        ) for row in current_rows])
+
+        def confirmation():
+            return (lifecycle.standings_digest(current_rows), "standings",
+                    lifecycle.snapshot_digest(data, "standings"), None,
+                    "https://www.motogp.com/evidence", "a" * 64, "2026 MotoGP final",
+                    datetime(2026, 12, 1), None)
+
+        def official_query(sql, conn=None, params=None):
+            if "SELECT cs.position" in sql:
+                return supplied.copy()
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = official_query
+        st.cache_resource.clear()
+        self.addCleanup(st.cache_resource.clear)
+        connection = self.connection.return_value
+        connection.execute.return_value.fetchone.return_value = confirmation()
+        with patch.object(lifecycle, "_installed", return_value=False) as installed, \
+                patch.object(lifecycle, "_import_payload",
+                             side_effect=lambda conn, year, category, kind, lock=False:
+                             data if kind == "standings" else None), \
+                patch.object(lifecycle, "_standing_rows", return_value=current_rows):
+            app = self.start_app()
+            self.assertFalse(app.exception)
+            self.assertIn("Official standings (finality unconfirmed)", [h.value for h in app.subheader])
+            before = app.dataframe[0].value.copy()
+            installed.return_value = True
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertIn("Official final standings", [h.value for h in app.subheader])
+            pd.testing.assert_frame_equal(before, app.dataframe[0].value)
+            self.assertIn("complete race or timing archives", " ".join(c.value for c in app.caption))
+
+            data["standings"]["classification"][0]["points"] += 1
+            current_rows[:] = standing_rows(data)
+            supplied.loc[0, "points"] = float(current_rows[0][2])
+            supplied.loc[0, "source_json"] = current_rows[0][6]
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertIn("Official standings (finality unconfirmed)", [h.value for h in app.subheader])
+            connection.execute.return_value.fetchone.return_value = confirmation()
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertIn("Official standings (finality unconfirmed)", [h.value for h in app.subheader])
+            pd.testing.assert_frame_equal(before, app.dataframe[0].value)
+
+            st.cache_data.clear()
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertIn("Official final standings", [h.value for h in app.subheader])
+            self.assertEqual(app.dataframe[0].value["Points"].tolist(), [335])
+            connection.execute.return_value.fetchone.return_value = (*confirmation()[:8], datetime(2026, 12, 2))
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertIn("Official standings (finality unconfirmed)", [h.value for h in app.subheader])
 
     def test_standings_only_historical_category_and_missing_final_do_not_infer_points(self):
         def historical_query(sql, conn=None, params=None):

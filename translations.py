@@ -430,6 +430,26 @@ TRANSLATIONS = {
         "es": "Clasificación oficial actual (no final)",
         "it": "Classifica ufficiale attuale (non finale)",
     },
+    "official_unconfirmed_standings": {
+        "en": "Official standings (finality unconfirmed)",
+        "es": "Clasificación oficial (finalización sin confirmar)",
+        "it": "Classifica ufficiale (conclusione del campionato non confermata)",
+    },
+    "season_finality_confirmed": {
+        "en": "Reviewed final-import confirmation matches this season/class snapshot. Championship finality does not establish complete race or timing archives.",
+        "es": "La confirmación revisada de importación final coincide con esta instantánea de temporada y categoría. La finalización del campeonato no garantiza archivos completos de carreras o tiempos.",
+        "it": "La conferma verificata dell'importazione finale corrisponde a questa istantanea di stagione e categoria. La conclusione del campionato non garantisce archivi completi di gare o tempi.",
+    },
+    "season_finality_unknown": {
+        "en": "No matching reviewed final-import confirmation is available for this season/class snapshot. Completion is unknown; race and timing coverage remains separate.",
+        "es": "No hay una confirmación revisada de importación final que coincida con esta instantánea de temporada y categoría. La finalización es desconocida; la cobertura de carreras y tiempos es independiente.",
+        "it": "Non è disponibile una conferma verificata dell'importazione finale per questa istantanea di stagione e categoria. La conclusione è sconosciuta; la copertura di gare e tempi resta indipendente.",
+    },
+    "season_status_error": {
+        "en": "Cannot verify season lifecycle status: {reason}",
+        "es": "No se puede verificar el estado de la temporada: {reason}",
+        "it": "Impossibile verificare lo stato della stagione: {reason}",
+    },
     "official_standings_method": {
         "en": "Imported official positions and points are authoritative, including official tie-breaking. Current standings are snapshots, not live or necessarily final. Progress charts use imported race points only.",
         "es": "Las posiciones y puntos oficiales importados son la referencia, incluidos los desempates. La clasificación actual es una instantánea, no en directo ni necesariamente final. Los gráficos usan solo puntos de carreras importadas.",

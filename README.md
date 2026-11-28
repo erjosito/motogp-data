@@ -400,6 +400,14 @@ can affect standings. **Data coverage** retains the historical
 database statistics and coverage charts. Navigation and filters are preserved
 when switching between English, Spanish, and Italian.
 
+Classic labels an official standings table **final** only when the shared
+reviewed final-import confirmation matches its exact season, source class and
+displayed raw standings snapshot. Missing, stale or unreviewed confirmation,
+including mixed source-class labels, leaves **finality unconfirmed**; neither
+calendar years nor legacy `is_final` flags establish this label. Championship
+finality does not establish complete race or timing archives. Reviewed import
+confirmation updates these localized labels without yearly frontend edits.
+
 The default light theme is configured in `.streamlit/config.toml` and included
 in the Docker image. Switch light/dark appearance through Streamlit's top-right
 **menu > Light / Dark**; localized sidebar guidance points to this control.

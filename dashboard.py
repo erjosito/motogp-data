@@ -712,6 +712,7 @@ def championship_points(champ):
 def load_official_standings(year, family="premier"):
     standings = q(f"""
         SELECT cs.position, cs.rider_id, r.full_name AS rider, cs.points, cs.constructor_name AS constructor,
+            cs.category, cs.constructor_id, cs.constructor_name, cs.source_json,
             cs.is_final, cs.source_url
         FROM championship_standings cs JOIN riders r ON r.rider_id=cs.rider_id
         WHERE cs.season_year=? AND {category_sql(family, 'cs.category')}
@@ -896,10 +897,48 @@ def final_points_need_verification(standings):
     return official_points_inconsistent(finals.itertuples(index=False, name=None))
 
 
-def show_official_standings(standings, correction=None):
-    is_final = standings["is_final"].all()
+def official_standings_lifecycle(standings, year):
+    fields = ["rider_id", "position", "points", "constructor_id", "constructor_name",
+              "source_url", "source_json"]
+    if standings.empty or not set([*fields, "category"]).issubset(standings.columns):
+        return "unknown"
+    required = ["rider_id", "position", "points", "source_url", "source_json"]
+    if standings[required].isna().any().any():
+        return "unknown"
+    categories = standings["category"]
+    if categories.isna().any() or categories.nunique() != 1:
+        return "unknown"
+    category = categories.iloc[0]
+    if not isinstance(category, str) or not category.strip():
+        return "unknown"
+    try:
+        from season_lifecycle import read_season_status, standings_digest
+
+        result = read_season_status(get_conn(), int(year), category)
+        status = result["status"]
+        if status not in ("official_final", "unknown"):
+            raise ValueError(f"Unsupported lifecycle status: {status}")
+        if status == "official_final":
+            raw = standings[fields].astype(object)
+            rows = raw.where(pd.notna(raw), None).itertuples(index=False, name=None)
+            if standings_digest(list(rows)) == result["evidence"]["standings_sha256"]:
+                return "official_final"
+        return "unknown"
+    except (ImportError, pyodbc.Error, ValueError, KeyError, TypeError) as error:
+        st.error(t("season_status_error", reason=str(error)))
+        st.stop()
+
+
+def show_official_standings(standings, year, correction=None, *, lifecycle_status=None):
+    if lifecycle_status is None:
+        lifecycle_status = official_standings_lifecycle(standings, year)
+    if lifecycle_status not in ("official_final", "unknown"):
+        st.error(t("season_status_error", reason=f"Unsupported lifecycle status: {lifecycle_status}"))
+        st.stop()
     needs_verification = final_points_need_verification(standings)
-    st.subheader(t("official_final_standings" if is_final else "official_current_standings"))
+    confirmed_final = lifecycle_status == "official_final"
+    st.subheader(t("official_final_standings" if confirmed_final else "official_unconfirmed_standings"))
+    st.caption(t("season_finality_confirmed" if confirmed_final else "season_finality_unknown"))
     if not needs_verification and not correction:
         st.caption(t("official_standings_method"))
     if correction:
@@ -923,12 +962,13 @@ def show_historical_standings(year, family="premier"):
     if "rider_id" in standings.columns:
         rows, correction = corrected_standings(standings.to_dict("records"), year, family)
         if correction:
+            lifecycle_status = official_standings_lifecycle(standings, year)
             standings = pd.DataFrame(rows)
             st.caption(t("historical_corrected_standings_method"))
-            show_official_standings(standings, correction)
+            show_official_standings(standings, year, correction, lifecycle_status=lifecycle_status)
             return
     st.caption(t("historical_standings_method"))
-    show_official_standings(standings)
+    show_official_standings(standings, year)
 
 
 @st.cache_data(ttl=300)
@@ -1061,12 +1101,12 @@ if viz == "🏠 Home":
             st.stop()
         official = load_official_standings(selected_year, selected_category)
         if final_points_need_verification(official):
-            show_official_standings(official)
+            show_official_standings(official, selected_year)
             st.stop()
         champ = load_championship(selected_year, selected_category)
         if champ.empty:
             if not official.empty:
-                show_official_standings(official)
+                show_official_standings(official, selected_year)
                 st.button(t("home_explore_championship"), type="primary", width="stretch",
                           on_click=open_championship, args=(selected_year,))
                 st.stop()
@@ -1101,7 +1141,7 @@ if viz == "🏠 Home":
         table_column, chart_column = st.columns([1, 1.5])
         with table_column:
             if not official.empty:
-                show_official_standings(official)
+                show_official_standings(official, selected_year)
             else:
                 st.subheader(t("current_standings"))
                 st.dataframe(
@@ -1929,13 +1969,13 @@ elif viz == "🌍 Championship":
 
     official = load_official_standings(selected_year, selected_category)
     if final_points_need_verification(official):
-        show_official_standings(official)
+        show_official_standings(official, selected_year)
         st.stop()
     champ = load_championship(selected_year, selected_category)
 
     if champ.empty:
         if not official.empty:
-            show_official_standings(official)
+            show_official_standings(official, selected_year)
             st.stop()
         st.info(t("no_race_sprint_data_for_year", year=selected_year)); st.stop()
 
@@ -1978,7 +2018,7 @@ elif viz == "🌍 Championship":
 
     # --- Table: Final standings ---
     if not official.empty:
-        show_official_standings(official)
+        show_official_standings(official, selected_year)
     else:
         st.subheader(t("current_standings"))
     standings = final_pts.reset_index()
@@ -3572,7 +3612,7 @@ elif viz == "📈 Cross-Year":
 
         official = load_official_standings(bump_yr, selected_category)
         if final_points_need_verification(official):
-            show_official_standings(official)
+            show_official_standings(official, bump_yr)
             st.stop()
         bump = load_championship(bump_yr, selected_category).rename(columns={"race_pts": "pts"})
 
@@ -3619,7 +3659,7 @@ elif viz == "📈 Cross-Year":
         final.columns = ["Rider", "Points"]
         final.insert(0, "Pos", range(1, len(final) + 1))
         if not official.empty:
-            show_official_standings(official)
+            show_official_standings(official, bump_yr)
         else:
             st.caption(t("home_championship_method"))
             st.dataframe(final.head(n_show), width="stretch", hide_index=True)
@@ -3652,7 +3692,7 @@ elif viz == "📈 Cross-Year":
             official = load_official_standings(int(yr), selected_category)
             if final_points_need_verification(official):
                 st.caption(f"{t('season')} {int(yr)}")
-                show_official_standings(official)
+                show_official_standings(official, int(yr))
                 continue
             if official.empty or not official["is_final"].all():
                 continue
@@ -4198,7 +4238,7 @@ elif viz == "📈 Cross-Year":
             official = load_official_standings(int(yr), selected_category)
             if final_points_need_verification(official):
                 st.caption(f"{t('season')} {int(yr)}")
-                show_official_standings(official)
+                show_official_standings(official, int(yr))
                 continue
             if not official.empty and official["is_final"].all():
                 top2 = official.head(2).rename(columns={"points": "pts"}).merge(
