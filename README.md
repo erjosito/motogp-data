@@ -437,6 +437,12 @@ career using its category multiselect and **Season > All** or a particular year.
 Points and season statistics remain separated by actual class, including riders
 who contested several classes during the same year. Head-to-head comparisons
 match the same session, not unrelated classes at the same GP.
+Season tables include **Q2 poles** and the rider's classified Q2 event coverage,
+using finished MotoGP Q2 from 2013 and Moto2/Moto3 Q2 from 2019. Missing or
+unsupported qualifying stays blank, not zero. The method caption explains
+that these imported Q2 wins are not complete historical or penalty-adjusted
+starting-grid pole totals. The Paddock career API exposes the same nullable
+counts without adding qualifying to race or title totals.
 Coverage, circuit history and cross-year views allow several category families
 for a labeled comparison of imported race/session coverage. The detailed
 analytics underneath are for the selected **Detailed analysis category**;

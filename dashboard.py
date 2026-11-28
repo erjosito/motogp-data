@@ -19,6 +19,7 @@ from azure.core.exceptions import ClientAuthenticationError
 from sql_connection import connect_to_sql
 from category_scope import (
     CATEGORY_FAMILIES, canonical_category, category_sql, normalize_category, official_points_inconsistent,
+    recorded_q2_poles,
 )
 from circuit_catalog import circuit_details, circuit_key, projected_outline
 from rider_profiles import read_enrichment
@@ -2855,7 +2856,8 @@ elif viz == "👤 Pilot Profile":
 
     career = premier_q("""
         SELECT e.season_year, e.short_name, e.date_end, s.session_type, s.session_label,
-            s.session_id, s.category, c.rider_id,
+            s.session_id, s.category, c.rider_id, e.event_id, s.session_number,
+            s.status AS session_status,
             c.position, c.points, c.best_lap_time, c.top_speed, c.status,
             COALESCE(ta.canonical_name, t.team_name) AS team_name,
             COALESCE(c.constructor_name, t.constructor) AS constructor, e.circuit_name
@@ -3057,6 +3059,8 @@ elif viz == "👤 Pilot Profile":
 
     # --- Season-by-season detailed stats table ---
     st.subheader(t("season_statistics"))
+    pole_counts = recorded_q2_poles(career.to_dict("records"))
+    st.caption(t("profile_poles_method"))
     season_stats = []
     for (yr, category), yr_all in race_sprint.groupby(["season_year", "category"]):
         yr_races = yr_all[yr_all["session_type"] == "RAC"]
@@ -3078,6 +3082,8 @@ elif viz == "👤 Pilot Profile":
             "Races": len(yr_races),
             "Wins": yr_wins,
             "Podiums": yr_podiums,
+            t("profile_poles"): pole_counts.get((int(yr), category), {}).get("gp_poles"),
+            t("profile_poles_events"): pole_counts.get((int(yr), category), {}).get("gp_poles_q2_events", 0),
         }
         if len(yr_sprints) > 0:
             row["Sprints"] = len(yr_sprints)
