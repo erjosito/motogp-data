@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from category_scope import CATEGORY_FAMILIES, canonical_category, normalize_category
+from category_scope import CATEGORY_FAMILIES, canonical_category, normalize_category, qualifying_format
 
 
 CATEGORY_ORDER = [
@@ -86,15 +86,6 @@ def archive_availability(rows, metric):
         index=[category for category in CATEGORY_ORDER if category in counts.index],
         columns=range(int(counts.columns.min()), int(counts.columns.max()) + 1), fill_value=0,
     )
-
-
-def qualifying_format(category, year):
-    category = normalize_category(category)
-    if category == "motogp" and year >= 2013:
-        return 12, 2
-    if category in ("moto2", "moto3") and year >= 2019:
-        return 18, 4
-    return None
 
 
 def qualifying_proxy(qualifying, races):

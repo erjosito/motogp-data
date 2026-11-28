@@ -15,7 +15,10 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 
 from sql_connection import connect_to_sql
-from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, official_points_inconsistent
+from category_scope import (
+    CATEGORY_FAMILIES, category_sql, normalize_category, official_points_inconsistent,
+    recorded_q2_poles,
+)
 from rider_profiles import read_enrichment
 from circuit_catalog import circuit_details, projected_outline
 from rider_media import read_portrait
@@ -320,7 +323,8 @@ def rider_category(value: str) -> str | None:
                  if key in [normalize_category(label) for label in labels]), None)
 
 
-def build_rider_profile(rider: dict, races: list[dict], standings: list[dict]) -> dict:
+def build_rider_profile(rider: dict, races: list[dict], standings: list[dict],
+                        qualifying: list[dict] | None = None) -> dict:
     seasons_by_class = {}
     venues = {}
     for race in races:
@@ -360,6 +364,13 @@ def build_rider_profile(rider: dict, races: list[dict], standings: list[dict]) -
             continue
         season.update(position=row["position"], points=float(row["points"]),
                       is_final=bool(row["is_final"]), source_url=row["source_url"])
+    for season in seasons_by_class.values():
+        season.update(gp_poles=None, gp_poles_q2_events=0, gp_poles_method="recorded_q2_wins")
+    for (year, category), counts in recorded_q2_poles(qualifying or []).items():
+        season = seasons_by_class.get((year, rider_category(category)))
+        if season is not None:
+            season["gp_poles"] = (season["gp_poles"] or 0) + counts["gp_poles"]
+            season["gp_poles_q2_events"] += counts["gp_poles_q2_events"]
     career = sorted(seasons_by_class.values(), key=lambda row: (row["season"], row["category"]))
     totals = {key: sum(row[key] for row in career)
               for key in ["gp_appearances", "gp_wins", "gp_podiums", "sprint_wins", "sprint_appearances"]}
@@ -489,7 +500,15 @@ def rider_profile(rider_id: str):
         FROM championship_standings cs WHERE cs.rider_id = ?
         ORDER BY cs.season_year, cs.category, cs.is_final
     """, (rider_id,))
-    profile = build_rider_profile(rider_identity(riders[0]), races, standings)
+    qualifying = query("""
+        SELECT e.event_id, e.season_year, s.category, s.session_type, s.session_number,
+               s.status AS session_status, c.position
+        FROM dbo.vw_effective_classifications c
+        JOIN sessions s ON s.session_id = c.session_id JOIN events e ON e.event_id = s.event_id
+        WHERE c.rider_id = ? AND s.status = 'FINISHED'
+            AND s.session_type = 'Q' AND s.session_number = 2
+    """, (rider_id,))
+    profile = build_rider_profile(rider_identity(riders[0]), races, standings, qualifying)
     if not profile["seasons"]:
         raise HTTPException(404, "No Grand Prix career evidence is available for this rider.")
     return profile

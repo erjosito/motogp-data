@@ -4,7 +4,7 @@
 
 `rider_profiles.py` collects factual biography fields and **references to images**,
 not official image files. It does not update riders, results, events or timing
-tables in SQL. The existing rider career API remains unchanged.
+tables in SQL. Biography and media are additive to the rider career API.
 
 The official public sources are:
 
@@ -154,6 +154,19 @@ keyed by rider UUID, season, class and number is a better separate asset store;
 no storage account or SQL schema change is required for this initial approach.
 
 ## App integration without a redesign
+
+Classic season statistics and `/api/riders/{results_rider_id}` career seasons
+include recorded Q2 poles. Each API season adds `gp_poles` (integer or null),
+`gp_poles_q2_events` (integer) and `gp_poles_method: "recorded_q2_wins"`.
+The shared class-format rules support MotoGP from 2013 and Moto2/Moto3 from
+2019. Only classified results from finished Q2 are counted, once per event
+and actual class; conflicting recorded positions for an event are withheld.
+The coverage count is that rider's recorded classified Q2 events, not all
+race weekends. No qualifying evidence, Q1-only participation, unsupported
+formats and standings-only historical seasons retain null poles, not zero.
+A recorded non-winning Q2 result permits zero. These counts describe partial
+imports, not complete historical or penalty-adjusted starting-grid pole totals.
+Qualifying rows never inflate race appearances, wins, points or title totals.
 
 The additive read-only endpoint is:
 

@@ -7,9 +7,43 @@ from archive_analytics import (
     archive_availability, career_seasons, constructor_eras, complete_points,
     nominal_maximum, points_efficiency, qualifying_proxy,
 )
+from category_scope import recorded_q2_poles
 
 
 class ArchiveAnalyticsTests(unittest.TestCase):
+    def test_recorded_poles_keep_class_year_and_observed_event_coverage(self):
+        base = dict(event_id="one", season_year=2026, category="MotoGP",
+                    session_type="Q", session_number=2, session_status="FINISHED", position=1)
+        rows = [
+            base, base.copy(), {**base, "event_id": "two", "position": 3},
+            {**base, "category": " MotoGP\u2122 ", "event_id": "two", "position": 3},
+            {**base, "category": "Moto2", "position": 5},
+            {**base, "season_year": 2025, "category": "Moto3", "position": 1},
+        ]
+        self.assertEqual(recorded_q2_poles(rows), {
+            (2026, "MotoGP"): {"gp_poles": 1, "gp_poles_q2_events": 2},
+            (2026, "Moto2"): {"gp_poles": 0, "gp_poles_q2_events": 1},
+            (2025, "Moto3"): {"gp_poles": 1, "gp_poles_q2_events": 1},
+        })
+
+    def test_recorded_poles_withhold_unsupported_missing_and_conflicting_evidence(self):
+        base = dict(event_id="one", season_year=2026, category="MotoGP",
+                    session_type="Q", session_number=2, session_status="FINISHED", position=1)
+        for changes in [
+            {"category": "500cc"}, {"category": "350cc"}, {"category": "50cc"},
+            {"category": "80cc"}, {"season_year": 2012},
+            {"category": "Moto2", "season_year": 2018},
+            {"category": "Moto3", "season_year": 2018},
+            {"session_type": "SPR"}, {"session_number": 1},
+            {"session_status": "NOTSTARTED"}, {"position": None},
+            {"position": np.nan}, {"position": 0}, {"position": 13}, {"position": 1.5},
+        ]:
+            with self.subTest(changes=changes):
+                self.assertEqual(recorded_q2_poles([{**base, **changes}]), {})
+        self.assertEqual(recorded_q2_poles([base, {**base, "position": 2}]), {})
+        self.assertEqual(recorded_q2_poles([{**base, "season_year": 2013}])[(2013, "MotoGP")]["gp_poles"], 1)
+        self.assertEqual(recorded_q2_poles([{**base, "category": "Moto2", "season_year": 2019}])[(2019, "Moto2")]["gp_poles"], 1)
+
     def test_career_keeps_actual_classes_official_only_ranks_and_standings_only_seasons(self):
         races = pd.DataFrame([
             dict(season_year=1970, category=category, rider_id="ago", session_id=session, position=position)
