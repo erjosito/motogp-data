@@ -385,12 +385,43 @@ def build_rider_profile(rider: dict, races: list[dict], standings: list[dict]) -
     }
 
 
+# Identity fallback only; never substitute this number into historical classifications.
+IDENTITY_NUMBERS = {"640859bc-3f12-44fe-949a-4eab1f48f02a": 46}
+LATEST_RIDER_NUMBERS = """
+    latest_rider_numbers AS (
+        SELECT c.rider_id, c.rider_number, e.season_year, s.category,
+               ROW_NUMBER() OVER (PARTITION BY c.rider_id ORDER BY
+                   e.season_year DESC, s.session_date DESC, s.session_id DESC) AS number_rank
+        FROM dbo.vw_effective_classifications c
+        JOIN sessions s ON s.session_id = c.session_id
+        JOIN events e ON e.event_id = s.event_id
+        WHERE c.rider_number > 0 AND s.status = 'FINISHED'
+    )
+"""
+
+
+def rider_identity(row):
+    rider = dict(row)
+    master_number = rider.pop("master_number", rider["number"])
+    season = rider.pop("number_season", None)
+    category = rider.pop("number_category", None)
+    if rider["rider_id"] in IDENTITY_NUMBERS:
+        rider.update(number=IDENTITY_NUMBERS[rider["rider_id"]], number_source="reviewed-identity")
+    elif master_number is not None:
+        rider["number_source"] = "rider-record"
+    elif rider["number"] is not None:
+        rider.update(number_source="latest-classification", number_season=season, number_category=category)
+    else:
+        rider["number_source"] = None
+    return rider
+
+
 @api.get("/api/riders")
 def rider_directory():
     scope = " OR ".join(f"({selected_class(family)})" for family in CATEGORY_FAMILIES)
     standings_scope = " OR ".join(f"({selected_class(family, 'cs.category')})" for family in CATEGORY_FAMILIES)
-    return query(f"""
-        WITH active_riders AS (
+    rows = query(f"""
+        WITH {LATEST_RIDER_NUMBERS}, active_riders AS (
             SELECT cs.rider_id FROM championship_standings cs WHERE {standings_scope}
             UNION
             SELECT c.rider_id FROM dbo.vw_effective_classifications c
@@ -402,10 +433,14 @@ def rider_directory():
                     WHERE scored.session_id = s.session_id AND scored.points > 0
                 ))
         )
-        SELECT r.rider_id, r.full_name AS rider, r.number FROM riders r
+        SELECT r.rider_id, r.full_name AS rider,
+               COALESCE(r.number, n.rider_number) AS number, r.number AS master_number,
+               n.season_year AS number_season, n.category AS number_category FROM riders r
         JOIN active_riders a ON a.rider_id = r.rider_id
+        LEFT JOIN latest_rider_numbers n ON n.rider_id = r.rider_id AND n.number_rank = 1
         ORDER BY r.full_name, r.rider_id
     """)
+    return [rider_identity(row) for row in rows]
 
 
 @api.get("/api/circuit-context")
@@ -427,7 +462,14 @@ def circuit_context(name: str = Query(max_length=200)):
 
 @api.get("/api/riders/{rider_id}")
 def rider_profile(rider_id: str):
-    riders = query("SELECT rider_id, full_name AS rider, number FROM riders WHERE rider_id = ?", (rider_id,))
+    riders = query(f"""
+        WITH {LATEST_RIDER_NUMBERS}
+        SELECT r.rider_id, r.full_name AS rider, COALESCE(r.number, n.rider_number) AS number,
+               r.number AS master_number, n.season_year AS number_season, n.category AS number_category
+        FROM riders r
+        LEFT JOIN latest_rider_numbers n ON n.rider_id = r.rider_id AND n.number_rank = 1
+        WHERE r.rider_id = ?
+    """, (rider_id,))
     if not riders:
         raise HTTPException(404, "Rider not found.")
     races = query("""
@@ -447,7 +489,7 @@ def rider_profile(rider_id: str):
         FROM championship_standings cs WHERE cs.rider_id = ?
         ORDER BY cs.season_year, cs.category, cs.is_final
     """, (rider_id,))
-    profile = build_rider_profile(riders[0], races, standings)
+    profile = build_rider_profile(rider_identity(riders[0]), races, standings)
     if not profile["seasons"]:
         raise HTTPException(404, "No Grand Prix career evidence is available for this rider.")
     return profile

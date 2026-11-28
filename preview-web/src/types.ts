@@ -23,6 +23,9 @@ export interface Rider {
   rider_id: string
   rider: string
   number: number | null
+  number_source?: 'rider-record' | 'latest-classification' | 'reviewed-identity' | null
+  number_season?: number | null
+  number_category?: string | null
 }
 
 export interface RiderSeason {

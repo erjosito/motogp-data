@@ -13,7 +13,7 @@ export interface ChartSeries {
   type?: 'line' | 'scatter' | 'bar' | 'pie'
   orientation?: 'h' | 'v'
   base?: number[]
-  colors?: string[]
+  colors?: string | string[]
   hovertemplate?: string
   showValues?: boolean
 }
@@ -52,10 +52,10 @@ export default function PlotChart({ series, yTitle, xTitle, height = 340, baseli
     const color = (token: string) => style.getPropertyValue(token).trim()
     const data: Data[] = series.map((line): Data => {
       const rider = riderStyle(line.id)
-      const markerColor = line.colors?.map(color) ?? color(rider.token)
+      const markerColor = typeof line.colors === 'string' ? color(line.colors) : line.colors?.map(color) ?? color(rider.token)
       if (line.type === 'pie') return {
         type: 'pie', name: statisticText(line.name), labels: line.x, values: line.y, hole: 0.58,
-        marker: { colors: line.colors?.map(color) }, sort: false,
+        marker: { colors: line.colors == null ? undefined : typeof markerColor === 'string' ? line.x.map(() => markerColor) : markerColor }, sort: false,
         textinfo: 'percent', textposition: 'inside',
         hovertemplate: `%{label}<br>%{value:,.3~f} ${valueUnit}<br>%{percent}<extra></extra>`,
       }
