@@ -11,6 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 from category_scope import canonical_category, normalize_category
 from import_historical import ArchiveSource, STANDINGS_SQL, parse_years, validate_riders
 import load_to_sql as loader
+import season_lifecycle
 from sql_connection import connect_to_sql
 
 
@@ -206,6 +207,7 @@ def persist(conn, data):
         ).fetchone()
         if existing and existing[0] == fingerprint:
             verify_standings(conn, data)
+            season_lifecycle.invalidate_changed_confirmation(conn, year, category)
             return "unchanged"
         aliases = conn.execute(
             "SELECT DISTINCT category FROM championship_standings WHERE season_year=?", year,
@@ -256,6 +258,7 @@ def persist(conn, data):
             VALUES (?,?,?,?,?,?,?);
         """, year, category, fingerprint, len(expected_ids), data["is_final"], data["source_url"], payload,
             year, category, fingerprint, len(expected_ids), data["is_final"], data["source_url"], payload)
+        season_lifecycle.invalidate_changed_confirmation(conn, year, category)
     return "imported" if expected_ids else "source-gap"
 
 
@@ -265,7 +268,9 @@ def main():
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--migrate", action="store_true")
     parser.add_argument("--refresh", action="store_true")
+    season_lifecycle.add_import_arguments(parser)
     args = parser.parse_args()
+    season_lifecycle.validate_import_arguments(parser, args)
     if min(args.years) < 1990:
         parser.error("Use import_historical.py for pre-1990 race archives; this command starts at 1990")
     source = ArchiveSource(ROOT / "historical_cache" / "http", refresh=args.refresh)
@@ -280,13 +285,20 @@ def main():
                     "IF NOT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?) "
                     "INSERT INTO schema_migrations(version) VALUES (?)", MIGRATION.stem, MIGRATION.stem,
                 )
+            season_lifecycle.apply_migration(conn)
         for year in args.years:
             data = fetch_snapshot(year, source)
             cache = ROOT / "historical_cache" / f"standings_{year}.json"
             cache.write_text(json.dumps(data, ensure_ascii=True, sort_keys=True), encoding="utf-8")
             state = persist(conn, data) if conn is not None else "read-only"
+            if args.confirm_final:
+                season_lifecycle.confirm_final(
+                    conn, year, data["category"], "standings", args.reviewed_standings_sha256,
+                    args.reviewed_snapshot_sha256,
+                    args.final_evidence_url, args.reviewed_evidence_sha256, args.final_review_note,
+                )
             print(f"{year} {data['category']}: {len(data['standings']['classification'])} rows; "
-                  f"{'final' if data['is_final'] else 'provisional'}; {state}", flush=True)
+                  f"legacy final flag={data['is_final']}; {state}", flush=True)
     finally:
         if conn is not None:
             conn.close()

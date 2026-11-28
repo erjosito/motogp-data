@@ -35,6 +35,11 @@ def snapshot():
 
 
 class HistoricalImportTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(historical.season_lifecycle, "_installed", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_historical_unknowns_and_teamless_constructor_are_preserved(self):
         entry = snapshot()["events"][0]["sessions"][0]["classification"][0]
         original = deepcopy(entry)
@@ -123,8 +128,11 @@ class HistoricalImportTests(unittest.TestCase):
         data["standings"]["classification"][0]["points"] = 210.5
         connection = MagicMock()
         connection.execute.return_value.fetchone.return_value = None
-        with patch.object(historical, "verify_season"), contextlib.redirect_stdout(io.StringIO()):
+        with patch.object(historical, "verify_season"), \
+                patch.object(historical.season_lifecycle, "invalidate_changed_confirmation") as invalidate, \
+                contextlib.redirect_stdout(io.StringIO()):
             historical.persist_season(connection, data)
+        invalidate.assert_called_once_with(connection, data["year"], data["category"])
         calls = connection.cursor.return_value.executemany.call_args_list
         standing_rows = next(call.args[1] for call in calls if call.args[0] == historical.STANDINGS_SQL)
         self.assertEqual(standing_rows[0][4], Decimal("210.5"))

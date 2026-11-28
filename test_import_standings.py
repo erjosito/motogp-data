@@ -35,6 +35,11 @@ def fixture(year=2013):
 
 
 class StandingsImportTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(standings.season_lifecycle, "_installed", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_sorted_snapshot_cache_round_trip_preserves_query_identity(self):
         data = json.loads(json.dumps(fixture(), sort_keys=True))
         standings.validate_snapshot(data)
@@ -186,8 +191,10 @@ class StandingsImportTests(unittest.TestCase):
         with patch.object(standings, "verify_standings") as verify, \
                 patch.object(standings.loader, "upsert_rider") as rider, \
                 patch.object(standings.loader, "upsert_event") as event, \
-                patch.object(standings.loader, "upsert_session") as session:
+                patch.object(standings.loader, "upsert_session") as session, \
+                patch.object(standings.season_lifecycle, "invalidate_changed_confirmation") as invalidate:
             self.assertEqual(standings.persist(conn, data), "imported")
+        invalidate.assert_called_once_with(conn, data["year"], data["category"])
         verify.assert_called_once()
         rider.assert_not_called()
         event.assert_not_called()
