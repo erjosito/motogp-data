@@ -30,13 +30,15 @@ Classic's sidebar includes an **Open Paddock App** link with an external-link
 icon; it opens the new app in a separate tab without replacing the current analysis.
 Paddock's always-visible **Data analysis** shortcut opens Classic in a new tab.
 
-Career profiles use a reusable visual identity card: individually reviewed
-biography facts where collected, a licensed, season-labeled portrait where
-approved, and initials/plain numbers otherwise. Portrait credits, license links
-and adaptation notices are collected in **Sources, credits & data notes** at the
-bottom of the page, alongside biography/circuit sources and statistical methods.
-Image season/team and current-layout labels stay with their visuals. Unapproved official image
-references and the full local biography catalog are not shipped.
+Career profiles use a reusable identity card with individually reviewed
+biography facts where collected. Face portraits are omitted for every rider,
+including riders with approved photos; there are no initials tiles, placeholder
+rectangles or reserved photo columns. Biography/circuit sources and statistical
+methods are collected in **Sources, credits & data notes** at the bottom of the
+page. Current-layout labels stay with circuit visuals. The shared portrait API
+and approved assets remain available to other consumers, but React does not
+request them. Unapproved official image references and the full local biography
+catalog are not shipped.
 Approved number designs replace plain numbers in profile titles, featured
 championship identities and race podiums; they are not a separate artwork gallery.
 A rider identity uses the latest verified design for its stable rider ID,
