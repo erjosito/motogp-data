@@ -739,7 +739,26 @@ def load_archive_finals(families, rider_id=None):
 
 
 _title_artwork = {}
-_title_artwork_credits = set()
+_number_artwork_credits = {}
+
+
+def register_number_artwork_credit(rider_id, name, asset):
+    key = (str(rider_id), asset["season"], asset["category"], asset["number"], asset["source_url"])
+    _number_artwork_credits.setdefault(key, (name, asset))
+
+
+def render_number_artwork_credits():
+    if not _number_artwork_credits:
+        return
+    with st.container(key="number_artwork_credits"):
+        st.divider()
+        st.subheader(t("rider_number_credits"))
+        for name, asset in _number_artwork_credits.values():
+            st.caption(
+                f'**{name}** · {t("rider_number_reference")}: {asset["season"]} · '
+                f'{asset["category"]} · #{asset["number"]} · '
+                f'[{t("rider_number_source")}]({asset["source_url"]})'
+            )
 
 
 def unique_rider_id(rows):
@@ -774,12 +793,7 @@ def render_rider_heading(label, *rider_ids):
         with st.container():
             st.subheader(label)
     for identity, (asset, _) in artwork:
-        if identity not in _title_artwork_credits:
-            st.caption(
-                f'{t("rider_number_reference")}: {asset["season"]} · {asset["category"]} · '
-                f'#{asset["number"]} · [{t("rider_number_source")}]({asset["source_url"]})'
-            )
-            _title_artwork_credits.add(identity)
+        register_number_artwork_credit(identity, label, asset)
 
 
 def render_rider_chart(figure, *rider_ids):
@@ -840,8 +854,8 @@ def render_rider_identity(rider_id, name, year, categories):
             with st.expander(t("rider_number_artwork")):
                 for asset, image in numbers:
                     st.image(image, width=120)
-                    st.caption(f'{asset["season"]} · {asset["category"]} · #{asset["number"]} · '
-                               f'[{t("rider_number_source")}]({asset["source_url"]})')
+                    st.caption(f'{asset["season"]} · {asset["category"]} · #{asset["number"]}')
+                    register_number_artwork_credit(rider_id, name, asset)
 
 
 @st.cache_data(ttl=300)
@@ -1114,6 +1128,7 @@ if viz == "🏠 Home":
         st.divider()
         st.caption(t("home_loaded_note"))
         st.caption(t("data_source"))
+        render_number_artwork_credits()
         st.stop()
 
     st.header(t("home_title"))
@@ -4327,3 +4342,5 @@ elif viz == "📈 Cross-Year":
                                      "circuit": t("circuit")})
             fig.update_layout(height=500, xaxis_tickformat="d")
             st.plotly_chart(fig, width="stretch")
+
+render_number_artwork_credits()

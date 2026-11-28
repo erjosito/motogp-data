@@ -61,8 +61,9 @@ endpoint use the shared verified identity selector. Existing season-scoped
 Classic uses the same verified artwork beside Home championship rider-card
 headings and every rider-named profile chart or comparison-counter title,
 including both riders in head-to-head comparisons. Plain headings remain when artwork or an unambiguous
-results rider ID is unavailable. Source/design references appear once per rider
-per view; profile portrait gating and the scoped artwork gallery are unchanged.
+results rider ID is unavailable. Source/design references, including gallery sources, are collected once per
+displayed design in a footer at the bottom of the page. Profile portrait gating
+and the scoped artwork gallery are unchanged.
 
 The other views cover category-scoped championships, session results, rider lap
 comparisons, and sector analysis. Explicit season/event/session deep links retain
