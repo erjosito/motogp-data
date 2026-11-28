@@ -42,6 +42,18 @@ function pointsBars(data: Championship): SeasonChart {
 function margins(data: Championship): SeasonChart {
   const riders = data.standings.filter((rider): rider is Standing & { gap: number } =>
     rider.gap != null && Number.isFinite(rider.gap)).slice(0, 8)
+  if (data.standings_source !== 'official' || data.season >= 1990 || data.rounds.length > 0) {
+    return {
+      id: 'margins', title: 'How close was the field?',
+      description: 'Each gap is measured against the rider ranked first, not against the next rider.',
+      note: 'Equal points remain equal. Gaps never replace the official ranks or imply a race-by-race history.',
+      kind: 'lollipop', xTitle: 'Points behind the top-ranked rider', yTitle: 'Championship rank', rank: true,
+      series: riders.map((rider) => ({
+        id: rider.rider_id, name: rider.rider, x: [0, rider.gap], y: [rider.position, rider.position],
+        hovertemplate: '%{x:,.3~f} points behind<extra>%{fullData.name}</extra>',
+      })),
+    }
+  }
   return {
     id: 'margins', title: 'How close was the field?',
     description: 'Each gap is measured against the rider ranked first, not against the next rider.',
