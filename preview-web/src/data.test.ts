@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestSectors, categoryTicks, cleanLaps, lapTime, statisticText } from './data'
+import { bestSectors, categoryTicks, cleanLaps, lapSamples, lapTakeaway, lapTime, sectorTakeaway, statisticText } from './data'
 import type { Lap } from './types'
 
 function lap(rider: string, time: number | null, pit = false): Lap {
@@ -20,6 +20,7 @@ describe('lap comparison data', () => {
     expect(statisticText('Supplied scores, in source order')).toBe('scores, in classification order')
     expect(statisticText('Elapsed-time difference to P1 (s)')).toBe('Elapsed-time difference to P1 (s)')
     expect(statisticText('Final standings · GP + Sprint · unavailable')).toBe('Final standings · GP + Sprint · unavailable')
+    expect(statisticText('1 points ahead · 11 points · 1.1 points')).toBe('1 point ahead · 11 points · 1.1 points')
   })
   it('reduces categorical labels, retaining endpoints without removing plotted data', () => {
     const x = Array.from({ length: 20 }, (_, i) => `Round ${i + 1}`)
@@ -41,9 +42,39 @@ describe('lap comparison data', () => {
     expect(cleanLaps(laps, true, false)).toHaveLength(1)
     expect(cleanLaps(laps, false, false)).toHaveLength(2)
     expect(bestSectors(laps)).toEqual([20, null, 30, null])
+    expect(cleanLaps([lap('one', Infinity), lap('one', 0), lap('one', -1)], false, false)).toEqual([])
   })
   it('rounds timing across minute boundaries without displaying 60 seconds', () => {
     expect(lapTime(119.9999)).toBe('2:00.000')
     expect(lapTime(null)).toBe('\u2014')
+  })
+  it('compares included medians, not matched lap numbers, and updates with selection/filter samples', () => {
+    const riders = [{ rider_id: 'marc', rider: 'Marc Marquez', number: 93 }, { rider_id: 'bez', rider: 'Marco Bezzecchi', number: 72 }]
+    const laps = [lap('marc', 100), lap('marc', 100.426), lap('bez', 99), { ...lap('bez', 99.778), lap_number: 24 }]
+    expect(lapTakeaway(laps, riders).title).toContain("Marco Bezzecchi's median lap is 0.824s quicker than Marc Marquez's")
+    expect(lapSamples(laps, riders)[1].laps.map((value) => value.lap_number)).toEqual([1, 24])
+    expect(lapTakeaway(laps, riders.slice(0, 1)).detail).toContain('One selected rider')
+    expect(lapTakeaway(laps.slice(0, 3), riders).title).toContain('More timed laps')
+    expect(lapTakeaway([], riders).title).toContain('More timed laps')
+    const tied = [...laps.slice(0, 2), lap('bez', 100), lap('bez', 100.426)]
+    expect(lapTakeaway(tied, riders).title).toContain('share the lowest median')
+    expect(lapTakeaway(tied, [...riders].reverse())).toEqual(lapTakeaway(tied, riders))
+    const pit = { ...lap('marc', 130), is_pit: true }
+    expect(lapTakeaway(cleanLaps([...laps, pit], false, false), riders).title)
+      .not.toEqual(lapTakeaway(cleanLaps([...laps, pit], true, false), riders).title)
+  })
+  it('distinguishes selected best-sector combinations from actual laps and requires all sectors', () => {
+    const riders = [{ rider_id: 'one', rider: 'One Rider', number: 1 }, { rider_id: 'two', rider: 'Two Rider', number: 2 }]
+    const first = { ...lap('one', 100), sectors: [20, 25, 30, 25] }
+    const otherLap = { ...first, lap_number: 2, sectors: [21, 24, 31, 26] }
+    const second = { ...lap('two', 101), sectors: [20.1, 25, 30, 25] }
+    const takeaway = sectorTakeaway([first, otherLap, second], riders)
+    expect(takeaway.title).toContain("One Rider's best-sector sum is 1.100s lower")
+    expect(takeaway.detail).toContain('theoretical combination')
+    expect(takeaway.detail).toContain('sector 2, 1.000s')
+    expect(sectorTakeaway([first, second], riders.slice(0, 1)).detail).toContain('not an actual lap')
+    expect(sectorTakeaway([first, { ...second, sectors: [20.1, null, 30, 25] }], riders).title).toContain('unavailable')
+    expect(sectorTakeaway([first, { ...second, sectors: first.sectors }], riders).title).toContain('share the lowest')
+    expect(bestSectors([{ ...first, sectors: [0, -1, Infinity, null] }])).toEqual([null, null, null, null])
   })
 })

@@ -29,9 +29,10 @@ export interface PlotChartProps {
   valueUnit?: string
   stacked?: boolean
   rank?: boolean
+  annotations?: { x: number; y: number; text: string; rider_id: string }[]
 }
 
-export default function PlotChart({ series, yTitle, xTitle, height = 340, baseline = false, theme, timing = false, valueUnit = 'points', stacked = false, rank = false }: PlotChartProps) {
+export default function PlotChart({ series, yTitle, xTitle, height = 340, baseline = false, theme, timing = false, valueUnit = 'points', stacked = false, rank = false, annotations }: PlotChartProps) {
   const container = useRef<HTMLDivElement>(null)
   const [error, setError] = useState(false)
   const [compact, setCompact] = useState(false)
@@ -82,6 +83,8 @@ export default function PlotChart({ series, yTitle, xTitle, height = 340, baseli
       }
     })
     const ticks = categoryTicks(series, compact ? 4 : 8)
+    const numericX = series.flatMap((line) => line.x.filter((value): value is number => typeof value === 'number'))
+    const midpoint = (Math.min(...numericX) + Math.max(...numericX)) / 2
     const layout: Partial<Layout> = {
       height, autosize: true, margin: { t: 20, r: 16, b: series.length > 3 ? 140 : series.some((line) => line.type === 'pie') ? 110 : 76, l: 56 },
       paper_bgcolor: color('--cp-surface'), plot_bgcolor: color('--cp-surface'),
@@ -101,6 +104,14 @@ export default function PlotChart({ series, yTitle, xTitle, height = 340, baseli
       showlegend: series.length > 1 || series.some((line) => line.type === 'pie'), legend: { orientation: 'h', y: -0.23 },
       barmode: stacked ? 'stack' : 'group',
       uirevision: `${theme}-${series.map((line) => line.id).join('-')}`,
+      annotations: annotations?.map((annotation) => ({
+        x: annotation.x, y: annotation.y, xref: 'x', yref: 'y',
+        text: annotation.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'),
+        showarrow: true, arrowhead: 2, ax: 0, ay: -48, xanchor: annotation.x > midpoint ? 'right' : 'left',
+        bgcolor: color('--cp-surface'), bordercolor: color(riderStyle(annotation.rider_id).token), borderpad: 4,
+        arrowcolor: color(riderStyle(annotation.rider_id).token),
+        font: { color: color('--cp-text'), size: 10 },
+      })),
       ...(baseline ? {
         shapes: [{
           type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 0, y1: 0,
@@ -120,7 +131,7 @@ export default function PlotChart({ series, yTitle, xTitle, height = 340, baseli
       active = false
       Plotly.purge(element)
     }
-  }, [series, yTitle, xTitle, height, baseline, theme, timing, valueUnit, stacked, rank, compact])
+  }, [series, yTitle, xTitle, height, baseline, theme, timing, valueUnit, stacked, rank, compact, annotations])
   return <>
     {error && <p role="alert">This chart could not be rendered. The values remain available in the tables.</p>}
     <div ref={container} style={{ width: '100%', height }} />

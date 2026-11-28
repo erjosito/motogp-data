@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import App, { ChampionshipContent, RiderProfileContent } from './App'
+import App, { ChampionshipContent, LapComparison, RiderProfileContent, SectorAnalysis } from './App'
 import * as api from './api'
-import type { Championship, RiderProfile } from './types'
+import type { Championship, Lap, RiderProfile } from './types'
 
 function render(search: string) {
   vi.stubGlobal('window', { location: { search, pathname: '/paddock/' } })
@@ -13,6 +13,29 @@ function render(search: string) {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+})
+
+it('keeps timing takeaways scoped to selected samples and separates theoretical sums from all-rider benchmarks', () => {
+  const riders = [{ rider_id: 'one', rider: 'One Rider', number: 1 }, { rider_id: 'two', rider: 'Two Rider', number: 2 }]
+  const lap = (rider_id: string, lap_number: number, time: number, sectors: (number | null)[]): Lap => ({
+    rider_id, rider: `${rider_id} Rider`, number: 1, lap_number, lap_seconds: time, sectors,
+    speed_kmh: null, is_pit: false, run_number: 1, front_tyre: null, rear_tyre: null,
+  })
+  const laps = [lap('one', 1, 100, [20, 25, 30, 25]), lap('one', 2, 102, [21, 24, 31, 26]),
+    lap('two', 4, 104, [21, 25, 30, 25]), lap('two', 5, 106, [22, 26, 31, 26])]
+  const scope = 'Example / Race; pit laps excluded; slow laps included'
+  const pace = renderToStaticMarkup(<LapComparison laps={laps} riders={riders} theme="dark" scope={scope} />)
+  expect(pace).toContain("One Rider&#x27;s median lap is 4.000s quicker than Two Rider&#x27;s")
+  expect(pace).toContain('2 timed laps · lap-number span 4–5')
+  expect(pace).toContain('not matched-lap or causal pace superiority')
+  expect(pace).toContain(scope)
+  const sector = renderToStaticMarkup(<SectorAnalysis laps={laps}
+    allLaps={[...laps, lap('other', 1, 90, [19, 23, 29, 24])]} riders={riders} scope={scope} />)
+  expect(sector).toContain("One Rider&#x27;s best-sector sum is 2.000s lower")
+  expect(sector).toContain('Theoretical sums can combine different laps, not actual completed laps')
+  expect(sector).toContain('including those not selected')
+  expect(sector).toContain('Session best 19.000s')
+  expect(sector).toContain('2 included laps')
 })
 
 describe('category selector and navigation', () => {

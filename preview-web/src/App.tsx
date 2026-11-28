@@ -7,7 +7,7 @@ import {
 import { useResource } from './api'
 import { categories, categoryPath, navigationPath, profilePath, seasonCategory, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
 import type { Category } from './selection'
-import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed, statisticText } from './data'
+import { bestSectors, cleanLaps, lapSamples, lapTakeaway, lapTime, MARC_ID, median, riderStyle, sectorTakeaway, signed, statisticText } from './data'
 import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Session } from './types'
 import type { PlotChartProps } from './PlotChart'
 import { seasonCharts } from './seasonCharts'
@@ -205,8 +205,11 @@ function SeasonChartPanel({ chart, theme }: { chart: SeasonChart; theme: string 
   return <section className="panel season-chart-panel" data-season-chart={chart.id} data-chart-kind={chart.kind} aria-labelledby={`chart-${chart.id}`}>
     <div className="section-heading"><div><p className="eyebrow">THE STORY IN DATA</p><h2 id={`chart-${chart.id}`}>{statisticText(chart.title)}</h2></div>
       <span className="quiet-badge chart-type">{chart.kind === 'bridge' ? 'Recovery bridge' : chart.kind}</span></div>
-    <Plot series={chart.series} yTitle={chart.yTitle} xTitle={chart.xTitle} baseline={chart.baseline}
-      valueUnit={chart.valueUnit} rank={chart.rank} stacked={chart.stacked} theme={theme} height={420} />
+    {chart.kind === 'comparison' ? <div className="score-comparison">{chart.series.map((series) =>
+      <div key={series.id} style={{ borderLeftColor: `var(${riderStyle(series.id).token})` }}>
+        <span className="eyebrow">P{series.y[0]}</span><h3>{series.name}</h3><strong>{series.x[0]}</strong><span>points</span>
+      </div>)}</div> : <Plot series={chart.series} yTitle={chart.yTitle} xTitle={chart.xTitle} baseline={chart.baseline}
+      valueUnit={chart.valueUnit} rank={chart.rank} stacked={chart.stacked} theme={theme} height={420} />}
     <SourceNote><p><strong>{statisticText(chart.title)}.</strong> {chart.description} {chart.note}</p></SourceNote>
   </section>
 }
@@ -351,17 +354,27 @@ function ResultTable({ data, category }: { data: Analysis; category: Category })
   </>
 }
 
-function LapComparison({ laps, riders, theme }: { laps: Lap[]; riders: Rider[]; theme: string }) {
-  const series = riders.map((rider) => {
-    const recorded = laps.filter((lap) => lap.rider_id === rider.rider_id)
+export function LapComparison({ laps, riders, theme, scope }: { laps: Lap[]; riders: Rider[]; theme: string; scope: string }) {
+  const samples = lapSamples(laps, riders)
+  const takeaway = lapTakeaway(laps, riders)
+  const series = samples.map(({ rider, laps: recorded }) => {
     return {
       id: rider.rider_id, name: rider.rider, x: recorded.map((lap) => lap.lap_number),
       y: recorded.map((lap) => lap.lap_seconds), text: recorded.map((lap) => lapTime(lap.lap_seconds)),
     }
   })
+  const bestLap = samples.flatMap((sample) => sample.laps).sort((a, b) =>
+    a.lap_seconds! - b.lap_seconds! || a.rider_id.localeCompare(b.rider_id) || a.lap_number - b.lap_number)[0]
+  const annotations = bestLap ? [{ x: bestLap.lap_number, y: bestLap.lap_seconds!,
+    text: `${bestLap.rider}\nBest included lap ${lapTime(bestLap.lap_seconds)}`, rider_id: bestLap.rider_id }] : []
   return <>
-    <section className="panel"><div className="section-heading"><div><p className="eyebrow">THE PACE</p><h2>Every lap tells a story</h2><p>Lower is faster. Hover or tap to compare lap times.</p></div><Timer size={22} className="muted" /></div>
-      {series.some((line) => line.x.length) ? <Plot series={series} yTitle="Lap time (seconds)" theme={theme} timing height={420} /> : <p className="panel-note" role="status">No laps match these riders and filters.</p>}
+    <section className="panel"><div className="section-heading"><div><p className="eyebrow">THE PACE</p><h2>{takeaway.title}</h2><p>{takeaway.detail}</p></div><Timer size={22} className="muted" /></div>
+      <p className="panel-note">Included recorded times under the current filters: {scope}. Samples may contain different laps; this is not matched-lap or causal pace superiority.</p>
+      <div className="timing-labels">{samples.map((sample) => <div key={sample.rider.rider_id}
+        style={{ borderLeftColor: `var(${riderStyle(sample.rider.rider_id).token})` }}>
+        <RiderName rider={sample.rider} /><span>{sample.values.length} timed laps{sample.laps.length ? ` · lap-number span ${Math.min(...sample.laps.map((lap) => lap.lap_number))}–${Math.max(...sample.laps.map((lap) => lap.lap_number))}` : ''}</span>
+        <strong>Median {lapTime(sample.median)}</strong></div>)}</div>
+      {series.some((line) => line.x.length) ? <Plot series={series} yTitle="Lap time (seconds)" theme={theme} timing height={420} annotations={annotations} /> : <p className="panel-note" role="status">No laps match these riders and filters.</p>}
     </section>
     <section className="panel"><div className="section-heading"><div><h2>Pace at a glance</h2><p>Calculated from the laps currently included above.</p></div></div>
       <div className="table-scroll"><table><thead><tr><th>Rider</th><th>Included laps</th><th>Best</th><th>Median</th><th>Spread*</th></tr></thead>
@@ -374,21 +387,23 @@ function LapComparison({ laps, riders, theme }: { laps: Lap[]; riders: Rider[]; 
   </>
 }
 
-function SectorAnalysis({ laps, allLaps, riders }: { laps: Lap[]; allLaps: Lap[]; riders: Rider[] }) {
+export function SectorAnalysis({ laps, allLaps, riders, scope }: { laps: Lap[]; allLaps: Lap[]; riders: Rider[]; scope: string }) {
   const benchmark = bestSectors(allLaps)
   const rows = riders.map((rider) => ({ rider, sectors: bestSectors(laps.filter((lap) => lap.rider_id === rider.rider_id)) }))
   const deltas = rows.flatMap((row) => row.sectors.flatMap((value, index) => value == null || benchmark[index] == null ? [] : [value - benchmark[index]!]))
   const maximum = Math.max(0.001, ...deltas)
   const ideal = benchmark.every((value) => value != null) ? benchmark.reduce<number>((total, value) => total + (value ?? 0), 0) : null
+  const takeaway = sectorTakeaway(laps, riders)
   return <>
     <div className="stats-grid">
       <Stat label="THEORETICAL BEST" value={lapTime(ideal)} note="Sum of the fastest sectors; not an actual lap" />
       <Stat label="SECTORS" value={`${benchmark.filter((value) => value != null).length} / 4`} note="Based on all riders using the current lap filters" />
-      <Stat label="COMPARISON FIELD" value={riders.length} note="Selected riders with available timing records" />
+      <Stat label="COMPARISON FIELD" value={riders.length} note="Selected riders; filtered values may be unavailable" />
     </div>
-    <section className="panel"><div className="section-heading"><div><p className="eyebrow">FIND THE ADVANTAGE</p><h2>The sector picture</h2><p>Each rider’s best sector, compared with the best in the entire session.</p></div><span className="quiet-badge">Seconds</span></div>
+    <section className="panel"><div className="section-heading"><div><p className="eyebrow">BEST SECTORS / SELECTED RIDERS</p><h2>{takeaway.title}</h2><p>{takeaway.detail}</p></div><span className="quiet-badge">Seconds</span></div>
+      <p className="panel-note">Best recorded sectors under the current filters: {scope}. Theoretical sums can combine different laps, not actual completed laps. Table gaps use all included session riders, including those not selected.</p>
       <div className="table-scroll"><table className="sector-table"><thead><tr><th>Rider</th>{benchmark.map((value, index) => <th key={index}><span>SECTOR {index + 1}</span><small>Session best {value == null ? '—' : `${value.toFixed(3)}s`}</small></th>)}<th>Theoretical lap</th></tr></thead>
-        <tbody>{rows.map(({ rider, sectors }) => <tr key={rider.rider_id}><td><RiderName rider={rider} /></td>{sectors.map((value, index) => {
+        <tbody>{rows.map(({ rider, sectors }) => <tr key={rider.rider_id}><td><RiderName rider={rider} /><small>{laps.filter((lap) => lap.rider_id === rider.rider_id).length} included laps</small></td>{sectors.map((value, index) => {
           const delta = value == null || benchmark[index] == null ? null : value - benchmark[index]!
           const strength = delta == null ? 0 : 7 + (delta / maximum) * 32
           return <td key={index}><div className={`sector-cell ${delta === 0 ? 'sector-best' : ''}`} style={{ backgroundColor: `color-mix(in srgb, var(--cp-accent) ${strength}%, var(--cp-surface))` }}>
@@ -420,6 +435,7 @@ function AnalysisPanel({ data, view, theme, category }: { data: Analysis; view: 
   const allLaps = cleanLaps(data.laps, excludePit, excludeSlow)
   const laps = allLaps.filter((lap) => selected.includes(lap.rider_id))
   const riders = ordered.filter((rider) => selected.includes(rider.rider_id))
+  const scope = `${data.session.season_year} / ${data.session.event_name} / ${data.session.session_label}; pit laps ${excludePit ? 'excluded' : 'included'}; laps above 115% of each rider's median ${excludeSlow ? 'excluded' : 'included'}`
   return <>
     <DetailSection title="comparison controls" note={`${selected.length} riders selected · pit laps ${excludePit ? 'excluded' : 'included'} · slow laps ${excludeSlow ? 'hidden' : 'included'}`} className="rider-picker">
       <div className="section-heading"><div><h2>Choose your comparison</h2><p>{selected.length} selected · rider colors stay consistent across charts</p></div>
@@ -436,8 +452,8 @@ function AnalysisPanel({ data, view, theme, category }: { data: Analysis; view: 
       </div>
     </DetailSection>
     {!riders.length ? <p className="selection-message" role="status">Select at least one rider to begin the comparison.</p>
-      : view === 'laps' ? <LapComparison laps={laps} riders={riders} theme={theme} />
-        : <SectorAnalysis laps={laps} allLaps={allLaps} riders={riders} />}
+      : view === 'laps' ? <LapComparison laps={laps} riders={riders} theme={theme} scope={scope} />
+        : <SectorAnalysis laps={laps} allLaps={allLaps} riders={riders} scope={scope} />}
   </>
 }
 

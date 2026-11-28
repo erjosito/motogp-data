@@ -29,6 +29,14 @@ The Classic domain root is unchanged.
 Classic's sidebar includes an **Open Paddock App** link with an external-link
 icon; it opens the new app in a separate tab without replacing the current analysis.
 Paddock's always-visible **Data analysis** shortcut opens Classic in a new tab.
+Lap and sector takeaways recompute from the selected riders and current pit/slow-lap
+filters. Lap medians require at least two included timed laps per rider and are
+not matched-lap or causal pace comparisons. Best-sector sums are theoretical
+combinations, not actual laps; sector table gaps retain the all-rider filtered
+session benchmark. Sample counts, direct rider labels and one best-included-lap
+annotation keep comparisons explicit. Close pre-1990 official standings without
+a timeline use a directly labeled score pair and field-gap bars, preserving
+official ranks, ties, decimals and source notes.
 Profile/directory race numbers fall back to the latest positive classification
 number when the rider record is empty; Valentino Rossi's identity uses #46.
 This read-only presentation fallback does not rewrite historical session numbers.

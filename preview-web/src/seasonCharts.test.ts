@@ -77,9 +77,14 @@ describe('evidence-led season chart pairs', () => {
     ])
     const result = seasonCharts(data)
     expect(result.layout).toBe('tie-break')
+    expect(result.charts[0].kind).toBe('comparison')
     expect(result.charts[0].series.map((series) => [series.x, series.y])).toEqual([[[46], [1]], [[46], [2]]])
-    expect(result.charts[1].series.map((series) => series.x)).toEqual([[0, 0], [0, 0]])
+    expect(result.charts[1].series[0].x).toEqual([0, 0])
+    expect(result.charts[1].series[0].y).toEqual(['P1 Agostini', 'P2 Hailwood'])
     expect(result.charts.every((chart) => chart.kind !== 'line')).toBe(true)
+    const shared = seasonCharts(championship([standing('one', 46.5, 1), standing('two', 46.5, 1)]))
+    expect(shared.charts[0].title).toBe('Same points. Shared rank.')
+    expect(shared.charts[0].series.map((row) => [row.x[0], row.y[0]])).toEqual([[46.5, 1], [46.5, 1]])
   })
 
   it('bridges the actual 102-point deficit to the 43-point lead, even if Marc is not first in the table', () => {
@@ -157,8 +162,27 @@ describe('evidence-led season chart pairs', () => {
   it('keeps single-rider and zero-score official evidence chartable without a fabricated percentage', () => {
     const result = seasonCharts(championship([standing('only', 0, 1, { gap: 0 })]))
     expect(result.charts[0].series[0].x).toEqual([0])
-    expect(result.charts[1].series[0].y).toEqual([1, 1])
+    expect(result.charts[1].series[0].y).toEqual(['P1 only'])
     expect(result.charts.every((chart) => chart.kind !== 'doughnut')).toBe(true)
+  })
+  it('directly labels the historical official leading pair and field gaps without reordering scores', () => {
+    const data = championship([standing('Angel Nieto', 76, 1), standing('Aalt Toersen', 75, 2),
+      standing('third', 65.5, 3)], { season: 1969, category: '50cc' })
+    const before = structuredClone(data)
+    const charts = seasonCharts(data).charts
+    expect(charts[0].kind).toBe('comparison')
+    expect(charts[0].series.map((row) => [row.name, row.x[0], row.y[0]])).toEqual([
+      ['Angel Nieto', 76, 1], ['Aalt Toersen', 75, 2],
+    ])
+    expect(charts[1].series).toHaveLength(1)
+    expect(charts[1].series[0].y).toEqual(['P1 Angel Nieto', 'P2 Aalt Toersen', 'P3 third'])
+    expect(charts[1].series[0].x).toEqual([0, 1, 10.5])
+    expect(charts[1].series[0].showValues).toBe(true)
+    const html = renderToStaticMarkup(createElement(ChampionshipContent, { data, category: '50cc', theme: 'dark' }))
+    expect(html).toContain('class="score-comparison"')
+    expect(html).toContain('<h3>Angel Nieto</h3><strong>76</strong>')
+    expect(data).toEqual(before)
+    expect(seasonCharts({ ...data, season: 2015 }).charts[0].kind).toBe('scatter')
   })
 })
 
