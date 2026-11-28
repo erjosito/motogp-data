@@ -720,8 +720,68 @@ python import_standings.py --years 2026 --apply --refresh
 python -m unittest test_import_standings test_export_data
 ```
 
+### Reviewed season/class finality
+
+The official feed does not assert that a championship is final. `is_final` is
+legacy inferred metadata, not proof. A reviewer can explicitly confirm one
+actual source category after verifying an authoritative final classification and
+matching the entire stored standings; this does not certify race or timing
+archive completeness. Do not treat the latest GP, a standings table, or a year
+change alone as finality evidence.
+
+On an existing database, an administrator must apply the additive
+`migrations/20261128_02_season_lifecycle.sql` migration before confirmation.
+Either importer's `--apply --migrate` also applies it. Coordinate production
+migrations separately; absent migration or confirmation reads as `unknown`.
+Normal imports never assert finality.
+
+1. Import the class with `--apply --refresh`, then inspect its exact stored source
+   label, standings and source snapshots, selecting `standings` for the premier
+   standings importer or `historical` for the all-class archive importer.
+   The snapshots can be large:
+
+   ```powershell
+   python season_lifecycle.py --year 2026 --category "MotoGP™" --import-kind standings --inspect --show-snapshots
+   ```
+
+2. Independently review an official MotoGP/FIM document that expressly supports
+   finality for that season and class and matches the imported standings. Obtain
+   the SHA-256 of the reviewed document's exact downloaded bytes. The evidence
+   URL must be a direct HTTPS MotoGP/FIM URL (no redirects). Record the review
+   rationale, including the year and class. A nonempty URL or a document titled
+   only "world championship classification" is not itself proof of finality.
+3. Rerun the same importer with `--apply --refresh --confirm-final`, passing the
+   two hashes printed by `--inspect`, the reviewed evidence hash and URL, and
+   the note. For example, replace all placeholders:
+
+   ```powershell
+   python import_standings.py --years 2026 --apply --refresh --confirm-final --reviewed-standings-sha256 <standings-sha256> --reviewed-snapshot-sha256 <snapshot-sha256> --final-evidence-url <direct-official-url> --reviewed-evidence-sha256 <evidence-sha256> --final-review-note "2026 MotoGP final standings: <review rationale>"
+   ```
+
+   For another class use `import_historical.py --years <year> --category <class>`
+   with the same confirmation options. Refreshed standings, either importer's
+   stored source snapshot, and evidence bytes must still match the reviewed
+   hashes. Confirmation failure does not undo the preceding normal import.
+
+Subsequent imports invalidate confirmation when source snapshots or standings
+change; returning to old data does not restore it. Review and confirm again.
+For a known correction, explicitly invalidate first:
+
+```powershell
+python season_lifecycle.py --year 2026 --category "MotoGP™" --unfinalize "Correction pending review"
+```
+
+The reader `read_season_status(conn, year, exact_category)` returns
+`official_final` with evidence only while the recorded snapshots and current
+stored standings match; otherwise it returns `unknown`. A consumer must also
+compare `evidence.standings_sha256` against `standings_digest` of the exact
+displayed raw rows, especially when using cached data. Database errors are not
+silently treated as confirmation. Changes outside these importers are detected
+while mismatched, but must be explicitly invalidated if reverted; do not make
+direct SQL changes to reviewed standings without unfinalizing first.
+
 `standings_imports` stores the complete payload, source URL/hash, calendar,
-category identity, supplied PDF/XML links, row count and finality separately from
+category identity, supplied PDF/XML links, row count and legacy finality flag separately from
 `historical_imports` (race archives). Original source labels/ranks/points remain
 unchanged. Empty source tables are recorded as gaps, never reconstructed from
 race totals. Unowned conflicting existing standings or unexpected stored riders

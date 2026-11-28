@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 import requests
 
 import load_to_sql as loader
+import season_lifecycle
 from sql_connection import connect_to_sql
 from category_scope import CATEGORY_YEARS, canonical_category, normalize_category
 
@@ -306,6 +307,7 @@ def persist_season(conn, data):
                     [(session_id,) for session_id in sorted(unavailable)],
                 )
             verify_season(conn, data)
+            season_lifecycle.invalidate_changed_confirmation(conn, year, category)
             print(f"{year}: unchanged archive verified", flush=True)
             return
         entries = race_entries(data)
@@ -367,6 +369,7 @@ def persist_season(conn, data):
             len(entries), len(standings_rows), payload,
             year, category, fingerprint, len(data["events"]),
             sum(len(e["sessions"]) for e in data["events"]), len(entries), len(standings_rows), payload)
+        season_lifecycle.invalidate_changed_confirmation(conn, year, category)
     champion = next((entry for entry in data["standings"]["classification"] if entry["position"] == 1), None)
     title = ("champion" if data.get("is_final", True) else "current leader")
     leader = (f"{title} {champion['rider']['full_name']} ({champion['points']} points)"
@@ -427,7 +430,9 @@ def main():
     parser.add_argument("--refresh", action="store_true", help="Refetch cached official archives")
     parser.add_argument("--include-laps", action="store_true", help="Import and verify advertised race timing PDFs")
     parser.add_argument("--cache-dir", type=Path, default=Path("historical_cache"))
+    season_lifecycle.add_import_arguments(parser)
     args = parser.parse_args()
+    season_lifecycle.validate_import_arguments(parser, args)
     if args.migrate and not args.apply:
         parser.error("--migrate requires --apply")
     if args.include_laps and not args.apply:
@@ -456,6 +461,12 @@ def main():
                 persist_season(conn, data)
                 if args.include_laps:
                     persist_race_laps(conn, data)
+                if args.confirm_final:
+                    season_lifecycle.confirm_final(
+                        conn, year, data["category"], "historical", args.reviewed_standings_sha256,
+                        args.reviewed_snapshot_sha256,
+                        args.final_evidence_url, args.reviewed_evidence_sha256, args.final_review_note,
+                    )
     finally:
         if conn is not None:
             conn.close()
