@@ -21,7 +21,8 @@ The [existing data-rights notice](data-rights.json) still applies: public access
 alone is not permission to redistribute, crop, remove backgrounds or display an
 image. The user subsequently stated that they made the supplied artwork and
 that it is free to use. The supplied manifest records official source URLs;
-no specific open-license identifier or adaptation terms were supplied.
+no specific open-license identifier was supplied. The later task-specific
+clipping/reduced-opacity permission below applies only to the supplied number files.
 
 ## Reproduce the local catalog
 
@@ -121,6 +122,22 @@ Git-ignored private bundle, separate from the
 unreviewed official profile media references and from portrait rights.
 Source links are shown with each design; any additional conditions of the
 permission still need to be recorded if supplied.
+
+On 2026-11-28, the user answered an explicit rights-clarification form identifying
+these exact supplied number-art files and the proposed partially clipped,
+reduced-opacity app background treatment:
+`authorization="I own or control the rights to these exact files and authorize clipping and reduced opacity in this app"`
+and `credit_terms="no attribution required"`. This is a task-specific app-display
+permission, not an open license, a permission to acquire other official artwork,
+or a change to photograph rights. Official source URLs and unchanged private
+originals remain preserved. No attribution or change notice is required by this
+grant; existing source-reference links remain available.
+
+Paddock uses one decorative version of the selected rider's verified identity
+design in the empty right side of the biography header on wide screens only.
+CSS clipping and reduced opacity do not modify the source PNG. The foreground
+identity remains clear; no plain-number watermark or artwork is added to charts.
+Below 1100 px the decorative accent is hidden to preserve room for facts.
 
 To stage a copy without altering the source, populate the historical result
 cache and run:

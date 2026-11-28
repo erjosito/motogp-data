@@ -11,7 +11,8 @@ import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed, s
 import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Session } from './types'
 import type { PlotChartProps } from './PlotChart'
 import { seasonCharts } from './seasonCharts'
-import { CircuitContext, RiderNumber, RiderVisualContext } from './VisualContext'
+import { CircuitContext, NumberArtworkAccent, NumberMark, RiderNumber, RiderVisualContext } from './VisualContext'
+import type { NumberArtwork } from './VisualContext'
 import DetailSection from './DetailSection'
 import ResultStory from './ResultStory'
 import { PageNotes, SourceNote } from './PageNotes'
@@ -32,6 +33,7 @@ type UpdateLocation = (values: Record<string, string | null>) => void
 
 export function RiderProfileContent({ data, params, theme }: { data: RiderProfile; params: URLSearchParams; theme: string }) {
   const { rider, totals } = data
+  const numberArtwork = useResource<NumberArtwork>(`/api/riders/${encodeURIComponent(rider.rider_id)}/number-identity`)
   const racing = data.seasons.filter((row) => row.gp_appearances > 0)
   const ranked = data.seasons.filter((row) => row.position != null)
   const titleHero = totals.titles > 0 && ranked.length === data.seasons.length
@@ -46,10 +48,11 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
     finalRanks.set(label, (finalRanks.get(label) ?? 0) + 1)
   }
   return <>
-    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1 className="rider-title"><span className="identity-number"><RiderNumber rider={rider} fallback={rider.number == null ? null : undefined} /></span><span>{rider.rider}.</span></h1><p>More than a name on the timing screen.</p></div>
+    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1 className="rider-title"><span className="identity-number"><NumberMark rider={rider} data={numberArtwork.data} fallback={rider.number == null ? null : undefined} /></span><span>{rider.rider}.</span></h1><p>More than a name on the timing screen.</p></div>
       <span className="quiet-badge">{data.first_season === data.latest_season ? data.first_season : `${data.first_season} — ${data.latest_season}`} · seasons</span></div>
+    {numberArtwork.error && <SourceNote><p role="alert">{rider.rider}: number design could not be loaded; showing the plain number. <button className="text-button" onClick={numberArtwork.retry}>Try again</button></p></SourceNote>}
     <section className={`story-card rider-hero ${rider.rider_id === MARC_ID ? 'marc-hero' : ''}`}>
-      <div className="rider-visual-header"><RiderVisualContext rider={rider} /></div>
+      <div className="rider-visual-header"><RiderVisualContext rider={rider} /><NumberArtworkAccent data={numberArtwork.data} /></div>
       <div className="story-intro"><div className="story-copy"><p className="eyebrow accent">{rider.rider_id === MARC_ID ? 'THE PROTAGONIST' : 'A CAREER IN FOCUS'}</p>
         <h2>{statisticText(data.headline)}</h2><p>{statisticText(data.summary)}</p>
         {!!data.titles.length && <p className="eyebrow">TITLE SEASONS</p>}

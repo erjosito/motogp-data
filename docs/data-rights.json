@@ -42,6 +42,7 @@
     "This decision does not change the license status of existing repository code or documentation.",
     "The SQL data export does not include raw PDFs, images, access tokens, connection credentials or database permissions.",
     "The optional rider profile catalog is separate from the SQL export. Official image URLs are unapproved references, not a permission grant. Individually reviewed reusable photographs in media_catalog.json retain their separate author dedications or Creative Commons licenses and do not clear official artwork.",
-    "The user stated that they made the supplied artwork themselves and that it is free to use. The supplied manifest also records official source URLs; no specific open-license identifier was supplied. Supplied originals remain in a private bundle."
+    "The user stated that they made the supplied artwork themselves and that it is free to use. The supplied manifest also records official source URLs; no specific open-license identifier was supplied. Supplied originals remain in a private bundle.",
+    "On 2026-11-28, an explicit form identifying the exact supplied number-art files and the proposed clipped/reduced-opacity background treatment received authorization=\"I own or control the rights to these exact files and authorize clipping and reduced opacity in this app\" and credit_terms=\"no attribution required\". This task-specific permission covers these supplied files in this app only, is not an open license or permission for other official assets, and does not change separately licensed photographs. Preserve original files and source URLs; this grant adds no attribution or change-notice requirement."
   ]
 }
