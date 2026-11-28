@@ -383,6 +383,31 @@ class CategoryApiTests(unittest.TestCase):
                     self.assertEqual(self.client.get(f"{prefix}/api/sessions/session-{(index + 1) % 6}/analysis{query}").status_code, 404)
         self.assertEqual(self.client.get("/api/sessions/session-1/analysis").status_code, 404)
 
+    def test_identity_numbers_use_latest_known_number_and_rossi_46_without_rewriting_races(self):
+        self.db.execute("UPDATE riders SET number=NULL WHERE rider_id='rider'")
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET rider_number=7 WHERE session_id='session-0'")
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET rider_number=42 WHERE session_id='session-4'")
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET rider_number=NULL WHERE session_id='session-5'")
+        self.db.execute("INSERT INTO riders VALUES ('640859bc-3f12-44fe-949a-4eab1f48f02a','Valentino Rossi',NULL)")
+        self.db.execute("INSERT INTO championship_standings VALUES (2001,'500cc',1,'640859bc-3f12-44fe-949a-4eab1f48f02a',325,NULL,'https://example.com',1)")
+        for prefix in ("", "/paddock"):
+            directory = {row["rider_id"]: row for row in self.client.get(prefix + "/api/riders").json()}
+            self.assertEqual(directory["rider"]["number"], 42)
+            self.assertEqual(directory["rider"]["number_source"], "latest-classification")
+            self.assertEqual(directory["rider"]["number_season"], 2026)
+            self.assertEqual(directory["rider"]["number_category"], "50cc")
+            self.assertEqual(directory["640859bc-3f12-44fe-949a-4eab1f48f02a"]["number"], 46)
+            self.assertEqual(self.client.get(prefix + "/api/riders/rider").json()["rider"]["number"], 42)
+            self.assertEqual(self.client.get(prefix + "/api/riders/640859bc-3f12-44fe-949a-4eab1f48f02a").json()["rider"]["number"], 46)
+            race = self.client.get(prefix + "/api/sessions/session-0/analysis").json()
+            self.assertEqual(race["results"][0]["number"], 7)
+        self.assertIsNone(self.db.execute("SELECT number FROM riders WHERE rider_id='rider'").fetchone()[0])
+        self.db.execute("UPDATE dbo.vw_effective_classifications SET rider_number=NULL")
+        for prefix in ("", "/paddock"):
+            directory = {row["rider_id"]: row for row in self.client.get(prefix + "/api/riders").json()}
+            self.assertIsNone(directory["rider"]["number"])
+            self.assertIsNone(self.client.get(prefix + "/api/riders/rider").json()["rider"]["number"])
+
     def test_rider_profile_keeps_gp_sprints_and_final_titles_distinct(self):
         self.db.execute("INSERT INTO sessions VALUES ('sprint','gp','MotoGP','SPR','Sprint',NULL,10,'FINISHED',NULL,NULL,NULL)")
         self.db.execute("INSERT INTO dbo.vw_effective_classifications (session_id,rider_id,position,points) VALUES ('sprint','rider',1,12)")

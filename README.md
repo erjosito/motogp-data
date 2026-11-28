@@ -29,6 +29,10 @@ The Classic domain root is unchanged.
 Classic's sidebar includes an **Open Paddock App** link with an external-link
 icon; it opens the new app in a separate tab without replacing the current analysis.
 Paddock's always-visible **Data analysis** shortcut opens Classic in a new tab.
+Profile/directory race numbers fall back to the latest positive classification
+number when the rider record is empty; Valentino Rossi's identity uses #46.
+This read-only presentation fallback does not rewrite historical session numbers.
+Riders with no known number remain unassigned; number artwork availability is separate.
 
 Career profiles use a reusable identity card with individually reviewed
 biography facts where collected. Face portraits are omitted for every rider,
