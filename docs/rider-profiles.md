@@ -313,7 +313,9 @@ when artwork is unavailable. Championship cards use the official standing's
 rider ID when available, otherwise an unambiguous ID from the scoped race rows;
 ambiguous/missing IDs never match artwork by name or number.
 Artwork is read/verified once per rider per app run and reference credits are
-shown once per rider in the view, without removing the existing scoped gallery.
+deduplicated per displayed design in the page footer, including sources for
+the scoped gallery. The gallery retains its year/class/number labels; portrait
+and biography credits remain with their respective content.
 It is rider identity, not season-specific evidence:
 `read_identity_number(results_rider_id)` uses the latest available design for
 that stable rider ID, independently of the selected year/class or absent race
