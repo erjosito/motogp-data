@@ -3195,10 +3195,14 @@ elif viz == "👤 Pilot Profile":
             label_order = mg["label"].tolist()
             mg["winner"] = mg.apply(lambda r: pilot if r.pos1 < r.pos2 else rival if r.pos2 < r.pos1 else "Tie", axis=1)
             wc = mg["winner"].value_counts()
-            c1, c2, c3 = st.columns(3)
-            c1.metric(pilot, wc.get(pilot, 0))
+            c1, c2, c3 = st.columns(3, vertical_alignment="bottom")
+            with c1:
+                render_rider_heading(pilot, pilot_id)
+                st.metric(t("comparison_finishes_ahead"), wc.get(pilot, 0))
             c2.metric(t("ties"), wc.get("Tie", 0))
-            c3.metric(rival, wc.get(rival, 0))
+            with c3:
+                render_rider_heading(rival, unique_rider_id(rival_races))
+                st.metric(t("comparison_finishes_ahead"), wc.get(rival, 0))
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=mg["label"], y=mg["pos1"], mode="lines+markers", name=pilot))
             fig.add_trace(go.Scatter(x=mg["label"], y=mg["pos2"], mode="lines+markers", name=rival))

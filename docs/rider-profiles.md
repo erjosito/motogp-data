@@ -306,7 +306,7 @@ the filtered records include MotoGP; All-career, older-year, other-class and
 unpictured views use initials without changing the existing career analytics.
 Creator/source/license/adaptation credits remain visible below the photo.
 Number artwork also sits beside the profile name, Home championship rider-card
-names and rider-named profile chart titles, including both comparison riders.
+names and rider-named profile chart/counter titles, including both comparison riders.
 Charts use a native inline artwork/title row above the plot instead of
 duplicating the name in Plotly's title. Existing plain chart titles remain
 when artwork is unavailable. Championship cards use the official standing's
