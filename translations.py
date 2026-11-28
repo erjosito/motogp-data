@@ -436,6 +436,17 @@ TRANSLATIONS = {
         "it": "Punti della fonte (da verificare)",
     },
     "standings_source": {"en": "Standings source", "es": "Fuente del campeonato", "it": "Fonte della classifica"},
+    "historical_points_1970_350": {
+        "en": "1970 350cc: the official source reports 9 and 28 points for Agostini and Carruthers; independent historical standings report 90 and 58 counted points. Only the best six races counted. Other official entries remain unverified.",
+        "es": "350cc de 1970: la fuente oficial indica 9 y 28 puntos para Agostini y Carruthers; otras clasificaciones históricas indican 90 y 58 puntos computables. Solo contaban las seis mejores carreras. Las demás cifras oficiales siguen sin verificarse.",
+        "it": "350cc 1970: la fonte ufficiale riporta 9 e 28 punti per Agostini e Carruthers; altre classifiche storiche riportano 90 e 58 punti validi. Contavano solo le sei migliori gare. Gli altri dati ufficiali restano da verificare.",
+    },
+    "alternative_standings_sources": {"en": "Alternative sources", "es": "Fuentes alternativas", "it": "Fonti alternative"},
+    "historical_corrected_standings_method": {
+        "en": "Official final positions are shown with the indicated independent score corrections. Race classifications remain incomplete; unknown points and timing are unavailable, not zero. No championship progression is inferred from partial race scores.",
+        "es": "Las posiciones finales oficiales se muestran con las correcciones independientes indicadas. Los resultados de carreras siguen incompletos; los puntos y tiempos desconocidos no son cero. No se deduce la progresión del campeonato de resultados parciales.",
+        "it": "Le posizioni finali ufficiali sono mostrate con le correzioni indipendenti indicate. I risultati delle gare restano incompleti; punti e tempi sconosciuti non sono zero. Non si deduce l'andamento del campionato dai risultati parziali.",
+    },
     "historical_standings_method": {
         "en": "Official final positions and season scores for the selected category use the counting rules of the period. These finals are separate from augmented race classifications, which may contain verified external point facts and corroborated missing rows but remain incomplete. Unknown points and lap/sector timing are unavailable, not zero. No cumulative progression or championship title is inferred from partial race scores.",
         "es": "Las posiciones y puntos finales oficiales de la categoría seleccionada usan las reglas de la época. Son distintos de los resultados de carreras ampliados con puntos externos verificados y filas ausentes corroboradas, que pueden seguir incompletos. Los puntos y tiempos desconocidos no son cero. No se deducen progresiones ni títulos de puntos parciales.",

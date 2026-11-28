@@ -244,14 +244,14 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
           {narrative.context_url && <a className="classic-link" href={narrative.context_url} target="_blank" rel="noreferrer">The injury-recovery story · MotoGP<ArrowUpRight size={16} /></a>}
           <span className="verification verified">
             <Check size={14} />
-            {featured ? '102-point deficit verified in race results' : official ? `Based on ${officialLabel.toLowerCase()}` : 'Based on imported race results'}
+            {featured ? '102-point deficit verified in race results' : data.points_correction ? 'Official ranks with independently sourced points' : official ? `Based on ${officialLabel.toLowerCase()}` : 'Based on imported race results'}
           </span>
         </div>
         <div className="comeback-score">
           <span className="eyebrow">{narrative.metric_label}</span>
           <div className="recovery-value">{narrative.metric}<ArrowUpRight size={35} aria-hidden="true" /></div>
           <p>{narrative.metric_note}</p>
-          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? (final ? 'official final rank' : 'official rank to date') : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>{pointsWarning ? 'supplied points' : 'points earned'}</span></div></div>
+          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{official ? (final ? 'official final rank' : 'official rank to date') : 'in the imported standings'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>{data.points_correction ? 'historical source points' : pointsWarning ? 'supplied points' : 'points earned'}</span></div></div>
         </div>
       </div>
       {featured && story && <div className="story-chart" data-season-chart="gap" data-chart-kind="line">
@@ -274,7 +274,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
     </section>
 
     <div className="stats-grid">
-      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} supplied points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
+      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={data.points_correction ? `${leader.points} historical source points` : pointsWarning ? `${leader.points} supplied points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
       {pointsWarning ? <Stat label="OFFICIAL RANK" value={`P${leader.position}`} note="Position in the official standings" /> : <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : data.standings[1]?.gap == null ? '—' : `${data.standings[1].gap} pts`} note={featured ? 'Relative to the closest title rival' : official ? `From ${officialLabel.toLowerCase()}` : 'Calculated from imported results'} />}
       <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'preserved final' : 'current official'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
@@ -292,7 +292,8 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
             <td><RiderName rider={rider} linked /><small>{rider.constructor || rider.team || 'Team not recorded'}</small></td>
             <td className="strong numeric">{rider.points}</td><td className="muted numeric">{pointsWarning || rider.gap == null || rider.gap === 0 ? '—' : `−${rider.gap}`}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
-        <p className="panel-note">{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
+        <p className="panel-note">{data.points_correction ? data.points_correction.note : official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
+        {data.points_correction && <p className="panel-note">Independent sources: <a href={data.points_correction.source_url} target="_blank" rel="noreferrer">Historical standings</a> · <a href={data.points_correction.corroborating_url} target="_blank" rel="noreferrer">L'Équipe</a></p>}
       </DetailSection>
     </div>
     {official && leader.source_url && <a className="classic-link" href={leader.source_url} target="_blank" rel="noreferrer">Official championship source<ArrowUpRight size={16} /></a>}

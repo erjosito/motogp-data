@@ -57,23 +57,27 @@ function margins(data: Championship): SeasonChart {
 function suppliedScores(data: Championship): [SeasonChart, SeasonChart] {
   const official = data.standings_source === 'official'
   const riders = data.standings.slice(0, 10)
-  const note = 'Source ranks and supplied scores are shown unchanged.'
+  const corrected = Boolean(data.points_correction)
+  const note = corrected
+    ? 'Official ranks with two independently sourced point corrections; other totals remain unverified.'
+    : 'Source ranks and supplied scores are shown unchanged.'
+  const pointsLabel = corrected ? 'Reported points' : 'Supplied points'
   const bars = pointsBars(data)
   return [{
-    ...bars, id: 'supplied-scores', title: 'Supplied scores, in source order',
-    description: 'The leading ten by source rank, not sorted or corrected by supplied score.',
-    note, xTitle: 'Supplied points',
+    ...bars, id: 'supplied-scores', title: corrected ? 'Reported scores, in official order' : 'Supplied scores, in source order',
+    description: corrected ? 'The leading ten by official rank, including two independent corrections.' : 'The leading ten by source rank, not sorted or corrected by supplied score.',
+    note, xTitle: pointsLabel,
     series: bars.series.map((series) => ({
-      ...series, name: 'Supplied points',
-      hovertemplate: '%{text}<br>%{x:,.3~f} supplied points<extra></extra>',
+      ...series, name: pointsLabel,
+      hovertemplate: `%{text}<br>%{x:,.3~f} ${pointsLabel.toLowerCase()}<extra></extra>`,
     })),
   }, {
-    id: 'rank-versus-supplied-score', title: official ? 'Official rank versus supplied score' : 'Imported rank versus supplied score',
-    description: 'Each source rank paired with its unchanged supplied point total.',
-    note, kind: 'scatter', xTitle: 'Supplied points', yTitle: official ? 'Official rank' : 'Imported rank', rank: true,
+    id: 'rank-versus-supplied-score', title: official ? 'Official rank versus reported score' : 'Imported rank versus supplied score',
+    description: corrected ? 'Official ranks paired with reported totals, including two independent corrections.' : 'Each source rank paired with its unchanged supplied point total.',
+    note, kind: 'scatter', xTitle: pointsLabel, yTitle: official ? 'Official rank' : 'Imported rank', rank: true,
     series: riders.map((rider) => ({
       id: rider.rider_id, name: rider.rider, type: 'scatter', x: [rider.points], y: [rider.position],
-      hovertemplate: '%{x:,.3~f} supplied points<br>Source rank %{y}<extra>%{fullData.name}</extra>',
+      hovertemplate: `%{x:,.3~f} ${pointsLabel.toLowerCase()}<br>Source rank %{y}<extra>%{fullData.name}</extra>`,
     })),
   }]
 }

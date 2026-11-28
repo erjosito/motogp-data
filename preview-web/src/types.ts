@@ -124,6 +124,7 @@ export interface Championship {
   external_sources_used: boolean
   official_points_inconsistent: boolean
   points_warning: string | null
+  points_correction?: { note: string; source_url: string; corroborating_url: string } | null
   coverage?: {
     sessions: number
     classified_sessions: number
