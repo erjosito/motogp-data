@@ -21,24 +21,34 @@ does not span their recorded seasons. Modern race counts
 exclude non-scoring restarts; historical classification evidence may lack points.
 Standings-only riders receive official-rank charts instead of invented race counts.
 Share a profile with `?view=riders&rider=<rider_id>`; theme parameters persist.
+Season-linked titles, career-chart labels and records use the period's class:
+500cc through 2001 / MotoGP from 2002, 250cc through 2009 / Moto2 from 2010,
+and 125cc through 2011 / Moto3 from 2012. Lineage filters retain their combined
+names; the selected season's breadcrumb uses its actual class.
 The Classic domain root is unchanged.
 Classic's sidebar includes an **Open Paddock App** link with an external-link
 icon; it opens the new app in a separate tab without replacing the current analysis.
 Paddock's always-visible **Data analysis** shortcut opens Classic in a new tab.
 
-Career profiles use a reusable visual identity card: individually reviewed
-biography facts where collected, a licensed, season-labeled portrait where
-approved, and initials/plain numbers otherwise. Portrait credits, license links
-and adaptation notices are collected in **Sources, credits & data notes** at the
-bottom of the page, alongside biography/circuit sources and statistical methods.
-Image season/team and current-layout labels stay with their visuals. Unapproved official image
-references and the full local biography catalog are not shipped.
+Career profiles use a reusable identity card with individually reviewed
+biography facts where collected. Face portraits are omitted for every rider,
+including riders with approved photos; there are no initials tiles, placeholder
+rectangles or reserved photo columns. Biography/circuit sources and statistical
+methods are collected in **Sources, credits & data notes** at the bottom of the
+page. Current-layout labels stay with circuit visuals. The shared portrait API
+and approved assets remain available to other consumers, but React does not
+request them. Unapproved official image references and the full local biography
+catalog are not shipped.
 Approved number designs replace plain numbers in profile titles, featured
 championship identities and race podiums; they are not a separate artwork gallery.
-A career title uses the latest unambiguous design for that rider's number, with
-its actual year/class credited below. Season-specific views require an exact
-year/class/number match. Missing, ambiguous or failed designs retain the plain
+A rider identity uses the latest verified design for its stable rider ID,
+independent of the selected year/class or a missing/different classification
+number, with its actual design year/class/number credited below. Multiple designs
+in the latest year are selected deterministically. Missing or failed designs retain the plain
 number (or initials when the race number is unknown).
+The additive `/api/riders/{rider_id}/number-identity` metadata and `/image`
+endpoint use the shared verified identity selector. Existing season-scoped
+`number-art` endpoints retain their original contract; portrait matching is unchanged.
 
 The other views cover category-scoped championships, session results, rider lap
 comparisons, and sector analysis. Explicit season/event/session deep links retain
@@ -689,6 +699,16 @@ There are still **450 finished historical sessions without official
 classifications**, **19 season/class tables without official final standings**
 and **18 non-monotonic official point tables** requiring the source warning.
 These are source gaps, not evidence that the races or titles never happened.
+
+For 1970 350cc, the official source reports Agostini and Carruthers with 9 and
+28 points, but the independently sourced [historical standings](https://en.wikipedia.org/wiki/1970_Grand_Prix_motorcycle_racing_season#350cc_final_standings)
+and [L'Équipe](https://www.lequipe.fr/Moto/1970/moto-350cc-classement.html)
+report 90 and 58. The former describes the best-six-results rule; its 90 is
+counted championship points, not Agostini's gross 135 points from nine wins.
+Both championship displays apply these two explicitly sourced corrections only
+when the exact final official rider IDs, ranks and original values match.
+The SQL standings and exports retain the original official values; the rest of
+the table remains unverified and derived championship gaps stay suppressed.
 All seven Agostini 350cc title rankings are now
 represented alongside his eight 500cc titles, but this does not validate every
 supplied point total. Nieto's six 50cc and four 125cc title rankings are available;

@@ -46,6 +46,19 @@ describe('evidence-led season chart pairs', () => {
     expect(data).toEqual(before)
   })
 
+  it('labels independently corrected scores without deriving margins', () => {
+    const standings = [standing('Agostini', 90, 1, { gap: null }), standing('Carruthers', 58, 2, { gap: null }),
+      standing('Pasolini', 46, 3, { gap: null })]
+    const result = seasonCharts(championship(standings, {
+      season: 1970, category: '350cc', standings, official_points_inconsistent: true,
+      points_correction: { note: 'Two corrections', source_url: 'https://example.com', corroborating_url: 'https://example.org' },
+    }))
+    expect(result.layout).toBe('source-verification')
+    expect(result.charts[0].series[0].x).toEqual([90, 58, 46])
+    expect(result.charts.every((chart) => chart.note.includes('corrections') && !chart.note.includes('unchanged'))).toBe(true)
+    expect(result.charts.every((chart) => !chart.id.includes('gap') && chart.id !== 'margins')).toBe(true)
+  })
+
   it('never treats a null gap as a close finish, tie or zero-valued lollipop endpoint', () => {
     const standings = [standing('first', 46, 1, { gap: 0 }), standing('second', 46, 2, { gap: null })]
     for (const kind of ['standings', 'tie-break', 'close-finish'] as const) {

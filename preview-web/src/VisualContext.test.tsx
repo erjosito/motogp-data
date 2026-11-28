@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { CircuitGraphic, NumberMark, RiderIdentity } from './VisualContext'
-import type { CircuitContextData, RiderEnrichment, RiderPortrait } from './VisualContext'
+import { CircuitGraphic, NumberMark, RiderIdentity, RiderNumber, RiderVisualContext } from './VisualContext'
+import * as api from './api'
+import type { CircuitContextData, RiderEnrichment } from './VisualContext'
 
 const rider = { rider_id: 'marc', rider: 'Marc Marquez', number: 93 }
 const enrichment: RiderEnrichment = {
@@ -9,14 +10,23 @@ const enrichment: RiderEnrichment = {
     biography: { birth_date: '1993-02-17', birth_city: 'Cervera', birth_country: 'Spain', height_cm: 169 },
     source: { source_url: 'https://example.com/facts', retrieved_at: '2026-11-27T00:00:00Z' } },
 }
-const media: RiderPortrait = { status: 'available', portrait: {
-  rider_id: 'marc', season: 2026, team_name: 'Ducati Lenovo Team', credit: 'Denkmit / Wikimedia Commons',
-  source_page: 'https://example.com/photo', license: 'CC-BY-SA-4.0', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
-  changes: 'Oriented, cropped and resized.', images: [{ url: '/api/rider-media/marc/320', width: 320, height: 320 }],
-} }
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('rider visual context', () => {
+  it('requests stable rider identity art even when the classification number is missing', () => {
+    vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
+    const request = vi.spyOn(api, 'useResource').mockReturnValue({
+      key: 'identity', loading: false, error: null, retry: () => {}, data: { artwork: [{
+        season: 2024, category: 'MotoGP', number: 93, source_url: 'https://example.com/art',
+        url: '/api/riders/marc/number-identity/image',
+      }] },
+    })
+    const html = renderToStaticMarkup(<RiderNumber rider={{ ...rider, number: null }} season={1970} category="350cc" fallback={null} />)
+    expect(request).toHaveBeenCalledWith('/api/riders/marc/number-identity')
+    expect(html).toContain('<img')
+    expect(html).toContain('2024 MotoGP design')
+    expect(html).toContain('2024 · MotoGP · #93')
+  })
   it('uses the latest matching career number design in place of text, preserving its actual scope in credits', () => {
     vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
     const html = renderToStaticMarkup(<NumberMark rider={rider} data={{ artwork: [{
@@ -29,48 +39,47 @@ describe('rider visual context', () => {
     expect(html).not.toContain('<summary>')
     expect(html).not.toContain('aria-label="Rider number 93"')
   })
-  it('never borrows a different season, class or number for a scoped identity and holds ambiguous designs', () => {
+  it('uses the rider identity design independently of selected season, class and classification number', () => {
     vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
     const item = { season: 2024, category: 'MotoGP', number: 93, url: '/api/numbers/93', source_url: 'https://example.com/art' }
     const number = (artwork = [item], season = 2024, category: 'premier' | 'intermediate' = 'premier') =>
       renderToStaticMarkup(<NumberMark rider={rider} data={{ artwork }} season={season} category={category} />)
     expect(number()).toContain('<img')
-    for (const html of [number([], 2024), number([item], 2026), number([item], 2024, 'intermediate'),
-      number([{ ...item, number: 1 }]), number([item, { ...item, url: '/api/ambiguous' }])]) {
-      expect(html).not.toContain('<img')
-      expect(html).toContain('aria-label="Rider number 93">#93')
-    }
+    for (const html of [number([item], 2026), number([item], 2024, 'intermediate'),
+      number([{ ...item, number: 1 }]), number([item, { ...item, url: '/api/ambiguous' }])]) expect(html).toContain('<img')
+    expect(number([])).toContain('aria-label="Rider number 93">#93')
     expect(renderToStaticMarkup(<NumberMark rider={{ ...rider, number: null }} data={{ artwork: [item] }} />))
-      .toContain('Race number unavailable')
+      .toContain('<img')
+    expect(renderToStaticMarkup(<NumberMark rider={{ ...rider, number: null }} data={{ artwork: [] }}
+      fallback={<span>MM</span>} />)).toContain('<span>MM</span>')
   })
-  it('keeps portrait context in the caption and preserves separate source and adaptation credits', () => {
-    vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
-    const html = renderToStaticMarkup(<RiderIdentity rider={rider} enrichment={enrichment} media={media} />)
-    expect(html).toContain('/paddock/api/rider-media/marc/320')
-    expect(html).toContain('2026 · Ducati Lenovo Team')
-    expect(html).toContain('Denkmit / Wikimedia Commons')
-    expect(html).toContain('creativecommons.org/licenses/by-sa/4.0/')
-    expect(html).toContain('Oriented, cropped and resized.')
+  it('keeps biography facts and sources without a photo, initials tile or reserved photo column', () => {
+    const request = vi.spyOn(api, 'useResource').mockReturnValue({
+      key: 'biography', loading: false, error: null, retry: () => {}, data: enrichment,
+    })
+    const html = renderToStaticMarkup(<RiderVisualContext rider={rider} />)
     expect(html).toContain('Feb 17, 1993')
     expect(html).toContain('Cervera, Spain')
     expect(html).toContain('not a historical measurement')
-    const caption = html.slice(html.indexOf('<figcaption'), html.indexOf('</figcaption>'))
-    expect(caption).toContain('2026 · Ducati Lenovo Team')
-    expect(caption).not.toContain('Denkmit')
-    expect(caption).not.toContain('creativecommons')
-    expect(caption).not.toContain('adapted')
+    expect(html).toContain('Biography source')
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('rider-portrait')
+    expect(html).not.toContain('rider-initials')
+    expect(html).not.toContain('<figcaption')
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith('/api/riders/marc/enrichment')
   })
 
-  it('never applies another rider or season portrait, and missing facts remain absent', () => {
-    const html = renderToStaticMarkup(<RiderIdentity rider={rider} media={media} season={2019} />)
+  it('does not replace missing biography facts with a photo placeholder or another rider’s facts', () => {
+    const html = renderToStaticMarkup(<RiderIdentity rider={rider} />)
     expect(html).not.toContain('<img')
-    expect(html).toContain('Marc Marquez, initials')
-    expect(html).not.toContain('Reported height')
+    expect(html).not.toContain('initials')
+    expect(html).not.toContain('Hometown')
     const other = renderToStaticMarkup(<RiderIdentity rider={{ ...rider, rider_id: 'other', rider: 'Other Rider' }}
-      enrichment={enrichment} media={media} />)
+      enrichment={enrichment} />)
     expect(other).not.toContain('<img')
     expect(other).not.toContain('Cervera')
-    expect(other).toContain('Other Rider, initials')
+    expect(other).not.toContain('initials')
   })
 })
 

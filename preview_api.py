@@ -19,7 +19,8 @@ from category_scope import CATEGORY_FAMILIES, category_sql, normalize_category, 
 from rider_profiles import read_enrichment
 from circuit_catalog import circuit_details, projected_outline
 from rider_media import read_portrait
-from rider_numbers import list_numbers, read_number
+from rider_numbers import list_numbers, read_identity_number, read_number
+from standings_corrections import corrected_standings
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -177,7 +178,11 @@ def season_story(data: dict) -> dict:
             "kind": "standings",
             "headline": f"{name}: officially ranked first.",
             "accent": "Official standings, in source order.",
-            "summary": "Official positions and supplied scores are preserved unchanged.",
+            "summary": (
+                "Official ranks are preserved; two scores use independently sourced corrections."
+                if data.get("points_correction") else
+                "Official positions and supplied scores are preserved unchanged."
+            ),
             "metric_label": "OFFICIAL RANK", "metric": leader["position"],
             "metric_note": "Official champion rank" if final else "Official rank to date; not a final result",
             "context_url": None,
@@ -471,6 +476,27 @@ def rider_portrait(rider_id: str, season: int = Query(ge=1949, le=3000), categor
     }}
 
 
+@api.get("/api/riders/{rider_id}/number-identity")
+def rider_number_identity(rider_id: str):
+    result = read_identity_number(rider_id)
+    if result is None:
+        return {"artwork": []}
+    asset, _ = result
+    return {"artwork": [{
+        "season": asset["season"], "category": asset["category"], "number": asset["number"],
+        "source_url": asset["source_url"],
+        "url": f"/api/riders/{rider_id}/number-identity/image",
+    }]}
+
+
+@api.get("/api/riders/{rider_id}/number-identity/image")
+def rider_number_identity_image(rider_id: str):
+    result = read_identity_number(rider_id)
+    if result is None:
+        raise HTTPException(404, "No verified number identity artwork for this rider.")
+    return Response(content=result[1], media_type="image/png")
+
+
 @api.get("/api/riders/{rider_id}/number-art")
 def rider_number_art(rider_id: str):
     assets = list_numbers(rider_id)
@@ -555,6 +581,7 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
     )
     if season < 1990:
         data = build_championship([], season, category)
+        official_rows, correction = corrected_standings(official_rows, season, category)
         first_points = float(official_rows[0]["points"]) if official_rows else 0
         data["standings"] = [{
             **row, "points": float(row["points"]),
@@ -564,6 +591,7 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
         data["standings_source"] = "official"
         data["official_points_inconsistent"] = inconsistent
         data["points_warning"] = points_warning
+        data["points_correction"] = correction
         data["is_final"] = bool(official_rows) and all(row.get("is_final", season < 1990) for row in official_rows)
         data["story"] = season_story(data)
         if not data["standings"]:

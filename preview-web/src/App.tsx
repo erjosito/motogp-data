@@ -5,7 +5,7 @@ import {
   Gauge, Layers3, Menu, Moon, RefreshCw, Sun, Timer, Trophy, Users,
 } from 'lucide-react'
 import { useResource } from './api'
-import { categories, categoryPath, navigationPath, profilePath, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
+import { categories, categoryPath, navigationPath, profilePath, seasonCategory, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
 import type { Category } from './selection'
 import { bestSectors, cleanLaps, lapTime, MARC_ID, median, riderStyle, signed, statisticText } from './data'
 import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Session } from './types'
@@ -39,14 +39,14 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
   const heroLabel = titleHero ? 'TITLES' : !totals.gp_appearances ? 'SEASON RECORDS' : totals.gp_wins ? 'GP WINS' : totals.gp_podiums ? 'GP PODIUMS' : 'GP APPEARANCES'
   const venueMetric = totals.gp_wins > 0 ? 'wins' : totals.gp_podiums > 0 ? 'podiums' : 'appearances'
   const venueRows = [...data.venues].sort((a, b) => b[venueMetric] - a[venueMetric]).slice(0, 7)
-  const seasonLabel = (row: typeof data.seasons[number]) => `${row.season} / ${categories[row.category]}`
+  const seasonLabel = (row: typeof data.seasons[number]) => `${row.season} / ${seasonCategory(row.category, row.season)}`
   const finalRanks = new Map<string, number>()
   for (const row of ranked) {
     const label = `P${row.position}${row.is_final ? '' : ' (to date)'}`
     finalRanks.set(label, (finalRanks.get(label) ?? 0) + 1)
   }
   return <>
-    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1 className="rider-title">{rider.number != null && <span className="identity-number"><RiderNumber rider={rider} /></span>}<span>{rider.rider}.</span></h1><p>More than a name on the timing screen.</p></div>
+    <div className="page-heading"><div><p className="eyebrow">THE RIDERS / CAREER PORTRAIT</p><h1 className="rider-title"><span className="identity-number"><RiderNumber rider={rider} fallback={rider.number == null ? null : undefined} /></span><span>{rider.rider}.</span></h1><p>More than a name on the timing screen.</p></div>
       <span className="quiet-badge">{data.first_season === data.latest_season ? data.first_season : `${data.first_season} — ${data.latest_season}`} · seasons</span></div>
     <section className={`story-card rider-hero ${rider.rider_id === MARC_ID ? 'marc-hero' : ''}`}>
       <div className="rider-visual-header"><RiderVisualContext rider={rider} /></div>
@@ -55,7 +55,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
         {!!data.titles.length && <p className="eyebrow">TITLE SEASONS</p>}
         <div className="rider-title-years">{data.titles.map((row) => <a key={`${row.season}-${row.category}`}
           href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>
-          <Trophy size={13} />{row.season}<span>{categories[row.category]}</span></a>)}</div>
+          <Trophy size={13} />{row.season}<span>{seasonCategory(row.category, row.season)}</span></a>)}</div>
         {!data.titles.length && <p>Explore results and championship positions below.</p>}
       </div><div className="comeback-score">
         <span className="eyebrow">{statisticText(heroLabel)}</span><div className="recovery-value">{titleHero || totals.gp_appearances ? totals[heroMetric] : ranked.length}</div>
@@ -246,7 +246,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
           <p>{featured && story ? `${story.recovered} points recovered from the lowest margin to the latest result.` : `${leader.rider} · ${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} Grand Prix wins`}.`}</p>
           <SourceNote><p>{season} championship: {narrative.summary}</p>
             {narrative.context_url && <p><a href={narrative.context_url} target="_blank" rel="noreferrer">The injury-recovery story · MotoGP</a></p>}
-            <p>{featured ? '102-point deficit verified in race results' : official ? `Based on official ${officialLabel.toLowerCase()}` : 'Based on imported race results'}</p>
+            <p>{featured ? '102-point deficit verified in race results' : data.points_correction ? 'Official ranks with independently sourced points' : official ? `Based on official ${officialLabel.toLowerCase()}` : 'Based on imported race results'}</p>
           </SourceNote>
         </div>
         <div className="comeback-score">
@@ -276,7 +276,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
     </section>
 
     <div className="stats-grid">
-      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} supplied points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
+      <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
       {pointsWarning ? <Stat label="OFFICIAL RANK" value={`P${leader.position}`} note="Position in the official standings" /> : <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : data.standings[1]?.gap == null ? '—' : `${data.standings[1].gap} pts`} note={featured ? 'Relative to the closest title rival' : official ? `From ${officialLabel.toLowerCase()}` : 'Calculated from imported results'} />}
       <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'final' : 'current'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
@@ -294,7 +294,9 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
             <td><RiderName rider={rider} linked /><small>{rider.constructor || rider.team || 'Team unavailable'}</small></td>
             <td className="strong numeric">{rider.points}</td><td className="muted numeric">{pointsWarning || rider.gap == null || rider.gap === 0 ? '—' : `−${rider.gap}`}</td><td className="numeric">{rider.wins ?? '—'}</td>
           </tr>)}</tbody></table></div>
-        <SourceNote><p>{official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p></SourceNote>
+        <SourceNote><p>{data.points_correction ? data.points_correction.note : official ? `${officialLabel}. Official positions and decimal points are preserved independently of race points. Wins, where shown, count only the ${data.gp_results} imported scoring GP races; missing historical wins are not inferred.` : 'GP + Sprint points. Wins and GP finish countback exclude sessions awarding no points. Source adjustments outside the database are not included.'}</p>
+          {data.points_correction && <p>Independent sources: <a href={data.points_correction.source_url} target="_blank" rel="noreferrer">Historical standings</a> · <a href={data.points_correction.corroborating_url} target="_blank" rel="noreferrer">L'Équipe</a></p>}
+        </SourceNote>
       </DetailSection>
     </div>
     {official && leader.source_url && <SourceNote><p><a href={leader.source_url} target="_blank" rel="noreferrer">{season} · official championship source</a></p></SourceNote>}
@@ -472,6 +474,7 @@ export default function App() {
   const resource = useResource<number[]>(category && view !== 'riders' ? categoryPath('/api/seasons', category) : null)
   const seasons = resource.data ?? []
   const season = selectedSeason(params, seasons)
+  const categoryLabel = category && season ? seasonCategory(category, season) : category ? categories[category] : 'Unknown category'
   useEffect(() => {
     document.title = `MotoGP | ${views.find((item) => item.id === view)!.name}`
   }, [view])
@@ -520,7 +523,7 @@ export default function App() {
       </div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumb"><span>{view === 'riders' ? 'The paddock' : category ? categories[category] : 'Unknown category'}</span><ChevronRight size={13} /><strong>{view === 'riders' ? 'Rider stories' : season ?? 'Season'}</strong></div>
+      <header className="topbar"><div className="breadcrumb"><span>{view === 'riders' ? 'The paddock' : categoryLabel}</span><ChevronRight size={13} /><strong>{view === 'riders' ? 'Rider stories' : season ?? 'Season'}</strong></div>
         <div className="topbar-actions">
           <a className="streamlit-link" href={classicUrl} target="_blank" rel="noreferrer" title="Open Data analysis in a new tab">Data analysis<ArrowUpRight size={16} aria-hidden="true" /></a>
           {view !== 'riders' && <><label className="season-select category-select"><span>CATEGORY</span><select aria-label="Category" value={category ?? ''} onChange={(event) => update({ category: event.target.value })}>
@@ -539,7 +542,7 @@ export default function App() {
         {view !== 'riders' && category && params.has('season') && seasons.length > 0 && Number(params.get('season')) !== season && <p className="notice" role="status">The requested season value is invalid. Showing {season}.</p>}
         {view === 'riders' ? <RiderPage params={params} update={update} theme={theme} /> : !category ? <DataState resource={{ error: null, retry: () => {} }} empty="This category key is unsupported. Choose a Grand Prix category above." />
           : resource.error ? <DataState resource={resource} /> : resource.loading ? <Loading />
-          : !season || !seasons.includes(season) ? <DataState resource={resource} empty={`No data is available for ${categories[category]}${season ? ` in ${season}` : ''}. Choose another season or category.`} />
+          : !season || !seasons.includes(season) ? <DataState resource={resource} empty={`No data is available for ${categoryLabel}${season ? ` in ${season}` : ''}. Choose another season or category.`} />
             : view === 'championship' ? <ChampionshipPage key={category} season={season} category={category} theme={theme} />
               : <SessionWorkspace key={`${category}:${season}`} season={season} category={category} params={params} update={update} view={view} theme={theme} />}
       </main></PageNotes>

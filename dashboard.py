@@ -24,6 +24,7 @@ from circuit_catalog import circuit_details, circuit_key, projected_outline
 from rider_profiles import read_enrichment
 from rider_media import read_portrait
 from rider_numbers import list_numbers, read_identity_number
+from standings_corrections import corrected_standings
 from archive_analytics import (
     CATEGORY_ORDER, archive_availability, career_seasons, constructor_eras,
     complete_points, nominal_maximum, points_efficiency, qualifying_proxy,
@@ -709,7 +710,7 @@ def championship_points(champ):
 @st.cache_data(ttl=300)
 def load_official_standings(year, family="premier"):
     standings = q(f"""
-        SELECT cs.position, r.full_name AS rider, cs.points, cs.constructor_name AS constructor,
+        SELECT cs.position, cs.rider_id, r.full_name AS rider, cs.points, cs.constructor_name AS constructor,
             cs.is_final, cs.source_url
         FROM championship_standings cs JOIN riders r ON r.rider_id=cs.rider_id
         WHERE cs.season_year=? AND {category_sql(family, 'cs.category')}
@@ -840,12 +841,15 @@ def final_points_need_verification(standings):
     return official_points_inconsistent(finals.itertuples(index=False, name=None))
 
 
-def show_official_standings(standings):
+def show_official_standings(standings, correction=None):
     is_final = standings["is_final"].all()
     needs_verification = final_points_need_verification(standings)
     st.subheader(t("official_final_standings" if is_final else "official_current_standings"))
-    if not needs_verification:
+    if not needs_verification and not correction:
         st.caption(t("official_standings_method"))
+    if correction:
+        st.caption(t("historical_points_1970_350"))
+        st.caption(f'{t("alternative_standings_sources")}: {correction["source_url"]} · {correction["corroborating_url"]}')
     st.dataframe(standings[["position", "rider", "points", "constructor"]].rename(columns={
         "position": t("position"), "rider": t("rider"),
         "points": t("points"),
@@ -857,10 +861,18 @@ def show_official_standings(standings):
 
 def show_historical_standings(year, family="premier"):
     standings = load_official_standings(year, family)
-    st.caption(t("historical_standings_method"))
     if standings.empty or not standings["is_final"].all():
+        st.caption(t("historical_standings_method"))
         st.info(t("historical_standings_missing"))
         return
+    if "rider_id" in standings.columns:
+        rows, correction = corrected_standings(standings.to_dict("records"), year, family)
+        if correction:
+            standings = pd.DataFrame(rows)
+            st.caption(t("historical_corrected_standings_method"))
+            show_official_standings(standings, correction)
+            return
+    st.caption(t("historical_standings_method"))
     show_official_standings(standings)
 
 

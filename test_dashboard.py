@@ -1020,6 +1020,33 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.get("plotly_chart"))
         self.assertEqual(supplied["points"].tolist(), [9, 28, 46])
 
+    def test_1970_350cc_uses_sourced_corrections_without_mutating_official_data(self):
+        supplied = pd.DataFrame({
+            "position": [1, 2, 3], "rider": ["Agostini", "Carruthers", "Pasolini"],
+            "rider_id": ["ea0101ee-6b38-4d39-a466-fa83d2e1b36f",
+                         "b3668951-07a4-43f1-962a-8c4fde9dfe7a", "pasolini"],
+            "points": [9, 28, 46], "constructor": ["Bike"] * 3,
+            "is_final": [True] * 3, "source_url": [None] * 3,
+        })
+
+        def historical_query(sql, conn=None, params=None):
+            if "SELECT DISTINCT season_year" in sql:
+                return pd.DataFrame({"season_year": [1970]})
+            if "SELECT cs.position" in sql and category_sql("350cc", "cs.category") in sql:
+                return supplied.copy()
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = historical_query
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("350cc").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.dataframe[0].value["Points"].tolist(), [90, 58, 46])
+        self.assertIn("best six", " ".join(c.value for c in app.caption))
+        self.assertIn("wikipedia.org", " ".join(c.value for c in app.caption))
+        self.assertNotIn(get_translator("en")("historical_standings_method"), [c.value for c in app.caption])
+        self.assertEqual(supplied["points"].tolist(), [9, 28, 46])
+        self.assertFalse(app.get("plotly_chart"))
+
     def test_flagged_finals_suppress_modern_gaps_progression_and_title_margins(self):
         def anomaly_query(sql, conn=None, params=None):
             if "SELECT cs.position" in sql and category_sql("350cc", "cs.category") in sql:

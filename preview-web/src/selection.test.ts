@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { appPath } from './paths'
-import { categories, categoryPath, navigationPath, profilePath, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
+import { categories, categoryPath, navigationPath, profilePath, seasonCategory, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
 
 describe('category selection', () => {
+  it('uses the actual season class on each side of the three name transitions, retaining lineage filters', () => {
+    expect([2001, 2002].map((year) => seasonCategory('premier', year))).toEqual(['500cc', 'MotoGP'])
+    expect([2009, 2010].map((year) => seasonCategory('intermediate', year))).toEqual(['250cc', 'Moto2'])
+    expect([2011, 2012].map((year) => seasonCategory('lightweight', year))).toEqual(['125cc', 'Moto3'])
+    for (const [category, year] of [['350cc', 1967], ['50cc', 1983], ['80cc', 1989]] as const) {
+      expect(seasonCategory(category, year)).toBe(category)
+    }
+    expect(categories.premier).toBe('MotoGP / 500cc')
+    expect(categories.intermediate).toBe('Moto2 / 250cc')
+    expect(categories.lightweight).toBe('Moto3 / 125cc')
+  })
   it('defaults to riders while preserving season and session deep links', () => {
     for (const search of ['', 'clawpilotTheme=light', 'rider=other']) expect(selectedView(new URLSearchParams(search))).toBe('riders')
     expect(selectedView(new URLSearchParams('season=1967'))).toBe('championship')

@@ -57,6 +57,9 @@ class NumberArtworkTests(unittest.TestCase):
                 self.assertEqual(response.content, data)
                 self.assertEqual(response.headers["content-type"], "image/png")
                 self.assertEqual(client.get(f"{prefix}/api/riders/{RIDER}/number-art/2022/MotoGP/93").status_code, 404)
+                identity = client.get(f"{prefix}/api/riders/{RIDER}/number-identity?season=1970&category=350cc&number=1").json()["artwork"][0]
+                self.assertEqual((identity["season"], identity["category"], identity["number"]), (2021, "MotoGP", 93))
+                self.assertEqual(client.get(prefix + identity["url"]).content, data)
 
     def test_conflicting_designs_are_not_selected(self):
         other = self.source / "other.png"
@@ -65,6 +68,32 @@ class NumberArtworkTests(unittest.TestCase):
         self.make_bundle([self.row, second])
         self.assertIsNone(read_number(RIDER, 2021, "MotoGP", 93, self.bundle))
         self.assertEqual(list_numbers(RIDER, bundle=self.bundle), [])
+        with patch.dict("os.environ", {"MOTOGP_RIDER_NUMBERS": str(self.bundle)}):
+            client = TestClient(preview_api.app)
+            for prefix in ("", "/paddock"):
+                identity = client.get(f"{prefix}/api/riders/{RIDER}/number-identity").json()["artwork"][0]
+                response = client.get(prefix + identity["url"])
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(response.content, [self.image.read_bytes(), other.read_bytes()])
+
+    def test_identity_uses_latest_design_with_stable_tie_break_and_verified_bytes(self):
+        other = self.source / "other.png"
+        Image.new("RGBA", (3, 3), "blue").save(other)
+        newer = {**self.row, "season": 2024}
+        alternative = {**newer, "file": str(other), "bytes": other.stat().st_size}
+        self.make_bundle([self.row, newer, alternative])
+        selected, data = read_identity_number(RIDER, self.bundle)
+        self.assertEqual(selected["season"], 2024)
+        self.assertEqual(hashlib.sha256(data).hexdigest(), selected["sha256"])
+        self.assertIsNone(read_identity_number("another-rider", self.bundle))
+        catalog_path = self.bundle / "catalog.json"
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        catalog["assets"].reverse()
+        catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+        self.assertEqual(read_identity_number(RIDER, self.bundle), (selected, data))
+        (self.bundle / selected["file"]).write_bytes(b"tampered")
+        with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            read_identity_number(RIDER, self.bundle)
 
     def test_identity_uses_latest_design_with_stable_tie_break_and_verified_bytes(self):
         other = self.source / "other.png"

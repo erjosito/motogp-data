@@ -178,6 +178,29 @@ class PreviewApiTests(unittest.TestCase):
                                  {"status": "not_collected", "circuit": None})
             query.assert_not_called()
 
+    def test_number_identity_uses_verified_stable_rider_asset_on_both_mounts(self):
+        asset = {"season": 2024, "category": "MotoGP", "number": 93, "source_url": "https://example.com/design"}
+        with patch("preview_api.read_identity_number", return_value=(asset, b"verified-png")) as read, patch("preview_api.query") as query:
+            for prefix in ["", "/paddock"]:
+                path = f"{prefix}/api/riders/rider/number-identity"
+                response = self.client.get(path + "?season=1970&category=350cc&number=1")
+                self.assertEqual(response.status_code, 200)
+                item = response.json()["artwork"][0]
+                self.assertEqual((item["season"], item["number"]), (2024, 93))
+                image = self.client.get(prefix + item["url"])
+                self.assertEqual(image.status_code, 200)
+                self.assertEqual(image.content, b"verified-png")
+                self.assertEqual(image.headers["content-type"], "image/png")
+            self.assertTrue(all(call.args == ("rider",) for call in read.call_args_list))
+            query.assert_not_called()
+        with patch("preview_api.read_identity_number", return_value=None):
+            self.assertEqual(self.client.get("/api/riders/missing/number-identity").json(), {"artwork": []})
+            self.assertEqual(self.client.get("/api/riders/missing/number-identity/image").status_code, 404)
+        with patch("preview_api.read_identity_number", side_effect=ValueError("private hash mismatch")):
+            response = self.client.get("/api/riders/rider/number-identity")
+            self.assertEqual(response.status_code, 503)
+            self.assertNotIn("private hash", response.text)
+
     def test_portrait_api_serves_only_approved_local_same_season_media(self):
         with patch("preview_api.query") as query:
             for prefix in ["", "/paddock"]:
@@ -515,6 +538,31 @@ class CategoryApiTests(unittest.TestCase):
         data = self.client.get("/api/championship?season=1970&category=350cc").json()
         self.assertTrue(data["official_points_inconsistent"])
         self.assertEqual([row["gap"] for row in data["standings"]], [None, None, None])
+
+    def test_sourced_1970_correction_preserves_raw_official_points_and_suppresses_margins(self):
+        for rider, name, position, points in [
+            ("ea0101ee-6b38-4d39-a466-fa83d2e1b36f", "Giacomo Agostini", 1, 9),
+            ("b3668951-07a4-43f1-962a-8c4fde9dfe7a", "Kel Carruthers", 2, 28),
+            ("pasolini", "Renzo Pasolini", 3, 46),
+        ]:
+            self.db.execute("INSERT INTO riders VALUES (?,?,NULL)", (rider, name))
+            self.db.execute(
+                "INSERT INTO championship_standings VALUES (1970,'350cc',?,?,?,'Bike','https://example.com',1)",
+                (position, rider, points),
+            )
+        for prefix in ("", "/paddock"):
+            data = self.client.get(f"{prefix}/api/championship?season=1970&category=350cc").json()
+            self.assertEqual([row["points"] for row in data["standings"]], [90, 58, 46])
+            self.assertEqual([row.get("source_points") for row in data["standings"]], [9, 28, None])
+            self.assertTrue(data["official_points_inconsistent"])
+            self.assertTrue(all(row["gap"] is None for row in data["standings"]))
+            self.assertIn("best six", data["points_correction"]["note"])
+        self.assertEqual(
+            [row["points"] for row in self.db.execute(
+                "SELECT points FROM championship_standings WHERE season_year=1970 AND category='350cc' ORDER BY position"
+            )],
+            [9, 28, 46],
+        )
 
     def test_official_2025_table_preserves_evidence_backed_marc_story(self):
         self.db.execute("UPDATE events SET season_year=2025")
