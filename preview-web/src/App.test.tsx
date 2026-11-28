@@ -103,6 +103,29 @@ describe('category selector and navigation', () => {
       expect(html).not.toContain('Moto2 / 250cc')
       expect(html).not.toContain('MotoGP / 500cc')
     })
+
+    it('distinguishes Q2 pole wins, evidenced zero and unavailable qualifying coverage', () => {
+      const season = { season: 2025, category: 'premier' as const, gp_appearances: 10, gp_wins: 1, gp_podiums: 2,
+        sprint_wins: 0, sprint_appearances: 0, position: 2, points: 150, is_final: true, source_url: null }
+      const data: RiderProfile = {
+        rider: { rider_id: 'rider', rider: 'A Rider', number: 7 }, headline: 'A career.', summary: 'Results.',
+        totals: { titles: 0, gp_appearances: 40, gp_wins: 4, gp_podiums: 8, sprint_appearances: 0, sprint_wins: 0 },
+        first_season: 2012, latest_season: 2025, best_season: season, titles: [], venues: [],
+        seasons: [
+          { ...season, gp_poles: 3, gp_poles_q2_events: 8, gp_poles_method: 'recorded_q2_wins' },
+          { ...season, season: 2024, gp_poles: 0, gp_poles_q2_events: 2, gp_poles_method: 'recorded_q2_wins' },
+          { ...season, season: 2012, gp_poles: null, gp_poles_q2_events: 0, gp_poles_method: 'recorded_q2_wins' },
+          { ...season, season: 2023 },
+        ],
+      }
+      const html = renderToStaticMarkup(<RiderProfileContent data={data} params={new URLSearchParams()} theme="dark" />)
+      expect(html).toContain('>Q2 poles</th>')
+      expect(html).toContain('title="8 available classified Q2 events for this rider; imports may be partial">3</td>')
+      expect(html).toContain('title="2 available classified Q2 events for this rider; imports may be partial">0</td>')
+      expect(html.match(/title="No supported classified Q2 evidence available">—<\/td>/g)).toHaveLength(2)
+      expect(html).toContain('MotoGP from 2013 and Moto2/Moto3 from 2019')
+      expect(html).toContain('not complete historical or penalty-adjusted')
+    })
   })
 
   it('preserves 9/28/46 supplied scores and official champion rank without displaying a points margin', () => {
