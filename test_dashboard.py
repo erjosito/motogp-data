@@ -401,13 +401,14 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(len(facts.get("image")), 1)
             self.assertIn("Sample Rider 1", [header.value for header in facts.get("subheader")])
             self.assertIn("Number design reference: 2026 · MotoGP · #12",
-                          " ".join(c.value for c in facts.get("caption")))
+                          " ".join(c.value for c in app.caption))
+            self.assertFalse(any("Number design reference" in c.value for c in facts.get("caption")))
             self.assertEqual(len(app.get("image")), 7)  # Identity, chart/counter titles and the two-design gallery.
             app.selectbox(key="pp_yr").set_value(2025).run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
             self.assertIn("Number design reference: 2026 · MotoGP · #12",
-                          " ".join(c.value for c in app.get("column")[1].get("caption")))
+                          " ".join(c.value for c in app.caption))
             app.selectbox(key="pp_yr").set_value(2026).run()
             self.assertEqual(len(app.get("column")[1].get("image")), 1)
             app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
@@ -461,7 +462,8 @@ class DashboardTests(unittest.TestCase):
             card = next(column for column in app.get("column")
                         if "Sample Rider 1" in [heading.value for heading in column.get("subheader")])
             self.assertEqual(len(card.get("image")), 1)
-            self.assertIn("2024 · MotoGP · #93", " ".join(c.value for c in card.get("caption")))
+            self.assertIn("2024 · MotoGP · #93", " ".join(c.value for c in app.caption))
+            self.assertFalse(any("Artwork source" in c.value for c in card.get("caption")))
             self.assertEqual(len(app.get("image")), 1)
             reader.assert_any_call("sample-rider")
             self.assertIn("Sample Rider 3", [heading.value for heading in app.subheader])
@@ -536,6 +538,45 @@ class DashboardTests(unittest.TestCase):
             app = self.start_app()
             self.assertIn("Invalid artwork hash", " ".join(error.value for error in app.error))
             self.assertFalse(app.get("image"))
+
+    def test_number_references_are_deduplicated_in_the_last_page_block(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        assets = [{"season": year, "category": "MotoGP", "number": 93,
+                   "source_url": f"https://example.test/number-{year}.png"} for year in (2024, 2026)]
+
+        with patch("rider_numbers.read_identity_number", side_effect=lambda identity:
+                   (assets[1], image.getvalue()) if identity == "sample-rider" else None), \
+                patch("rider_numbers.list_numbers", return_value=[(asset, image.getvalue()) for asset in assets]):
+            app = self.start_app()
+            footer = list(app.main.children.values())[-1]
+            self.assertIn("Number artwork references", [heading.value for heading in footer.get("subheader")])
+            self.assertEqual(sum("Artwork source" in c.value for c in footer.get("caption")), 1)
+            self.assertFalse(any("Artwork source" in c.value for column in app.get("column")
+                                 for c in column.get("caption")))
+
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+            self.assertFalse(app.exception)
+            footer = list(app.main.children.values())[-1]
+            references = [c.value for c in footer.get("caption") if "Artwork source" in c.value]
+            self.assertEqual(len(references), 2)
+            self.assertEqual(sum("Artwork source" in c.value for c in app.caption), 2)
+            self.assertTrue(all("**Sample Rider 1**" in reference for reference in references))
+            self.assertIn("2024 · MotoGP · #93", " ".join(references))
+            self.assertIn("2026 · MotoGP · #93", " ".join(references))
+            self.assertFalse(any("Artwork source" in c.value for expander in app.expander
+                                 for c in expander.get("caption")))
+            for language, title in [
+                ("🇪🇸 Español", "Referencias de los dorsales"),
+                ("🇮🇹 Italiano", "Riferimenti della grafica dei numeri"),
+            ]:
+                app.selectbox(key="language").select(language).run()
+                self.assertFalse(app.exception)
+                footer = list(app.main.children.values())[-1]
+                self.assertIn(title, [heading.value for heading in footer.get("subheader")])
+
+        app = self.start_app()
+        self.assertNotIn("Number artwork references", [heading.value for heading in app.subheader])
 
     def test_legacy_named_rider_preference_preserves_unique_identity_filters(self):
         app = self.start_app()

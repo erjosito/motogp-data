@@ -20,6 +20,7 @@ TRANSLATIONS = {
     "rider_number_artwork": {"en": "Rider number artwork", "es": "Diseños de dorsales", "it": "Grafica dei numeri di gara"},
     "rider_number_source": {"en": "Artwork source", "es": "Fuente del diseño", "it": "Fonte della grafica"},
     "rider_number_reference": {"en": "Number design reference", "es": "Diseño de dorsal de referencia", "it": "Grafica del numero di riferimento"},
+    "rider_number_credits": {"en": "Number artwork references", "es": "Referencias de los dorsales", "it": "Riferimenti della grafica dei numeri"},
     "profile_poles": {"en": "Q2 poles", "es": "Poles Q2", "it": "Pole Q2"},
     "profile_poles_events": {"en": "Q2 events", "es": "Q2", "it": "Q2"},
     "comparison_finishes_ahead": {"en": "Finishes ahead", "es": "Llegadas por delante", "it": "Arrivi davanti"},
