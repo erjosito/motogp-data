@@ -174,27 +174,19 @@ td small { display: block; font-size: 10px; color: var(--cp-text-soft); padding-
 .visual-facts small { font-size: 12px; font-weight: 400; }
 .visual-credit { font-size: 11px; color: var(--cp-text-muted); line-height: 1.7; overflow-wrap: anywhere; }
 .rider-visual-header { padding: 24px 32px; }
-.rider-identity { display: grid; grid-template-columns: minmax(0, 128px) minmax(0, 1fr); gap: 16px 24px; align-items: start; margin: 0; }
-.rider-portrait { margin: 0; min-width: 0; }
-.rider-portrait img, .rider-initials { width: 100%; aspect-ratio: 4 / 5; height: auto; border-radius: .625rem; object-fit: contain; background: var(--cp-accent-soft); }
-.rider-identity figcaption { grid-column: 1 / -1; }
-.rider-identity summary { cursor: pointer; }
+.rider-identity { margin: 0; }
 .number-mark { display: inline-block; width: 2em; height: 1.15em; object-fit: contain; vertical-align: middle; }
 .identity-number { display: inline-flex; align-items: center; min-height: 1.15em; }
 .identity-number:empty { display: none; }
 .finish-number .number-mark { width: 44px; height: 40px; }
-.rider-initials { display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--cp-accent); font-size: 48px; font-weight: 750; }
-.rider-initials small { font: 16px Consolas, monospace; margin-top: 8px; }
 .rider-identity .visual-facts { margin: 16px 0; gap: 16px 24px; }
 .visual-facts .fact-text { font-size: 16px; }
 @media (max-width: 600px) {
   .circuit-context { grid-template-columns: 1fr; gap: 16px; }
   .circuit-context svg { max-height: 180px; }
   .rider-visual-header { padding: 20px 24px; }
-  .rider-identity { grid-template-columns: minmax(0, 108px) minmax(0, 1fr); gap: 16px; }
-  .rider-identity .visual-facts { display: grid; gap: 8px; margin: 8px 0; }
+  .rider-identity .visual-facts { gap: 16px 24px; margin: 8px 0; }
   .rider-identity .visual-facts dd { font-size: 14px; }
-  .rider-identity .visual-credit { font-size: 10px; }
   .rider-identity .eyebrow { letter-spacing: 1px; }
 }
 .rider-chip { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--cp-border); padding: 8px 10px; border-radius: .625rem; cursor: pointer; font-size: 11px; opacity: .75; }

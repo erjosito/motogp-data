@@ -15,15 +15,6 @@ export interface RiderEnrichment {
   } | null
 }
 
-export interface RiderPortrait {
-  status: 'available' | 'not_collected'
-  portrait: {
-    rider_id: string; season: number; team_name: string; credit: string; source_page: string
-    license: string; license_url: string; changes: string
-    images: { url: string; width: number; height: number }[]
-  } | null
-}
-
 export interface NumberArtwork {
   artwork: { season: number; category: string; number: number; source_url: string; url: string }[]
 }
@@ -51,24 +42,13 @@ export function RiderNumber({ rider, fallback }: NumberScope) {
   </>
 }
 
-export function RiderIdentity({ rider, enrichment, media, season }: {
-  rider: Rider; enrichment?: RiderEnrichment | null; media?: RiderPortrait | null; season?: number
+export function RiderIdentity({ rider, enrichment }: {
+  rider: Rider; enrichment?: RiderEnrichment | null
 }) {
-  const [failedImage, setFailedImage] = useState<string | null>(null)
   const profile = enrichment?.status === 'available' && enrichment.profile?.rider_id === rider.rider_id ? enrichment.profile : null
-  const portrait = media?.status === 'available' && media.portrait?.rider_id === rider.rider_id
-    && (season == null || season === media.portrait.season) ? media.portrait : null
-  const image = portrait?.images.at(-1)
-  const initials = rider.rider.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('')
   const bio = profile?.biography
   const birthday = bio?.birth_date ? new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${bio.birth_date}T00:00:00Z`)) : null
-  return <figure className="rider-identity">
-    <div className="rider-portrait">
-      {image && portrait && failedImage !== image.url ? <img src={appPath(image.url)}
-        srcSet={portrait.images.map((item) => `${appPath(item.url)} ${item.width}w`).join(',')} sizes="(max-width: 600px) 108px, 128px"
-        width={image.width} height={image.height} alt={`${rider.rider}, ${portrait.season} portrait`}
-        onError={() => setFailedImage(image.url)} /> : <div className="rider-initials" aria-label={`${rider.rider}, initials`}>{initials}<small>#{rider.number ?? '—'}</small></div>}
-    </div>
+  return <div className="rider-identity">
     <div><p className="eyebrow">THE PERSON BEHIND THE NUMBER</p>
       <dl className="visual-facts">
         <div><dt>Race number</dt><dd>{rider.number ?? '—'}</dd></div>
@@ -78,23 +58,14 @@ export function RiderIdentity({ rider, enrichment, media, season }: {
       </dl>
       {profile && <SourceNote><p>{rider.rider} · <a href={profile.source.source_url} target="_blank" rel="noreferrer">Biography source</a> · retrieved {profile.source.retrieved_at.slice(0, 10)}.<br />Height is reported at retrieval, not a historical measurement.</p></SourceNote>}
     </div>
-    {portrait && image && <><figcaption className="visual-credit">{portrait.season} · {portrait.team_name}
-      {failedImage === image.url && <span role="alert">Portrait unavailable; showing initials.</span>}
-    </figcaption><SourceNote><p>{rider.rider} · {portrait.season} · {portrait.team_name} ·{' '}
-      <a href={portrait.source_page} target="_blank" rel="noreferrer">{portrait.credit}</a> · <a href={portrait.license_url} target="_blank" rel="noreferrer">{portrait.license}</a>
-      </p>
-      <details><summary>Image adapted: oriented, cropped, resized and converted to WebP</summary>{portrait.changes}</details>
-    </SourceNote></>}
-  </figure>
+  </div>
 }
 
 export function RiderVisualContext({ rider }: { rider: Rider }) {
   const enrichment = useResource<RiderEnrichment>(`/api/riders/${encodeURIComponent(rider.rider_id)}/enrichment`)
-  const portrait = useResource<RiderPortrait>(`/api/riders/${encodeURIComponent(rider.rider_id)}/portrait?season=2026&category=premier`)
   return <>
-    <RiderIdentity key={rider.rider_id} rider={rider} enrichment={enrichment.data} media={portrait.data} />
+    <RiderIdentity key={rider.rider_id} rider={rider} enrichment={enrichment.data} />
     {enrichment.error && <p className="panel-note" role="alert">Biography could not be loaded. <button className="text-button" onClick={enrichment.retry}>Try again</button></p>}
-    {portrait.error && <p className="panel-note" role="alert">Portrait could not be loaded. <button className="text-button" onClick={portrait.retry}>Try again</button></p>}
   </>
 }
 
