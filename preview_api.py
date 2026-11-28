@@ -24,6 +24,7 @@ from circuit_catalog import circuit_details, projected_outline
 from rider_media import read_portrait
 from rider_numbers import list_numbers, read_identity_number, read_number
 from standings_corrections import corrected_standings
+from season_lifecycle import read_season_status, standings_digest
 
 app = FastAPI(title="MotoGP Preview API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 api = APIRouter()
@@ -53,6 +54,32 @@ def query(sql: str, params: tuple = ()) -> list[dict]:
         cursor.execute(sql, *params)
         columns = [column[0] for column in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def lifecycle_for_standings(rows: list[dict]) -> dict:
+    groups = defaultdict(list)
+    for row in rows:
+        groups[(row["season"], row["category"])].append(row)
+    statuses = {}
+    if groups:
+        with closing(connect_to_sql()) as connection:
+            for key, snapshot in groups.items():
+                status = read_season_status(connection, *key)
+                if status["status"] == "official_final":
+                    digest = standings_digest([
+                        (row["rider_id"], row["position"], row["points"], row["constructor_id"],
+                         row["constructor_name"], row["source_url"], row["source_json"])
+                        for row in snapshot
+                    ])
+                    if digest != status["evidence"]["standings_sha256"]:
+                        status = {"status": "unknown", "evidence": None}
+                statuses[key] = status
+    return statuses
+
+
+def public_standing(row: dict) -> dict:
+    return {key: value for key, value in row.items()
+            if key not in ("source_json", "constructor_id", "constructor_name", "season", "category")}
 
 
 def seconds(value) -> float | None:
@@ -175,7 +202,7 @@ def season_story(data: dict) -> dict:
     gap = second["gap"] if second else 0
     name = leader["rider"]
     official = data["standings_source"] == "official"
-    final = data.get("is_final", official)
+    final = data.get("lifecycle", {}).get("status") == "official_final"
     if official and data.get("official_points_inconsistent"):
         return {
             "kind": "standings",
@@ -187,7 +214,7 @@ def season_story(data: dict) -> dict:
                 "Official positions and supplied scores are preserved unchanged."
             ),
             "metric_label": "OFFICIAL RANK", "metric": leader["position"],
-            "metric_note": "Official champion rank" if final else "Official rank to date; not a final result",
+            "metric_note": "Official champion rank" if final else "Official rank; finality has not been verified",
             "context_url": None,
         }
     summary = (
@@ -204,7 +231,7 @@ def season_story(data: dict) -> dict:
         "accent": "The points tell the story.",
         "summary": summary,
         "metric_label": "POINTS AT THE TOP", "metric": leader["points"],
-        "metric_note": ("Official final total" if final else "Official standings to date") if official else "From imported GP + Sprint classifications",
+        "metric_note": ("Official final total" if final else "Official standings; finality unverified") if official else "From imported GP + Sprint classifications",
         "context_url": None,
     }
     marc_dominance = (data.get("category", "premier") == "premier" and season == 2025
@@ -224,7 +251,11 @@ def season_story(data: dict) -> dict:
         return story
     if official and not marc_dominance and not (data.get("category", "premier") == "premier" and season == 2026
                                                and data["comeback"] and data["comeback"]["verified_102"]):
-        story["summary"] += " These are standings to date, not a final championship result."
+        if second and gap == 0:
+            story.update(headline="Equal points.", accent="Official ranks, unchanged.",
+                         metric_label="POINTS BETWEEN THE TOP TWO", metric=0,
+                         metric_note="Official source order is preserved; finality has not been verified")
+        story["summary"] += " Finality has not been verified; these standings are not confirmed as a final championship result."
         return story
 
     comeback = data["comeback"]
@@ -239,7 +270,8 @@ def season_story(data: dict) -> dict:
             metric_note="Points recovered since the lowest margin",
         )
         if official:
-            story["summary"] += " The curve uses imported race points; the table preserves official standings to date, not a final championship."
+            story["summary"] += (" The curve uses imported race points; the table preserves confirmed final official standings."
+                                if final else " The curve uses imported race points; finality of the official standings has not been verified.")
     elif marc_dominance:
         story.update(
             kind="dominance",
@@ -269,10 +301,10 @@ def season_story(data: dict) -> dict:
             margins.append(points - rival)
         deficit = max(0, -min(margins, default=0))
         if len(margins) > 1 and margins[-2] < 0 <= margins[-1]:
-            story.update(kind="late-surge", headline="The latest race changed the lead." if season == 2026 else "The last race changed everything.",
+            story.update(kind="late-surge", headline="The latest imported race changed the lead.",
                          accent=f"{name} took the top spot.",
                          summary=summary + " The leading rider in the imported points changed in the latest scoring session.",
-                         metric_label="LATEST MARGIN" if season == 2026 else "FINAL MARGIN", metric=gap,
+                         metric_label="LATEST IMPORTED MARGIN", metric=gap,
                          metric_note="Points ahead after the last imported session")
         elif deficit >= 25:
             story.update(kind="comeback", headline=f"{name}: the long way back.", accent=f"From {deficit:g} behind to the top.",
@@ -363,8 +395,10 @@ def build_rider_profile(rider: dict, races: list[dict], standings: list[dict],
         if season["is_final"] and not row["is_final"]:
             continue
         season.update(position=row["position"], points=float(row["points"]),
-                      is_final=bool(row["is_final"]), source_url=row["source_url"])
+                      is_final=bool(row["is_final"]), source_url=row["source_url"],
+                      lifecycle=row.get("lifecycle", {"status": "unknown", "evidence": None}))
     for season in seasons_by_class.values():
+        season.setdefault("lifecycle", {"status": "unknown", "evidence": None})
         season.update(gp_poles=None, gp_poles_q2_events=0, gp_poles_method="recorded_q2_wins")
     for (year, category), counts in recorded_q2_poles(qualifying or []).items():
         season = seasons_by_class.get((year, rider_category(category)))
@@ -374,17 +408,24 @@ def build_rider_profile(rider: dict, races: list[dict], standings: list[dict],
     career = sorted(seasons_by_class.values(), key=lambda row: (row["season"], row["category"]))
     totals = {key: sum(row[key] for row in career)
               for key in ["gp_appearances", "gp_wins", "gp_podiums", "sprint_wins", "sprint_appearances"]}
-    titles = [row for row in career if row["is_final"] and row["position"] == 1]
+    titles = [row for row in career if row["position"] == 1
+              and (row["is_final"] or row["lifecycle"]["status"] == "official_final")]
+    confirmed_titles = [row for row in titles if row["lifecycle"]["status"] == "official_final"]
     best = max((row for row in career if row["gp_appearances"]), key=lambda row: (row["gp_wins"], row["gp_podiums"], row["season"]), default=None)
     is_marc = rider["rider_id"] == MARC_ID
     name = rider["rider"].split(" ")[0]
+    title_label = "title" if len(titles) == 1 else "titles"
+    if len(confirmed_titles) != len(titles):
+        title_label = "rank-one season" if len(titles) == 1 else "rank-one seasons"
     headline = "The art of coming back." if is_marc else (
-        f"{len(titles)} titles. One remarkable rider." if titles and all(row["position"] is not None for row in career) else
+        f"{len(titles)} {title_label}. One remarkable rider."
+        if titles and all(row["position"] is not None for row in career) else
         f"{name}, at the sharp end." if totals["gp_wins"] else f"{name}, beyond the standings.")
     if best and best["gp_wins"]:
         summary = f"{best['gp_wins']} GP wins in {best['season']}: the strongest winning season."
     elif titles:
-        summary = "A career defined by official championship-winning seasons."
+        summary = ("A career defined by confirmed championship-winning seasons."
+                   if len(confirmed_titles) == len(titles) else "A career defined by rank-one championship records; finality has not been verified for every snapshot.")
     else:
         summary = "The seasons, results and championship positions that tell this rider's story."
     return {
@@ -495,11 +536,20 @@ def rider_profile(rider_id: str):
             ))
         ORDER BY e.season_year, s.category, s.session_id
     """, (rider_id,))
-    standings = query("""
-        SELECT cs.season_year AS season, cs.category, cs.position, cs.points, cs.is_final, cs.source_url
-        FROM championship_standings cs WHERE cs.rider_id = ?
+    raw_standings = query("""
+        SELECT cs.season_year AS season, cs.category, cs.rider_id, cs.position, cs.points,
+               cs.is_final, cs.source_url, cs.constructor_id AS constructor_id,
+               cs.constructor_name AS constructor_name, cs.source_json AS source_json
+        FROM championship_standings cs WHERE EXISTS (
+            SELECT 1 FROM championship_standings selected
+            WHERE selected.rider_id = ? AND selected.season_year = cs.season_year AND selected.category = cs.category
+        )
         ORDER BY cs.season_year, cs.category, cs.is_final
     """, (rider_id,))
+    lifecycles = lifecycle_for_standings(raw_standings)
+    standings = [{**row, "lifecycle": lifecycles.get((row["season"], row["category"]),
+                 {"status": "unknown", "evidence": None})}
+                 for row in raw_standings if str(row["rider_id"]).casefold() == rider_id.casefold()]
     qualifying = query("""
         SELECT e.event_id, e.season_year, s.category, s.session_type, s.session_number,
                s.status AS session_status, c.position
@@ -624,14 +674,21 @@ def sessions(event_id: str, category: str = "premier"):
 def championship(season: int = Query(ge=1949, le=3000), category: str = "premier"):
     scope = selected_class(category)
     standings_scope = selected_class(category, "cs.category")
-    official_rows = query(f"""
+    raw_official_rows = query(f"""
             SELECT cs.position, cs.rider_id, r.full_name AS rider, r.number,
-                   cs.points, cs.constructor_name AS constructor, cs.source_url, cs.is_final
+                   cs.points, cs.constructor_name AS constructor, cs.source_url, cs.is_final,
+                   cs.season_year AS season, cs.category, cs.constructor_id AS constructor_id,
+                   cs.constructor_name AS constructor_name, cs.source_json AS source_json
             FROM championship_standings cs JOIN riders r ON r.rider_id = cs.rider_id
             WHERE cs.season_year = ? AND {standings_scope}
                   {"AND cs.is_final = 1" if season < 1990 else ""}
             ORDER BY cs.position
         """, (season,))
+    lifecycles = lifecycle_for_standings(raw_official_rows)
+    matching_lifecycles = [status for (year, source_category), status in lifecycles.items()
+                          if year == season and rider_category(source_category) == category]
+    lifecycle = matching_lifecycles[0] if len(lifecycles) == len(matching_lifecycles) == 1 else {"status": "unknown", "evidence": None}
+    official_rows = [public_standing(row) for row in raw_official_rows]
     inconsistent = official_points_inconsistent([
         (row["position"], float(row["points"])) for row in official_rows
     ])
@@ -653,7 +710,8 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
         data["official_points_inconsistent"] = inconsistent
         data["points_warning"] = points_warning
         data["points_correction"] = correction
-        data["is_final"] = bool(official_rows) and all(row.get("is_final", season < 1990) for row in official_rows)
+        data["lifecycle"] = lifecycle
+        data["is_final"] = lifecycle["status"] == "official_final"
         data["story"] = season_story(data)
         if not data["standings"]:
             data["coverage"] = championship_coverage(season, category)
@@ -676,6 +734,7 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
     data = build_championship(rows, season, category)
     data["standings_source"] = "computed"
     data["is_final"] = False
+    data["lifecycle"] = lifecycle
     if official_rows:
         first_points = float(official_rows[0]["points"])
         imported = {row["rider_id"]: row for row in data["standings"]}
@@ -689,7 +748,7 @@ def championship(season: int = Query(ge=1949, le=3000), category: str = "premier
             "series": [],
         } for row in official_rows]
         data["standings_source"] = "official"
-        data["is_final"] = all(row["is_final"] for row in official_rows)
+        data["is_final"] = lifecycle["status"] == "official_final"
         data["official_points_inconsistent"] = inconsistent
         data["points_warning"] = points_warning
         if inconsistent:

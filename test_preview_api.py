@@ -4,12 +4,152 @@ import re
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pyodbc
 from fastapi.testclient import TestClient
 
 import preview_api
+
+READ_LIFECYCLES = preview_api.lifecycle_for_standings
+READ_STATUS = preview_api.read_season_status
+
+
+def raw_standing(year=2032, category="MotoGP", rider="one", position=1, points=100):
+    return {
+        "season": year, "category": category, "rider_id": rider, "rider": rider, "number": None,
+        "position": position, "points": points, "constructor_id": None, "constructor_name": "Bike",
+        "constructor": "Bike", "source_url": "https://www.motogp.com/results", "source_json": "{}",
+        "is_final": True,
+    }
+
+
+def reviewed_status(rows):
+    digest = preview_api.standings_digest([
+        (row["rider_id"], row["position"], row["points"], row["constructor_id"],
+         row["constructor_name"], row["source_url"], row["source_json"]) for row in rows
+    ])
+    return {"status": "official_final", "evidence": {
+        "url": "https://www.motogp.com/results", "sha256": "a" * 64,
+        "review_note": "Test fixture: reviewed exact season/class standings.",
+        "confirmed_at": "2032-11-28T12:00:00Z", "standings_sha256": digest,
+        "import_kind": "standings", "import_sha256": "b" * 64,
+    }}
+
+
+class LifecyclePresentationTests(unittest.TestCase):
+    def setUp(self):
+        self.connection = MagicMock()
+        connect = patch.object(preview_api, "connect_to_sql", return_value=self.connection)
+        connect.start()
+        self.addCleanup(connect.stop)
+        reader = patch.object(preview_api, "read_season_status", return_value={"status": "unknown", "evidence": None})
+        self.reader = reader.start()
+        self.addCleanup(reader.stop)
+
+    def test_matching_complete_display_snapshot_is_final_but_stale_display_is_unknown(self):
+        rows = [raw_standing(), raw_standing(rider="two", position=2, points=99.5)]
+        status = reviewed_status(rows)
+        self.reader.return_value = status
+        self.assertEqual(READ_LIFECYCLES(rows), {(2032, "MotoGP"): status})
+        self.reader.assert_called_with(self.connection, 2032, "MotoGP")
+        rows[1]["points"] = 99
+        self.assertEqual(READ_LIFECYCLES(rows), {(2032, "MotoGP"): {"status": "unknown", "evidence": None}})
+
+    def test_missing_schema_and_legacy_final_flags_cannot_confirm_finality(self):
+        self.connection.execute.return_value.fetchone.return_value = (None,)
+        with patch.object(preview_api, "read_season_status", READ_STATUS):
+            statuses = READ_LIFECYCLES([raw_standing()])
+        self.assertEqual(statuses[(2032, "MotoGP")], {"status": "unknown", "evidence": None})
+        self.connection.execute.assert_called_once()
+        self.assertFalse(READ_LIFECYCLES([]))
+
+    def test_future_year_and_exact_classes_are_independent(self):
+        gp, moto2 = raw_standing(), raw_standing(category="Moto2")
+        final = reviewed_status([gp])
+        self.reader.side_effect = [final, {"status": "unknown", "evidence": None}]
+        statuses = READ_LIFECYCLES([gp, moto2])
+        self.assertEqual(statuses[(2032, "MotoGP")], final)
+        self.assertEqual(statuses[(2032, "Moto2")]["status"], "unknown")
+        self.assertEqual([item.args[1:] for item in self.reader.call_args_list], [(2032, "MotoGP"), (2032, "Moto2")])
+
+    def test_api_refresh_transitions_both_mounts_without_changing_points_or_archive_coverage(self):
+        rows = [raw_standing(), raw_standing(rider="two", position=2, points=99.5)]
+        client = TestClient(preview_api.app)
+        for prefix in ("", "/paddock"):
+            for status in ({"status": "unknown", "evidence": None}, reviewed_status(rows),
+                           {"status": "unknown", "evidence": None}):
+                self.reader.return_value = status
+                with patch.object(preview_api, "query", side_effect=[rows, []]):
+                    response = client.get(f"{prefix}/api/championship?season=2032&category=premier")
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(data["lifecycle"], status)
+                self.assertEqual(data["is_final"], status["status"] == "official_final")
+                self.assertEqual([(row["position"], row["points"]) for row in data["standings"]], [(1, 100), (2, 99.5)])
+                self.assertEqual((data["rounds"], data["gp_results"]), ([], 0))
+                self.assertNotIn("source_json", data["standings"][0])
+                if data["is_final"]:
+                    self.assertEqual(data["story"]["kind"], "close-finish")
+                else:
+                    self.assertIn("Finality has not been verified", data["story"]["summary"])
+
+    def test_operational_lifecycle_failure_is_not_a_success_shaped_unknown_response(self):
+        self.reader.side_effect = pyodbc.OperationalError("08001", "Database unavailable")
+        for prefix in ("", "/paddock"):
+            with patch.object(preview_api, "query", return_value=[raw_standing()]):
+                response = TestClient(preview_api.app).get(f"{prefix}/api/championship?season=2032")
+            self.assertEqual(response.status_code, 503)
+
+    def test_historical_correction_digests_original_rows_and_keeps_separate_provenance(self):
+        rows = [raw_standing(1970, "350cc", "ea0101ee-6b38-4d39-a466-fa83d2e1b36f", 1, 9),
+                raw_standing(1970, "350cc", "b3668951-07a4-43f1-962a-8c4fde9dfe7a", 2, 28),
+                raw_standing(1970, "350cc", "pasolini", 3, 46)]
+        self.reader.return_value = reviewed_status(rows)
+        with patch.object(preview_api, "query", return_value=rows):
+            data = TestClient(preview_api.app).get("/api/championship?season=1970&category=350cc").json()
+        self.assertTrue(data["is_final"])
+        self.assertEqual([row["points"] for row in data["standings"]], [90, 58, 46])
+        self.assertEqual([row.get("source_points") for row in data["standings"]], [9, 28, None])
+        self.assertEqual(data["lifecycle"]["evidence"]["standings_sha256"], reviewed_status(rows)["evidence"]["standings_sha256"])
+        self.assertIn("best six", data["points_correction"]["note"])
+        self.assertEqual([row["points"] for row in rows], [9, 28, 46])
+
+    def test_reviewed_future_rank_one_season_works_without_the_legacy_final_flag(self):
+        row = raw_standing()
+        row.update(is_final=False, lifecycle=reviewed_status([row]))
+        data = preview_api.build_rider_profile({"rider_id": "one", "rider": "One Rider"}, [], [row])
+        self.assertEqual(data["totals"]["titles"], 1)
+        self.assertEqual(data["seasons"][0]["lifecycle"]["status"], "official_final")
+        self.assertIn("1 title.", data["headline"])
+
+    def test_rider_api_binds_full_class_snapshot_not_just_selected_riders_points(self):
+        rows = [raw_standing(), raw_standing(rider="two", position=2, points=99.5)]
+        for prefix in ("", "/paddock"):
+            for status in (reviewed_status(rows), {"status": "unknown", "evidence": None}):
+                self.reader.return_value = status
+                with patch.object(preview_api, "query", side_effect=[
+                    [{"rider_id": "one", "rider": "One Rider", "number": 1}], [], rows, [],
+                ]):
+                    response = TestClient(preview_api.app).get(f"{prefix}/api/riders/ONE")
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(len(data["seasons"]), 1)
+                self.assertEqual(data["seasons"][0]["lifecycle"], status)
+                self.assertEqual((data["totals"]["titles"], data["seasons"][0]["points"]), (1, 100))
+                self.assertNotIn("source_json", data["seasons"][0])
+
+    def test_other_requested_year_or_composite_exact_classes_cannot_inherit_confirmation(self):
+        client = TestClient(preview_api.app)
+        for rows, year in [([raw_standing()], 2033),
+                           ([raw_standing(), raw_standing(category="MotoGP™")], 2032)]:
+            self.reader.side_effect = lambda _conn, requested_year, source_category: reviewed_status([
+                row for row in rows if row["season"] == requested_year and row["category"] == source_category
+            ])
+            with patch.object(preview_api, "query", side_effect=[rows, []]):
+                data = client.get(f"/api/championship?season={year}").json()
+            self.assertFalse(data["is_final"])
+            self.assertEqual(data["lifecycle"], {"status": "unknown", "evidence": None})
 
 
 def result(session, rider, points, position, kind="RAC"):
@@ -110,6 +250,9 @@ class ChampionshipTests(unittest.TestCase):
 class PreviewApiTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(preview_api.app)
+        lifecycle = patch.object(preview_api, "lifecycle_for_standings", return_value={})
+        lifecycle.start()
+        self.addCleanup(lifecycle.stop)
 
     def test_finish_comparison_uses_elapsed_durations_without_reordering_source_ranks(self):
         rows = [
@@ -312,7 +455,7 @@ class PreviewApiTests(unittest.TestCase):
         self.assertEqual(story["metric"], 11)
         self.assertIn("motogp.com", story["context_url"])
 
-    def test_final_session_turnaround_gets_a_decisive_finale_story(self):
+    def test_last_imported_session_turnaround_does_not_claim_a_completed_archive(self):
         data = preview_api.build_championship([
             result("one", "rival", 25, 1),
             result("one", "winner", 20, 2),
@@ -320,12 +463,18 @@ class PreviewApiTests(unittest.TestCase):
             result("two", "rival", 18, 3),
         ], 2015)
         data["standings_source"] = "computed"
-        self.assertEqual(preview_api.season_story(data)["headline"], "The last race changed everything.")
+        story = preview_api.season_story(data)
+        self.assertEqual(story["headline"], "The latest imported race changed the lead.")
+        self.assertEqual(story["metric_label"], "LATEST IMPORTED MARGIN")
+        self.assertIn("last imported session", story["metric_note"])
 
 
 class CategoryApiTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(preview_api.app)
+        lifecycle = patch.object(preview_api, "lifecycle_for_standings", return_value={})
+        self.lifecycle_mock = lifecycle.start()
+        self.addCleanup(lifecycle.stop)
         self.db = sqlite3.connect(":memory:", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript("""
@@ -365,6 +514,8 @@ class CategoryApiTests(unittest.TestCase):
 
     def query(self, sql, params=()):
         sql = re.sub(r"\bN'", "'", sql)
+        sql = sql.replace("cs.constructor_id AS constructor_id", "NULL AS constructor_id")
+        sql = sql.replace("cs.source_json AS source_json", "'{}' AS source_json")
         return [dict(row) for row in self.db.execute(sql, params)]
 
     def test_every_family_isolates_sessions_and_both_mounts(self):
@@ -483,7 +634,7 @@ class CategoryApiTests(unittest.TestCase):
             self.db.execute("INSERT INTO championship_standings VALUES (?,'500cc',1,'champion',9,NULL,'https://example.com',1)", (season,))
         for prefix in ["", "/paddock"]:
             data = self.client.get(f"{prefix}/api/riders/champion").json()
-            self.assertEqual(data["headline"], "15 titles. One remarkable rider.")
+            self.assertEqual(data["headline"], "15 rank-one seasons. One remarkable rider.")
             self.assertEqual(data["totals"]["titles"], 15)
             self.assertEqual(data["totals"]["gp_appearances"], 0)
 
@@ -526,7 +677,7 @@ class CategoryApiTests(unittest.TestCase):
         self.assertEqual(data["standings"][0]["wins"], 1)
         self.assertEqual(data["standings"][0]["number"], 21)
         self.assertIsNone(data["comeback"])
-        self.assertIn("not a final", data["story"]["summary"])
+        self.assertIn("not confirmed as a final", data["story"]["summary"])
         self.assertTrue(data["external_sources_used"])
         premier = self.client.get("/api/championship?season=2026").json()
         self.assertEqual(premier["standings"][0]["points"], 10)
@@ -581,7 +732,7 @@ class CategoryApiTests(unittest.TestCase):
         for prefix in ["", "/paddock"]:
             data = self.client.get(f"{prefix}/api/championship?season=1970&category=350cc").json()
             self.assertTrue(data["official_points_inconsistent"])
-            self.assertTrue(data["is_final"])
+            self.assertFalse(data["is_final"])
             self.assertEqual([(row["position"], row["rider_id"], row["points"]) for row in data["standings"]],
                              [(1, "ago", 9), (2, "carruthers", 28), (3, "pasolini", 46)])
             self.assertEqual([row["gap"] for row in data["standings"]], [None, None, None])
@@ -590,7 +741,7 @@ class CategoryApiTests(unittest.TestCase):
             self.assertIn("Period scoring or source discrepancies", data["points_warning"])
             self.assertEqual(data["story"]["metric_label"], "OFFICIAL RANK")
             self.assertEqual(data["story"]["metric"], 1)
-            self.assertEqual(data["story"]["metric_note"], "Official champion rank")
+            self.assertEqual(data["story"]["metric_note"], "Official rank; finality has not been verified")
             self.assertNotIn("verification", str(data["story"]))
             self.assertNotIn("discrepancies", str(data["story"]))
             self.assertNotIn("-19", str(data["story"]))
@@ -639,7 +790,7 @@ class CategoryApiTests(unittest.TestCase):
         self.db.execute("INSERT INTO championship_standings VALUES (2025,'MotoGP',1,?,500,'Bike','https://example.com',1)",
                         (preview_api.MARC_ID,))
         data = self.client.get("/api/championship?season=2025").json()
-        self.assertTrue(data["is_final"])
+        self.assertFalse(data["is_final"])
         self.assertEqual(data["standings"][0]["points"], 500)
         self.assertEqual(data["story"]["headline"], "Back to the summit.")
         self.assertIn("motogp.com", data["story"]["context_url"])
@@ -675,7 +826,7 @@ class CategoryApiTests(unittest.TestCase):
         self.db.execute("UPDATE sessions SET category='125cc' WHERE session_id='session-2'")
         self.db.execute("INSERT INTO championship_standings VALUES (1969,'125cc',1,'rider',46,'Bike','https://example.com',1)")
         data = self.client.get("/api/championship?season=1969&category=lightweight").json()
-        self.assertTrue(data["is_final"])
+        self.assertFalse(data["is_final"])
         self.assertEqual(data["standings"][0]["points"], 46)
         self.assertEqual(data["rounds"], [])
         self.assertIsNone(data["standings"][0]["wins"])

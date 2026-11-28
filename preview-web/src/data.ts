@@ -1,4 +1,4 @@
-import type { Lap, Rider } from './types'
+import type { Lap, Rider, SeasonLifecycle } from './types'
 import type { ChartSeries } from './PlotChart'
 
 export function statisticText(text: string) {
@@ -8,6 +8,14 @@ export function statisticText(text: string) {
     .replace(/\bsource order\b/gi, 'classification order')
     .replace(/\bsource ranks?\b/gi, 'rank')
     .replace(/\s{2,}/g, ' ').trim()
+}
+
+export function confirmedFinal(lifecycle?: SeasonLifecycle) {
+  return lifecycle?.status === 'official_final' && lifecycle.evidence != null
+}
+
+export function standingsLabel(lifecycle?: SeasonLifecycle) {
+  return confirmedFinal(lifecycle) ? 'Final standings' : 'Standings · finality unverified'
 }
 
 export function categoryTicks(series: ChartSeries[], maximum: number) {

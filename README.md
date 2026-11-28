@@ -831,6 +831,22 @@ silently treated as confirmation. Changes outside these importers are detected
 while mismatched, but must be explicitly invalidated if reverted; do not make
 direct SQL changes to reviewed standings without unfinalizing first.
 
+Paddock exposes this reviewed state as `lifecycle` on championship responses and
+each rider-season record. It checks the complete original stored standings
+before any independently sourced display correction; the correction retains
+its separate provenance. A confirmed snapshot automatically enables final
+standings, final ranks and title wording for any supported season/class.
+Missing, stale, unmigrated or ambiguous class evidence remains explicitly
+unverified, not an inferred in-progress state. Refreshed API responses update
+the labels without yearly frontend edits.
+
+Legacy rider-season `is_final` flags and title-candidate counts remain
+compatibility metadata. Paddock presents unreviewed candidates as rank-one
+season records, preserving their original positions and counts rather than
+claiming reviewed titles. Confirmed title wording requires matching lifecycle
+evidence. Race counts, latest imported margins and timing coverage remain
+independent even when the championship snapshot is confirmed final.
+
 `standings_imports` stores the complete payload, source URL/hash, calendar,
 category identity, supplied PDF/XML links, row count and legacy finality flag separately from
 `historical_imports` (race archives). Original source labels/ranks/points remain

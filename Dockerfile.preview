@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements-preview.txt .
 RUN pip install --no-cache-dir -r requirements-preview.txt
-COPY preview_api.py sql_connection.py category_scope.py standings_corrections.py rider_profiles.py rider_media.py rider_numbers.py circuit_catalog.py circuit_catalog.json media_catalog.json ./
+COPY preview_api.py sql_connection.py category_scope.py standings_corrections.py season_lifecycle.py rider_profiles.py rider_media.py rider_numbers.py circuit_catalog.py circuit_catalog.json media_catalog.json ./
 COPY rider_profiles.reviewed.json ./
 COPY assets/ ./assets/
 COPY --from=web /web/dist ./preview-web/dist

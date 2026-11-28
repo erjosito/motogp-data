@@ -2,7 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import App, { ChampionshipContent, LapComparison, RiderProfileContent, SectorAnalysis } from './App'
 import * as api from './api'
-import type { Championship, Lap, RiderProfile } from './types'
+import type { Championship, Lap, RiderProfile, SeasonLifecycle } from './types'
+
+const reviewedFinal: SeasonLifecycle = {
+  status: 'official_final',
+  evidence: { url: 'https://www.motogp.com/results/final', sha256: 'a'.repeat(64),
+    review_note: 'Reviewed official classification for this exact season and class.',
+    confirmed_at: '2027-11-28T12:00:00Z', standings_sha256: 'b'.repeat(64),
+    import_kind: 'standings', import_sha256: 'c'.repeat(64) },
+}
 
 function render(search: string) {
   vi.stubGlobal('window', { location: { search, pathname: '/paddock/' } })
@@ -81,7 +89,8 @@ describe('category selector and navigation', () => {
 
     it('gives a standings-only historical rider two charts without claiming zero race results', () => {
       const season = { season: 1970, category: '350cc' as const, gp_appearances: 0, gp_wins: 0, gp_podiums: 0,
-        sprint_wins: 0, sprint_appearances: 0, position: 1, points: 9, is_final: true, source_url: 'https://example.com' }
+        sprint_wins: 0, sprint_appearances: 0, position: 1, points: 9, is_final: true,
+        lifecycle: reviewedFinal, source_url: 'https://example.com' }
       const data: RiderProfile = {
         rider: { rider_id: 'ago', rider: 'Giacomo Agostini', number: null }, headline: 'A remarkable rider.', summary: 'Official championship-winning seasons.',
         totals: { titles: 1, gp_appearances: 0, gp_wins: 0, gp_podiums: 0, sprint_appearances: 0, sprint_wins: 0 },
@@ -104,7 +113,8 @@ describe('category selector and navigation', () => {
 
     it('leads with race achievements instead of an incomplete title count', () => {
       const title = { season: 2012, category: 'intermediate' as const, gp_appearances: 17, gp_wins: 9, gp_podiums: 14,
-        sprint_wins: 0, sprint_appearances: 0, position: 1, points: 328, is_final: true, source_url: 'https://example.com' }
+        sprint_wins: 0, sprint_appearances: 0, position: 1, points: 328, is_final: true,
+        lifecycle: reviewedFinal, source_url: 'https://example.com' }
       const data: RiderProfile = {
         rider: { rider_id: 'rider', rider: 'A Rider', number: 93 }, headline: 'At the sharp end.', summary: 'A winning career.',
         totals: { titles: 1, gp_appearances: 35, gp_wins: 15, gp_podiums: 30, sprint_appearances: 0, sprint_wins: 0 },
@@ -153,7 +163,7 @@ describe('category selector and navigation', () => {
 
   it('preserves 9/28/46 supplied scores and official champion rank without displaying a points margin', () => {
     const data: Championship = {
-      season: 1970, category: '350cc', standings_source: 'official', is_final: true,
+      season: 1970, category: '350cc', standings_source: 'official', is_final: true, lifecycle: reviewedFinal,
       official_points_inconsistent: true,
       points_warning: 'Supplied official point totals require source verification. Period scoring or source discrepancies may explain this.',
       external_sources_used: false, rounds: [], gp_results: 0, weekends: 0,
@@ -203,6 +213,17 @@ describe('category selector and navigation', () => {
     expect(markup).toContain('data-chart-kind="bar"')
     expect(markup).toContain('data-chart-kind="scatter"')
     expect(markup).not.toContain('data-chart-kind="lollipop"')
+    for (const theme of ['light', 'dark'] as const) {
+      for (const lifecycle of [undefined, reviewedFinal, { status: 'unknown', evidence: null } as const]) {
+        const updated = renderToStaticMarkup(<ChampionshipContent data={{
+          ...data, season: 2032, is_final: false, lifecycle,
+        }} category="350cc" theme={theme} />)
+        expect(updated).toContain(lifecycle?.status === 'official_final' ? '2032 · Final standings' : '2032 · Standings · finality unverified')
+        expect(updated.includes('>CHAMPION</span>')).toBe(lifecycle?.status === 'official_final')
+        for (const points of [9, 28, 46]) expect(updated).toContain(`class="strong numeric">${points}</td>`)
+        expect(updated).toContain('does not establish complete race or timing archives')
+      }
+    }
   })
 
   it('identifies independently corrected points and preserves the no-margin guard', () => {

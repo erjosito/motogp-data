@@ -12,7 +12,8 @@ export function PageNotes({ children }: { children: ReactNode }) {
       <h2 id="page-notes-title">Sources, credits &amp; data notes</h2>
       <p>Data: official MotoGP results API, timing PDFs and labeled historical archives.
         Statistics describe the available archive, not certified complete-career totals.
-        Missing values are not zero results. Final standings and standings to date remain distinct.</p>
+        Missing values are not zero results. Confirmed final standings and unverified finality remain distinct;
+        final standings do not establish complete race or timing coverage.</p>
       <p>Profile race numbers use the rider record or latest available classification number;
         Valentino Rossi's identity number is 46. Historical race numbers remain session-specific,
         and riders without a known identity number stay unassigned.</p>

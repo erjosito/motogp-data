@@ -5,6 +5,7 @@
 !sql_connection.py
 !category_scope.py
 !standings_corrections.py
+!season_lifecycle.py
 !rider_profiles.py
 !rider_profiles.reviewed.json
 !circuit_catalog.py

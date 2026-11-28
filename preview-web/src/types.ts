@@ -28,6 +28,19 @@ export interface Rider {
   number_category?: string | null
 }
 
+export interface SeasonLifecycle {
+  status: 'official_final' | 'unknown'
+  evidence: {
+    url: string
+    sha256: string
+    review_note: string
+    confirmed_at: string
+    standings_sha256: string
+    import_kind: string
+    import_sha256: string
+  } | null
+}
+
 export interface RiderSeason {
   season: number
   category: Category
@@ -42,6 +55,7 @@ export interface RiderSeason {
   position: number | null
   points: number | null
   is_final: boolean
+  lifecycle?: SeasonLifecycle
   source_url: string | null
 }
 
@@ -118,6 +132,7 @@ export interface Standing extends Rider {
 }
 
 export interface Championship {
+  lifecycle?: SeasonLifecycle
   season: number
   category: Category
   standings: Standing[]

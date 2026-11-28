@@ -7,7 +7,7 @@ import {
 import { useResource } from './api'
 import { categories, categoryPath, navigationPath, profilePath, seasonCategory, selectedCategory, selectedSeason, selectedView, selectionParams } from './selection'
 import type { Category } from './selection'
-import { bestSectors, cleanLaps, lapSamples, lapTakeaway, lapTime, MARC_ID, median, riderStyle, sectorTakeaway, signed, statisticText } from './data'
+import { bestSectors, cleanLaps, confirmedFinal, lapSamples, lapTakeaway, lapTime, MARC_ID, median, riderStyle, sectorTakeaway, signed, standingsLabel, statisticText } from './data'
 import type { Analysis, Championship, GrandPrix, Lap, Rider, RiderProfile, Session } from './types'
 import type { PlotChartProps } from './PlotChart'
 import { seasonCharts } from './seasonCharts'
@@ -37,14 +37,15 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
   const racing = data.seasons.filter((row) => row.gp_appearances > 0)
   const ranked = data.seasons.filter((row) => row.position != null)
   const titleHero = totals.titles > 0 && ranked.length === data.seasons.length
+  const titlesConfirmed = data.titles.length > 0 && data.titles.every((row) => confirmedFinal(row.lifecycle))
   const heroMetric = titleHero ? 'titles' : totals.gp_wins ? 'gp_wins' : totals.gp_podiums ? 'gp_podiums' : 'gp_appearances'
-  const heroLabel = titleHero ? 'TITLES' : !totals.gp_appearances ? 'SEASON RECORDS' : totals.gp_wins ? 'GP WINS' : totals.gp_podiums ? 'GP PODIUMS' : 'GP APPEARANCES'
+  const heroLabel = titleHero ? titlesConfirmed ? 'TITLES' : 'RANK-ONE SEASONS' : !totals.gp_appearances ? 'SEASON RECORDS' : totals.gp_wins ? 'GP WINS' : totals.gp_podiums ? 'GP PODIUMS' : 'GP APPEARANCES'
   const venueMetric = totals.gp_wins > 0 ? 'wins' : totals.gp_podiums > 0 ? 'podiums' : 'appearances'
   const venueRows = [...data.venues].sort((a, b) => b[venueMetric] - a[venueMetric]).slice(0, 7)
   const seasonLabel = (row: typeof data.seasons[number]) => `${row.season} / ${seasonCategory(row.category, row.season)}`
   const finalRanks = new Map<string, number>()
   for (const row of ranked) {
-    const label = `P${row.position}${row.is_final ? '' : ' (to date)'}`
+    const label = `P${row.position}${confirmedFinal(row.lifecycle) ? '' : ' (unverified)'}`
     finalRanks.set(label, (finalRanks.get(label) ?? 0) + 1)
   }
   return <>
@@ -54,15 +55,16 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
     <section className={`story-card rider-hero ${rider.rider_id === MARC_ID ? 'marc-hero' : ''}`}>
       <div className="rider-visual-header"><RiderVisualContext rider={rider} /><NumberArtworkAccent data={numberArtwork.data} /></div>
       <div className="story-intro"><div className="story-copy"><p className="eyebrow accent">{rider.rider_id === MARC_ID ? 'THE PROTAGONIST' : 'A CAREER IN FOCUS'}</p>
-        <h2>{statisticText(data.headline)}</h2><p>{statisticText(data.summary)}</p>
-        {!!data.titles.length && <p className="eyebrow">TITLE SEASONS</p>}
+        <h2>{!titlesConfirmed && /titles\. One remarkable rider\./.test(data.headline)
+          ? `${data.titles.length} rank-one seasons. One remarkable rider.` : statisticText(data.headline)}</h2><p>{statisticText(data.summary)}</p>
+        {!!data.titles.length && <p className="eyebrow">{titlesConfirmed ? 'TITLE SEASONS' : 'RANK-ONE SEASONS'}</p>}
         <div className="rider-title-years">{data.titles.map((row) => <a key={`${row.season}-${row.category}`}
           href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>
           <Trophy size={13} />{row.season}<span>{seasonCategory(row.category, row.season)}</span></a>)}</div>
         {!data.titles.length && <p>Explore results and championship positions below.</p>}
       </div><div className="comeback-score">
         <span className="eyebrow">{statisticText(heroLabel)}</span><div className="recovery-value">{titleHero || totals.gp_appearances ? totals[heroMetric] : ranked.length}</div>
-        <p>{titleHero ? 'Final rank-one season/class results' : !totals.gp_appearances ? 'Season/class championship positions' : 'Grand Prix'}</p><div className="mini-stats"><div><strong>{new Set(data.seasons.map((row) => row.season)).size}</strong><span>seasons</span></div>
+        <p>{titleHero ? titlesConfirmed ? 'Confirmed final rank-one season/class results' : 'Rank-one records; finality not fully verified' : !totals.gp_appearances ? 'Season/class championship positions' : 'Grand Prix'}</p><div className="mini-stats"><div><strong>{new Set(data.seasons.map((row) => row.season)).size}</strong><span>seasons</span></div>
           <div><strong>{new Set(data.seasons.map((row) => row.category)).size}</strong><span>category families</span></div></div>
       </div></div>
     </section>
@@ -80,7 +82,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
           { id: rider.rider_id, name: 'Wins', type: 'bar', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_wins) },
           { id: 'other-podiums', name: 'Other podiums', type: 'bar', colors: '--cp-text-muted', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_podiums - row.gp_wins) },
         ] : [{ id: rider.rider_id, name: 'GP appearances', type: 'bar', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_appearances) }]} /> : <Plot theme={theme} height={420} yTitle="Official championship rank" rank valueUnit="rank" series={[
-          { id: rider.rider_id, name: rider.rider, type: 'scatter', x: ranked.map((row) => `${seasonLabel(row)}${row.is_final ? '' : ' (to date)'}`), y: ranked.map((row) => row.position) },
+          { id: rider.rider_id, name: rider.rider, type: 'scatter', x: ranked.map((row) => `${seasonLabel(row)}${confirmedFinal(row.lifecycle) ? '' : ' (unverified)'}`), y: ranked.map((row) => row.position) },
         ]} />}
       </section>
       <section className="panel" data-rider-chart="signature"><div className="section-heading"><div><p className="eyebrow">THE SIGNATURE</p>
@@ -98,7 +100,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
         <th title="First-place finishes in available supported Q2 sessions, not complete historical or penalty-adjusted grid poles">Q2 poles</th></tr></thead>
         <tbody>{[...data.seasons].reverse().map((row) => <tr key={`${row.season}-${row.category}`}>
           <td><a href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>{seasonLabel(row)} <ArrowUpRight size={12} /></a></td>
-          <td className="numeric">{row.position == null ? '\u2014' : `P${row.position}${row.is_final ? '' : ' · to date'}`}</td>
+          <td className="numeric">{row.position == null ? '\u2014' : `P${row.position}${confirmedFinal(row.lifecycle) ? ' · final' : ' · finality unverified'}`}</td>
           <td className="numeric">{row.gp_appearances ? row.gp_wins : '\u2014'}</td><td className="numeric">{row.gp_appearances ? row.gp_podiums : '\u2014'}</td>
           <td className="numeric" title={row.gp_poles == null ? 'No supported classified Q2 evidence available'
             : row.gp_poles_q2_events == null ? 'Q2 event coverage unavailable'
@@ -107,7 +109,12 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
       <SourceNote><p>{rider.rider}: {data.summary}</p>
         {rider.number_source === 'latest-classification' && <p>{rider.rider}'s displayed #{rider.number} is the latest available classification number
           {rider.number_season != null ? ` (${rider.number_season}${rider.number_category ? ` / ${rider.number_category}` : ''})` : ''}, not necessarily a permanent career number.</p>}
-        <p>Titles use official final season/class ranks only. Race statistics describe stored classifications across supported classes, not certified complete-career totals. From 1990, only sessions awarding points are counted. Grand Prix and Sprint records remain separate.</p>
+        <p>Confirmed titles require a reviewed matching final standings snapshot. Rank-one season records preserve legacy championship positions without treating their imported final flags as proof. Race statistics describe stored classifications across supported classes, not certified complete-career totals. From 1990, only sessions awarding points are counted. Grand Prix and Sprint records remain separate.</p>
+        {data.seasons.map((row) => {
+          const evidence = row.lifecycle?.evidence
+          return confirmedFinal(row.lifecycle) && evidence ? <p key={`final-${row.season}-${row.category}`}>
+            {seasonLabel(row)} · <a href={evidence.url} target="_blank" rel="noreferrer">Finality evidence</a> · {evidence.review_note}</p> : null
+        })}
         <p>Q2 poles count first-place finishes in available classified Q2 sessions: MotoGP from 2013 and Moto2/Moto3 from 2019.
           Imports may be partial; these are not complete historical or penalty-adjusted starting-grid pole totals.
           Zero requires Q2 evidence; {'\u2014'} means unavailable. Each pole cell identifies this rider's available Q2 event count, not all Grand Prix weekends.</p>
@@ -239,11 +246,17 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
   const pointsWarning = data.official_points_inconsistent || Boolean(data.points_warning)
   const featured = !pointsWarning && category === 'premier' && season === 2026 && story?.verified_102
   const official = data.standings_source === 'official'
-  const final = official && data.is_final
-  const officialLabel = final ? 'Final standings' : 'Standings to date'
-  const narrative = data.story
+  const final = official && confirmedFinal(data.lifecycle)
+  const officialLabel = standingsLabel(data.lifecycle)
   const marc = data.standings.find((rider) => rider.rider_id === MARC_ID)
   const leader = data.standings[0]
+  const narrative = official && !final && ['close-finish', 'tie-break'].includes(data.story.kind) ? {
+    ...data.story, headline: `${leader.rider}: officially ranked first.`,
+    accent: 'Official standings, in source order.',
+    summary: 'Official positions and scores are preserved. Finality has not been verified.',
+    metric_label: 'OFFICIAL RANK', metric: leader.position,
+    metric_note: 'Official rank; finality unverified',
+  } : data.story
   const storyRider = featured && marc ? marc : leader
   const last = data.rounds.at(-1)
   const gap = story ? story.current_margin : 0
@@ -268,8 +281,9 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
         <div className="comeback-score">
           <span className="eyebrow">{statisticText(narrative.metric_label)}</span>
           <div className="recovery-value">{narrative.metric}<ArrowUpRight size={35} aria-hidden="true" /></div>
-          <p>{statisticText(narrative.metric_note)}</p>
-          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{final ? 'final rank' : 'rank to date'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>points</span></div></div>
+          <p>{official && !final && narrative.metric_label === 'OFFICIAL RANK'
+            ? 'Official rank; finality unverified' : statisticText(narrative.metric_note)}</p>
+          <div className="mini-stats"><div><strong>P{featured && marc ? marc.position : leader.position}</strong><span>{final ? 'final rank' : 'rank · finality unverified'}</span></div><div><strong>{featured && marc ? marc.points : leader.points}</strong><span>points</span></div></div>
         </div>
       </div>
       {featured && story && <div className="story-chart" data-season-chart="gap" data-chart-kind="line">
@@ -294,7 +308,7 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
     <div className="stats-grid">
       <Stat label={final ? 'OFFICIAL CHAMPION' : 'CHAMPIONSHIP LEADER'} value={leader.rider} note={pointsWarning ? `${leader.points} points` : `${leader.points} points${leader.wins == null ? '' : ` · ${leader.wins} imported Grand Prix wins`}`} />
       {pointsWarning ? <Stat label="OFFICIAL RANK" value={`P${leader.position}`} note="Position in the official standings" /> : <Stat label={featured ? 'MÁRQUEZ / THE GAP' : 'LEAD OVER SECOND'} value={featured ? marginLabel : data.standings[1]?.gap == null ? '—' : `${data.standings[1].gap} pts`} note={featured ? 'Relative to the closest title rival' : official ? `From ${officialLabel.toLowerCase()}` : 'Calculated from imported results'} />}
-      <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'final' : 'current'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
+      <Stat label={official ? 'OFFICIAL CLASSIFICATION' : 'SCORING WEEKENDS'} value={official ? data.standings.length : data.weekends} note={official ? `Riders in the ${final ? 'final' : 'available'} standings` : `${data.gp_results} GP race results · ${data.scoring_sessions} scoring sessions`} />
     </div>
 
     {!featured && <div className="season-chart-grid" data-story-layout={visual.layout}>{visual.charts.map((chart) =>
@@ -316,6 +330,10 @@ export function ChampionshipContent({ data, category, theme }: { data: Champions
       </DetailSection>
     </div>
     {official && leader.source_url && <SourceNote><p><a href={leader.source_url} target="_blank" rel="noreferrer">{season} · official championship source</a></p></SourceNote>}
+    <SourceNote><p>Championship finality is {final ? 'confirmed for the matching reviewed standings snapshot' : 'not verified'}.
+      It does not establish complete race or timing archives, or certify independently corrected scores.</p>
+      {final && data.lifecycle?.evidence && <p><a href={data.lifecycle.evidence.url} target="_blank" rel="noreferrer">Finality evidence</a> ·
+        {data.lifecycle.evidence.review_note} · reviewed {data.lifecycle.evidence.confirmed_at}</p>}</SourceNote>
   </>
 }
 

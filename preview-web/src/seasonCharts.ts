@@ -1,4 +1,4 @@
-import { MARC_ID, riderStyle } from './data'
+import { confirmedFinal, MARC_ID, riderStyle } from './data'
 import type { ChartSeries } from './PlotChart'
 import type { Championship, Standing } from './types'
 
@@ -27,7 +27,7 @@ function pointsBars(data: Championship): SeasonChart {
     id: 'points', title: 'The points that set them apart',
     description: 'The leading ten, in the preserved championship order.',
     note: data.standings_source === 'official'
-      ? `Official ${data.is_final ? 'final' : 'to-date'} points; period counting rules and decimal totals are preserved.`
+      ? `Official ${confirmedFinal(data.lifecycle) ? 'final' : 'snapshot'} points; period counting rules and decimal totals are preserved.`
       : 'Imported championship totals; unrecorded results or adjustments are not included.',
     kind: 'bar', xTitle: 'Championship points', yTitle: '',
     series: [{

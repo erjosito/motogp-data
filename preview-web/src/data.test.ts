@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestSectors, categoryTicks, cleanLaps, lapSamples, lapTakeaway, lapTime, sectorTakeaway, statisticText } from './data'
+import { bestSectors, categoryTicks, cleanLaps, confirmedFinal, lapSamples, lapTakeaway, lapTime, sectorTakeaway, standingsLabel, statisticText } from './data'
 import type { Lap } from './types'
 
 function lap(rider: string, time: number | null, pit = false): Lap {
@@ -11,6 +11,13 @@ function lap(rider: string, time: number | null, pit = false): Lap {
 }
 
 describe('lap comparison data', () => {
+  it('never treats missing lifecycle evidence or an unknown status as confirmed finality', () => {
+    expect(confirmedFinal()).toBe(false)
+    expect(confirmedFinal({ status: 'unknown', evidence: null })).toBe(false)
+    expect(confirmedFinal({ status: 'official_final', evidence: null })).toBe(false)
+    expect(standingsLabel()).toBe('Standings · finality unverified')
+    expect(statisticText('At that point in the season, 9 points behind.')).toContain('At that point in the season')
+  })
   it('simplifies statistic qualifiers without changing counts, units, timing or final/to-date scope', () => {
     expect(statisticText('OFFICIAL TITLES RECORDED')).toBe('TITLES')
     expect(statisticText('15 recorded titles. One remarkable rider.')).toBe('15 titles. One remarkable rider.')
