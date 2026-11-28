@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { CircuitGraphic, NumberMark, RiderIdentity, RiderNumber, RiderVisualContext } from './VisualContext'
+import { CircuitGraphic, NumberArtworkAccent, NumberMark, RiderIdentity, RiderNumber, RiderVisualContext } from './VisualContext'
 import * as api from './api'
 import type { CircuitContextData, RiderEnrichment } from './VisualContext'
 
@@ -13,6 +13,20 @@ const enrichment: RiderEnrichment = {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('rider visual context', () => {
+  it('uses only selected artwork for the noninteractive decorative accent, never a plain-number fallback', () => {
+    vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
+    const html = renderToStaticMarkup(<NumberArtworkAccent data={{ artwork: [
+      { season: 2011, category: 'Moto2', number: 93, url: '/api/numbers/old', source_url: 'https://example.com/art' },
+      { season: 2024, category: 'MotoGP', number: 93, url: '/api/numbers/latest', source_url: 'https://example.com/art' },
+    ] }} />)
+    expect(html).toContain('class="number-artwork-accent" aria-hidden="true"')
+    expect(html).toContain('src="/paddock/api/numbers/latest" alt="" draggable="false"')
+    expect(html).not.toContain('/api/numbers/old')
+    expect(html).not.toContain('aria-label')
+    expect(html).not.toContain('<a ')
+    expect(renderToStaticMarkup(<NumberArtworkAccent data={{ artwork: [] }} />)).toBe('')
+    expect(renderToStaticMarkup(<NumberArtworkAccent />)).toBe('')
+  })
   it('requests stable rider identity art even when the classification number is missing', () => {
     vi.stubGlobal('window', { location: { pathname: '/paddock/' } })
     const request = vi.spyOn(api, 'useResource').mockReturnValue({

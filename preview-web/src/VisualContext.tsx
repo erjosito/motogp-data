@@ -21,10 +21,26 @@ export interface NumberArtwork {
 
 interface NumberScope { rider: Rider; season?: number; category?: Category; fallback?: ReactNode }
 
+function selectedNumberArtwork(data?: NumberArtwork | null) {
+  return [...(data?.artwork ?? [])].sort((a, b) => b.season - a.season
+    || a.category.localeCompare(b.category) || a.number - b.number || a.url.localeCompare(b.url))[0]
+}
+
+export function NumberArtworkAccent({ data }: { data?: NumberArtwork | null }) {
+  const [failedImage, setFailedImage] = useState<string | null>(null)
+  const item = selectedNumberArtwork(data)
+  if (!item || failedImage === item.url) return null
+  return <div className="number-artwork-accent" aria-hidden="true">
+    <img src={appPath(item.url)} alt="" draggable={false} onError={() => {
+      console.error('Decorative number artwork could not be loaded')
+      setFailedImage(item.url)
+    }} />
+  </div>
+}
+
 export function NumberMark({ rider, data, fallback }: NumberScope & { data?: NumberArtwork | null }) {
   const [failedImage, setFailedImage] = useState<string | null>(null)
-  const item = [...(data?.artwork ?? [])].sort((a, b) => b.season - a.season
-    || a.category.localeCompare(b.category) || a.number - b.number || a.url.localeCompare(b.url))[0]
+  const item = selectedNumberArtwork(data)
   const failed = item && failedImage === item.url
   return <>
     {item && !failed ? <img className="number-mark" src={appPath(item.url)}
