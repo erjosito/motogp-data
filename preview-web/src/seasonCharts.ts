@@ -7,7 +7,7 @@ export interface SeasonChart {
   title: string
   description: string
   note: string
-  kind: 'line' | 'bar' | 'bridge' | 'scatter' | 'doughnut' | 'lollipop' | 'stacked'
+  kind: 'line' | 'bar' | 'bridge' | 'scatter' | 'doughnut' | 'lollipop' | 'stacked' | 'comparison'
   series: ChartSeries[]
   yTitle: string
   xTitle?: string
@@ -46,11 +46,12 @@ function margins(data: Championship): SeasonChart {
     id: 'margins', title: 'How close was the field?',
     description: 'Each gap is measured against the rider ranked first, not against the next rider.',
     note: 'Equal points remain equal. Gaps never replace the official ranks or imply a race-by-race history.',
-    kind: 'lollipop', xTitle: 'Points behind the top-ranked rider', yTitle: 'Championship rank', rank: true,
-    series: riders.map((rider) => ({
-      id: rider.rider_id, name: rider.rider, x: [0, rider.gap], y: [rider.position, rider.position],
-      hovertemplate: '%{x:,.3~f} points behind<extra>%{fullData.name}</extra>',
-    })),
+    kind: 'bar', xTitle: 'Gap to first (points)', yTitle: '',
+    series: [{ id: riders[0].rider_id, name: 'Gap to first', type: 'bar', orientation: 'h', showValues: true,
+      x: riders.map((rider) => rider.gap), y: riders.map((rider) => `P${rider.position} ${rider.rider}`),
+      text: riders.map((rider) => rider.rider), colors: riders.map((rider) => riderStyle(rider.rider_id).token),
+      hovertemplate: '%{y}<br>%{x:,.3~f} points behind<extra></extra>',
+    }],
   }
 }
 
@@ -208,11 +209,14 @@ export function seasonCharts(data: Championship): { layout: string; charts: [Sea
     }] }
   }
   if (second && second.gap != null && (kind === 'tie-break' || kind === 'close-finish' || second.gap <= 10)) {
+    const historical = official && data.season < 1990 && data.rounds.length === 0
     return { layout: kind === 'tie-break' || second.gap === 0 ? 'tie-break' : 'close-finish', charts: [{
-      id: 'leading-pair', title: second.gap === 0 ? 'Same points. Different ranks.' : 'The separation at the top',
+      id: 'leading-pair', title: second.gap === 0
+        ? leader.position === second.position ? 'Same points. Shared rank.' : 'Same points. Different ranks.'
+        : 'The separation at the top',
       description: official ? 'The official leading pair, with their ranks left intact.' : 'The leading pair in the imported standings.',
       note: official ? 'These are official positions, not a tie-break recalculated from the incomplete race archive.' : 'Imported totals; the comparison does not certify final championship positions.',
-      kind: 'scatter', xTitle: 'Championship points', yTitle: 'Championship rank', rank: true,
+      kind: historical ? 'comparison' : 'scatter', xTitle: 'Championship points', yTitle: 'Championship rank', rank: true,
       series: [leader, second].map((rider) => ({
         id: rider.rider_id, name: rider.rider, type: 'scatter', x: [rider.points], y: [rider.position],
         hovertemplate: '%{x:,.3~f} points<br>Rank %{y}<extra>%{fullData.name}</extra>',

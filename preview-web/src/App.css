@@ -118,6 +118,16 @@ main { flex: 1; padding: 32px 40px 48px; max-width: 1600px; width: 100%; margin:
 .season-chart-grid[data-story-layout="close-finish"], .season-chart-grid[data-story-layout="tie-break"] { grid-template-columns: 1fr 1.25fr; }
 .season-chart-panel .section-heading { align-items: start; }
 .chart-type { text-transform: capitalize; font-size: 9px; }
+.score-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 32px 0; }
+.score-comparison > div { border-left: 3px solid var(--cp-accent); padding-left: 16px; }
+.score-comparison h3 { font-size: 20px; margin: 10px 0; overflow-wrap: anywhere; }
+.score-comparison strong { display: block; font-size: 48px; font-variant-numeric: tabular-nums; }
+.score-comparison > div > span:last-child { color: var(--cp-text-muted); font-size: 12px; }
+.timing-labels { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
+.timing-labels > div { border-left: 3px solid var(--cp-accent); padding: 4px 12px; flex: 1 1 190px; min-width: 0; }
+.timing-labels .rider-name { flex-wrap: wrap; }
+.timing-labels > div > span, .timing-labels > div > strong { display: block; margin-top: 6px; font-size: 12px; }
+.timing-labels > div > span { color: var(--cp-text-muted); }
 .standings-section .standings-table { white-space: normal; }
 @media (max-width: 1100px) {
   .season-chart-grid, .season-chart-grid[data-story-layout] { grid-template-columns: minmax(0, 1fr); }
