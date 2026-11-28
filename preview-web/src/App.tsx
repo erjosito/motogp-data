@@ -75,7 +75,7 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
         <p>{racing.length ? totals.gp_podiums ? 'GP wins and other podiums, season by season and class by class.' : 'Grand Prix appearances, season by season and class by class.' : 'Championship positions, season by season.'}</p></div></div>
         {racing.length ? <Plot theme={theme} height={420} yTitle={totals.gp_podiums ? 'GP podiums' : 'GP appearances'} valueUnit={totals.gp_podiums ? 'podiums' : 'appearances'} stacked series={totals.gp_podiums ? [
           { id: rider.rider_id, name: 'Wins', type: 'bar', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_wins) },
-          { id: 'other-podiums', name: 'Other podiums', type: 'bar', colors: ['--cp-text-muted'], x: racing.map(seasonLabel), y: racing.map((row) => row.gp_podiums - row.gp_wins) },
+          { id: 'other-podiums', name: 'Other podiums', type: 'bar', colors: '--cp-text-muted', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_podiums - row.gp_wins) },
         ] : [{ id: rider.rider_id, name: 'GP appearances', type: 'bar', x: racing.map(seasonLabel), y: racing.map((row) => row.gp_appearances) }]} /> : <Plot theme={theme} height={420} yTitle="Official championship rank" rank valueUnit="rank" series={[
           { id: rider.rider_id, name: rider.rider, type: 'scatter', x: ranked.map((row) => `${seasonLabel(row)}${row.is_final ? '' : ' (to date)'}`), y: ranked.map((row) => row.position) },
         ]} />}
@@ -91,13 +91,23 @@ export function RiderProfileContent({ data, params, theme }: { data: RiderProfil
       </section>
     </div>
     <DetailSection title="season-by-season record" note={`${data.seasons.length} season/class records`}><div className="section-heading"><div><p className="eyebrow">CHAPTER BY CHAPTER</p><h2>The season record</h2><p>Open any season to explore the title fight.</p></div></div>
-      <div className="table-scroll"><table><thead><tr><th>Season / class</th><th>Rank</th><th>GP wins</th><th>GP podiums</th></tr></thead>
+      <div className="table-scroll"><table><thead><tr><th>Season / class</th><th>Rank</th><th>GP wins</th><th>GP podiums</th>
+        <th title="First-place finishes in available supported Q2 sessions, not complete historical or penalty-adjusted grid poles">Q2 poles</th></tr></thead>
         <tbody>{[...data.seasons].reverse().map((row) => <tr key={`${row.season}-${row.category}`}>
           <td><a href={profilePath(params, { view: 'championship', season: String(row.season), category: row.category })}>{seasonLabel(row)} <ArrowUpRight size={12} /></a></td>
           <td className="numeric">{row.position == null ? '\u2014' : `P${row.position}${row.is_final ? '' : ' · to date'}`}</td>
           <td className="numeric">{row.gp_appearances ? row.gp_wins : '\u2014'}</td><td className="numeric">{row.gp_appearances ? row.gp_podiums : '\u2014'}</td>
+          <td className="numeric" title={row.gp_poles == null ? 'No supported classified Q2 evidence available'
+            : row.gp_poles_q2_events == null ? 'Q2 event coverage unavailable'
+            : `${row.gp_poles_q2_events} available classified Q2 events for this rider; imports may be partial`}>{row.gp_poles ?? '\u2014'}</td>
         </tr>)}</tbody></table></div>
-      <SourceNote><p>{rider.rider}: {data.summary}</p><p>Titles use official final season/class ranks only. Race statistics describe stored classifications across supported classes, not certified complete-career totals. From 1990, only sessions awarding points are counted. Grand Prix and Sprint records remain separate.</p>
+      <SourceNote><p>{rider.rider}: {data.summary}</p>
+        {rider.number_source === 'latest-classification' && <p>{rider.rider}'s displayed #{rider.number} is the latest available classification number
+          {rider.number_season != null ? ` (${rider.number_season}${rider.number_category ? ` / ${rider.number_category}` : ''})` : ''}, not necessarily a permanent career number.</p>}
+        <p>Titles use official final season/class ranks only. Race statistics describe stored classifications across supported classes, not certified complete-career totals. From 1990, only sessions awarding points are counted. Grand Prix and Sprint records remain separate.</p>
+        <p>Q2 poles count first-place finishes in available classified Q2 sessions: MotoGP from 2013 and Moto2/Moto3 from 2019.
+          Imports may be partial; these are not complete historical or penalty-adjusted starting-grid pole totals.
+          Zero requires Q2 evidence; {'\u2014'} means unavailable. Each pole cell identifies this rider's available Q2 event count, not all Grand Prix weekends.</p>
         <ul>{data.seasons.filter((row) => row.source_url).map((row) => <li key={`${row.season}-${row.category}`}><a href={row.source_url!} target="_blank" rel="noreferrer">{rider.rider} · {seasonLabel(row)} standings</a></li>)}</ul>
       </SourceNote>
     </DetailSection>

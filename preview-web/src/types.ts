@@ -23,6 +23,9 @@ export interface Rider {
   rider_id: string
   rider: string
   number: number | null
+  number_source?: 'rider-record' | 'latest-classification' | 'reviewed-identity' | null
+  number_season?: number | null
+  number_category?: string | null
 }
 
 export interface RiderSeason {
@@ -31,6 +34,9 @@ export interface RiderSeason {
   gp_appearances: number
   gp_wins: number
   gp_podiums: number
+  gp_poles?: number | null
+  gp_poles_q2_events?: number
+  gp_poles_method?: 'recorded_q2_wins'
   sprint_wins: number
   sprint_appearances: number
   position: number | null
