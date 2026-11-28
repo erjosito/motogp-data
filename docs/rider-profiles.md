@@ -19,9 +19,9 @@ These are undocumented upstream APIs, not a stability or completeness guarantee.
 No open license for the official photography or number artwork was established.
 The [existing data-rights notice](data-rights.json) still applies: public access
 alone is not permission to redistribute, crop, remove backgrounds or display an
-image. The user subsequently stated that they obtained permission to use the
-number artwork supplied in their local bundle; no open license, public Git
-redistribution grant, or specific adaptation terms have been established.
+image. The user subsequently stated that they made the supplied artwork and
+that it is free to use. The supplied manifest records official source URLs;
+no specific open-license identifier or adaptation terms were supplied.
 
 ## Reproduce the local catalog
 
@@ -114,10 +114,10 @@ distinctive artwork or typography.
 
 ## User-supplied number artwork
 
-The user supplied original PNGs and stated they obtained permission to use
-the rider artwork. This does not establish an open license or authorize
-publishing the original files in the public Git repository. The files are
-preserved unchanged in a Git-ignored private bundle, separate from the
+The user supplied the PNGs and stated, "I did the artwork myself, it is free
+to use." The supplied manifest also records official source URLs. No specific
+open-license identifier was supplied. The files are preserved unchanged in a
+Git-ignored private bundle, separate from the
 unreviewed official profile media references and from portrait rights.
 Source links are shown with each design; any additional conditions of the
 permission still need to be recorded if supplied.
@@ -134,11 +134,16 @@ profile-to-results UUID links, legacy IDs, source paths, PNGs, lengths and
 SHA-256 hashes. It stores deduplicated originals and a catalog without local
 source paths. An explicitly configured `MOTOGP_RIDER_NUMBERS` points to an
 alternative private bundle directory; missing or corrupt configured content
-is an error. With no default bundle, artwork is simply unavailable. Multiple
-different images for the same rider, season, class and number are withheld.
+is an error. With no default bundle, artwork is simply unavailable. Exact-scope
+requests with multiple different images for the same rider, season, class and
+number are withheld; rider-identity display can choose one deterministically.
 MotoE entries are retained but are not displayed because that class is not
 covered by the app. Each displayed item is labeled with its own season and
 class, never substituted as current artwork for a different year.
+When the source includes unmatched profile IDs or legacy category-3 entries
+with unknown class and number, `--hold-unmatched` records them in `held` with
+the reason instead of including them in the displayable catalog. Without this
+option, the command rejects the bundle.
 
 For this small bundle, private container-image packaging is simpler than
 placing image blobs in SQL. The Docker build contexts include the bundle if
@@ -287,8 +292,19 @@ and biography source. The photo appears only for the selected 2026 season when
 the filtered records include MotoGP; All-career, older-year, other-class and
 unpictured views use initials without changing the existing career analytics.
 Creator/source/license/adaptation credits remain visible below the photo.
-Classic packages only the reviewed factual file, approved media metadata and
-the two small WebPs/license notice, never the source package or full local catalog.
+Number artwork can also sit beside the profile name, without removing the
+existing scoped gallery. It is rider identity, not season-specific evidence:
+`read_identity_number(results_rider_id)` uses the latest available design for
+that stable rider ID, independently of the selected year/class or absent race
+numbers. Multiple latest designs have a deterministic category/number/hash
+tie-break so the display does not flicker. Its actual year/class/source remain
+visibly labeled as a reference, not as the artwork used in the selected race.
+The helper verifies the chosen bytes and does not change portrait rights or
+the exact-scope `read_number` / gallery rules. Missing artwork leaves the existing
+name/initials unchanged.
+Classic packages the reviewed factual file, approved media metadata, the two
+small WebPs/license notice and the separately staged user-supplied number bundle,
+never the portrait source package or full local biography catalog.
 Invalid configured enrichment or packaged-media integrity errors are reported,
 not silently presented as an ordinary unpictured rider.
 

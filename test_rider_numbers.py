@@ -124,6 +124,19 @@ class NumberArtworkTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             list_numbers(RIDER, bundle=self.root / "missing")
 
+    def test_explicit_hold_keeps_unmatched_and_unknown_scope_out_of_display(self):
+        unknown = {**self.row, "category": "dorsales-legacy-3", "number": None}
+        unmatched = {**self.row, "rider_id": "00000000-0000-0000-0000-000000000001"}
+        (self.source / "manifest.json").write_text(
+            json.dumps({"files": [self.row, unknown, unmatched]}), encoding="utf-8"
+        )
+        with patch("stage_rider_numbers.identity_links", return_value={PROFILE: {"rider_id": RIDER, "legacy_id": 1}}):
+            self.assertEqual(stage(self.source, self.bundle, self.root / "cache", hold_unmatched=True), (1, 1))
+        catalog = json.loads((self.bundle / "catalog.json").read_text(encoding="utf-8"))
+        self.assertEqual([item["reason"] for item in catalog["held"]],
+                         ["unknown_class_and_number", "no_unambiguous_results_id"])
+        self.assertEqual(len(list_numbers(RIDER, bundle=self.bundle)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

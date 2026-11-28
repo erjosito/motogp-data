@@ -195,9 +195,9 @@ class DashboardTests(unittest.TestCase):
     def test_paddock_link_is_available_in_the_sidebar_in_each_language(self):
         app = self.start_app()
         for language, label in [
-            ("🇬🇧 English", "Open Paddock (React)"),
-            ("🇪🇸 Español", "Abrir Paddock (React)"),
-            ("🇮🇹 Italiano", "Apri Paddock (React)"),
+            ("🇬🇧 English", "Open Paddock App"),
+            ("🇪🇸 Español", "Abrir la app Paddock"),
+            ("🇮🇹 Italiano", "Apri l'app Paddock"),
         ]:
             app.selectbox(key="language").select(language).run()
             self.assertFalse(app.exception)
@@ -339,6 +339,80 @@ class DashboardTests(unittest.TestCase):
             self.assertIn("2026 · MotoGP · #12", " ".join(c.value for c in app.caption))
             app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
             self.assertFalse(app.get("image"))
+
+    def test_number_identity_is_beside_name_across_selected_years_and_classes(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        assets = [
+            {"season": year, "category": "MotoGP", "number": 12,
+             "source_url": f"https://example.test/number-{year}.png"}
+            for year in (2024, 2026)
+        ]
+
+        def artwork(rider_id, season, categories):
+            return [(asset, image.getvalue()) for asset in assets
+                    if rider_id == "sample-rider" and (season is None or asset["season"] == season)
+                    and asset["category"] in categories]
+
+        def identity(rider_id):
+            return (assets[-1], image.getvalue()) if rider_id == "sample-rider" else None
+
+        with patch("rider_numbers.list_numbers", side_effect=artwork), \
+                patch("rider_numbers.read_identity_number", side_effect=identity):
+            app = self.start_app()
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+            self.assertFalse(app.exception)
+            facts = app.get("column")[1]
+            self.assertEqual(len(facts.get("image")), 1)
+            self.assertIn("Sample Rider 1", [header.value for header in facts.get("subheader")])
+            self.assertIn("Number design reference: 2026 · MotoGP · #12",
+                          " ".join(c.value for c in facts.get("caption")))
+            self.assertEqual(len(app.get("image")), 3)  # Title plus the existing two-design gallery.
+            app.selectbox(key="pp_yr").set_value(2025).run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            self.assertIn("Number design reference: 2026 · MotoGP · #12",
+                          " ".join(c.value for c in app.get("column")[1].get("caption")))
+            app.selectbox(key="pp_yr").set_value(2026).run()
+            self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            app.multiselect(key="profile_categories").set_value(["Moto2"]).run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            app.selectbox(key="profile_rider").set_value("sample-rider-2").run()
+            self.assertFalse(app.get("image"))
+
+    def test_number_identity_does_not_require_a_classification_or_registered_number(self):
+        image = io.BytesIO()
+        Image.new("RGBA", (30, 12), "red").save(image, format="PNG")
+        assets = [{"season": 2026, "category": category, "number": 12,
+                   "source_url": "https://example.test/number.png"} for category in ("Moto2", "MotoGP")]
+
+        def artwork(rider_id, season, categories):
+            return [(asset, image.getvalue()) for asset in assets
+                    if rider_id == "sample-rider" and (season is None or asset["season"] == season)
+                    and asset["category"] in categories]
+
+        def unknown_number_query(sql, conn=None, params=None):
+            rows = sample_query(sql, conn, params)
+            if "SELECT e.season_year, e.short_name, e.date_end, s.session_type" in sql:
+                rows["rider_number"] = None
+            return rows
+
+        def identity(rider_id):
+            return (assets[1], image.getvalue()) if rider_id == "sample-rider-2" else None
+
+        self.read_sql.side_effect = unknown_number_query
+        with patch("rider_numbers.list_numbers", side_effect=artwork), \
+                patch("rider_numbers.read_identity_number", side_effect=identity):
+            app = self.start_app()
+            app.selectbox(key="nav_group").set_value("nav_riders").run()
+            self.assertFalse(app.exception)
+            app.selectbox(key="profile_rider").set_value("sample-rider-2").run()
+            self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            app.selectbox(key="pp_yr").set_value(2026).run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.get("column")[1].get("image")), 1)
+            self.assertEqual(len(app.get("image")), 1)
 
     def test_legacy_named_rider_preference_preserves_unique_identity_filters(self):
         app = self.start_app()
@@ -945,6 +1019,33 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.warning)
         self.assertFalse(app.get("plotly_chart"))
         self.assertEqual(supplied["points"].tolist(), [9, 28, 46])
+
+    def test_1970_350cc_uses_sourced_corrections_without_mutating_official_data(self):
+        supplied = pd.DataFrame({
+            "position": [1, 2, 3], "rider": ["Agostini", "Carruthers", "Pasolini"],
+            "rider_id": ["ea0101ee-6b38-4d39-a466-fa83d2e1b36f",
+                         "b3668951-07a4-43f1-962a-8c4fde9dfe7a", "pasolini"],
+            "points": [9, 28, 46], "constructor": ["Bike"] * 3,
+            "is_final": [True] * 3, "source_url": [None] * 3,
+        })
+
+        def historical_query(sql, conn=None, params=None):
+            if "SELECT DISTINCT season_year" in sql:
+                return pd.DataFrame({"season_year": [1970]})
+            if "SELECT cs.position" in sql and category_sql("350cc", "cs.category") in sql:
+                return supplied.copy()
+            return sample_query(sql, conn, params)
+
+        self.read_sql.side_effect = historical_query
+        app = self.start_app()
+        app.selectbox(key="sb_category").set_value("350cc").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.dataframe[0].value["Points"].tolist(), [90, 58, 46])
+        self.assertIn("best six", " ".join(c.value for c in app.caption))
+        self.assertIn("wikipedia.org", " ".join(c.value for c in app.caption))
+        self.assertNotIn(get_translator("en")("historical_standings_method"), [c.value for c in app.caption])
+        self.assertEqual(supplied["points"].tolist(), [9, 28, 46])
+        self.assertFalse(app.get("plotly_chart"))
 
     def test_flagged_finals_suppress_modern_gaps_progression_and_title_margins(self):
         def anomaly_query(sql, conn=None, params=None):
